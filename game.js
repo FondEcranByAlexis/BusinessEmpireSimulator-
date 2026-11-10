@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.5.6 — ordinateur de caisse interactif
+// Business Empire Simulator V0.5.7 — orientation de la caisse corrigée
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -274,11 +274,11 @@ function refreshDisplays(){
 }
 cube(6.5,.55,6.5,3,1.1,1.3,0x475569,true);
 cube(6.5,1.13,6.5,3.1,.12,1.4,0x1e293b);
+// Écran et clavier côté employé (vers l'entrée, z positif), pas côté rayons.
 cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
-cube(7.3,1.5,6.37,.48,.3,.05,0x38bdf8);
-const terminalScreen=cube(7.3,1.5,6.33,.48,.3,.045,0x22c55e);
+const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
-const terminalKeyboard=cube(7.3,1.22,6.13,.65,.035,.24,0x94a3b8);
+const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
 cube(-7.5,.1,6.5,3,.2,2.5,0x8b5e3c);
 // Représentation 3D : jusqu'à 3 cartons par produit, plus un lot ouvert
 const boxes={},reserveModels={};
@@ -594,4 +594,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.5.6 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.5.7 !");
