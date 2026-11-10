@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.5.1 — journée de 30 minutes
+// Business Empire Simulator V0.5.2 — horloge sur ouverture et fermeture automatique
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -480,27 +480,44 @@ function updateCustomers(dt){
  }
 }
 const openButton=$("openShop");
-function updateOpen(){openButton.textContent=shopOpen?"Fermer le magasin":"Ouvrir le magasin";updateTime();}
+let dayStarted=false,closing=false;
+function updateOpen(){
+ openButton.textContent=shopOpen?"Fermer le magasin":closing?"Fermeture en cours":"Ouvrir le magasin";
+ openButton.disabled=closing;
+ updateTime();
+}
 openButton.addEventListener("click",()=>{
- if(shopOpen){shopOpen=false;updateOpen();toast("Fermé aux nouveaux clients");return;}
- if(state.hour>=CLOSE_HOUR){toast("Journée terminée : attends le lendemain");return;}
- shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert");
+ if(closing){toast("Attends le départ des derniers clients");return;}
+ if(shopOpen){
+  shopOpen=false;updateOpen();toast("Fermé aux nouveaux clients");return;
+ }
+ if(state.hour>=CLOSE_HOUR){toast("Fermeture à 20 h");return;}
+ dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert");
 });
 function business(dt){
- // Horloge continue pendant la journée, même si le magasin est fermé.
- dayTimer+=dt;
- state.hour=OPEN_HOUR+Math.min(dayTimer/DAY_SECONDS,1)*(CLOSE_HOUR-OPEN_HOUR);
- if(shopOpen){
-  spawnTimer-=dt;
-  if(spawnTimer<=0&&customers.length<MAX_CUSTOMERS){
-   makeCustomer();spawnTimer=7+Math.random()*5;
+ // À 8 h, l'horloge reste arrêtée jusqu'à la première ouverture.
+ if(!dayStarted){state.hour=OPEN_HOUR;updateTime();return;}
+ if(!closing){
+  dayTimer=Math.min(DAY_SECONDS,dayTimer+dt);
+  state.hour=OPEN_HOUR+(dayTimer/DAY_SECONDS)*(CLOSE_HOUR-OPEN_HOUR);
+  if(shopOpen&&state.hour<CLOSE_HOUR){
+   spawnTimer-=dt;
+   if(spawnTimer<=0&&customers.length<MAX_CUSTOMERS){
+    makeCustomer();spawnTimer=7+Math.random()*5;
+   }
+  }
+  if(dayTimer>=DAY_SECONDS){
+   state.hour=CLOSE_HOUR;shopOpen=false;closing=true;
+   updateOpen();toast("20 h : magasin fermé, fin des passages en caisse");
   }
  }
- if(dayTimer>=DAY_SECONDS){
+ // Les clients déjà présents terminent leurs achats et passent en caisse.
+ if(closing&&customers.length===0&&queue.length===0&&!cashier){
   dayTimer=0;state.hour=OPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
-  shopOpen=false;updateOpen();sync();
-  toast("Jour "+state.day+" : charges "+euro(DAILY_CHARGES));
+  dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
+  updateOpen();sync();
+  toast("Jour "+state.day+" — 8 h : préparation libre, charges "+euro(DAILY_CHARGES));
  }
  updateTime();
 }
@@ -515,4 +532,4 @@ function animate(){
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  movePlayer(dt);business(dt);updateCustomers(dt);renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.5.1 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.5.2 !");
