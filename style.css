@@ -274,3 +274,39 @@ button {
 }
 @media(max-width:600px){#joystick{width:118px;height:118px}}
 @media(max-height:450px){#joystick{width:92px;height:92px}}
+
+/* V0.7.8 : interface pensée pour le jeu en paysage */
+#rotateOverlay{display:none;position:fixed;inset:0;z-index:100;
+ background:#101820f5;color:#fff;align-items:center;justify-content:center;text-align:center;padding:24px}
+.rotateContent{max-width:340px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.rotateIcon{font-size:64px;color:#38bdf8;line-height:1}
+.rotateContent strong{font-size:23px}
+.rotateContent p{font-size:14px;color:#cbd5e1;line-height:1.45}
+#startLandscape{padding:12px 18px;border-radius:10px;background:#2563eb;font-weight:bold}
+#fullscreenLandscape{position:fixed;right:12px;bottom:12px;z-index:15;
+ padding:7px 10px;background:#1e293bcf;border:1px solid #64748b;border-radius:8px;font-size:11px}
+@media (orientation:portrait) and (max-width:900px){
+ #rotateOverlay{display:flex}
+ #fullscreenLandscape{display:none}
+}
+@media (orientation:landscape){
+ #controls{bottom:max(10px,env(safe-area-inset-bottom));left:22px;right:22px}
+ #joystick{width:112px;height:112px}
+ .hint{margin-right:4px;max-width:155px;font-size:11px}
+ #hud{top:8px;left:10px;padding:8px 12px;max-width:250px}
+ #hud h1{font-size:14px}
+ #actions{top:8px;right:12px}
+ #actions button{padding:8px 12px}
+ #message{bottom:65px}
+ #fullscreenLandscape{right:12px;bottom:8px;opacity:.7}
+}
+@media (orientation:landscape) and (max-height:450px){
+ #joystick{width:90px;height:90px}
+ #joystickStick{width:46px;height:46px;left:calc(50% - 23px);top:calc(50% - 23px)}
+ .hint{display:none}
+ #hud .stats{gap:2px;margin-top:4px}
+ #hud{max-width:210px}
+ #hud h1{font-size:12px}
+ #hud span{font-size:9px}
+ #actions button{font-size:11px;padding:7px 9px}
+}
