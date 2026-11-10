@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.8.0 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.8.1 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -581,6 +581,37 @@ for(const p of catalog){
   colliders.push({minX:p.x-(p.kind==="congelateur"?.7:p.kind==="froid"?.62:p.level?.62:1.3),maxX:p.x+(p.kind==="congelateur"?.7:p.level?.62:1.3),minZ:z-(p.kind==="congelateur"?1.75:p.kind==="froid"?.85:p.level?.52:.65),maxZ:z+(p.kind==="congelateur"?1.75:p.level?.52:.65),level:p.level||1});
  }
 }
+// Repères de rayons : noms visibles et surbrillance du rayon du carton porté.
+const shelfGuides={};
+function shelfSign(label){
+ const canvas=document.createElement("canvas");canvas.width=512;canvas.height=128;
+ const ctx=canvas.getContext("2d");
+ ctx.fillStyle="#0f172a";ctx.fillRect(0,0,512,128);
+ ctx.strokeStyle="#38bdf8";ctx.lineWidth=8;ctx.strokeRect(5,5,502,118);
+ ctx.fillStyle="#ffffff";ctx.font="bold 43px Arial";ctx.textAlign="center";
+ ctx.fillText(label,256,80,480);
+ const texture=new THREE.CanvasTexture(canvas);
+ const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));
+ sprite.scale.set(2.5,.62,1);return sprite;
+}
+function addShelfGuide(p,x,z){
+ const group=new THREE.Group();group.position.set(x,0,z);
+ const sign=shelfSign(p.name);sign.position.set(0,2.72,0);group.add(sign);
+ const highlight=new THREE.Mesh(
+  new THREE.BoxGeometry(2.75,.09,1.12),
+  new THREE.MeshBasicMaterial({color:0x22d3ee,transparent:true,opacity:.48,depthWrite:false})
+ );
+ highlight.position.y=1.88;group.add(highlight);
+ scene.add(group);shelfGuides[p.id]={group,highlight,sign,p};
+}
+function updateShelfGuides(){
+ for(const guide of Object.values(shelfGuides)){
+  const active=!!held&&held.id===guide.p.id&&productAvailable(guide.p);
+  guide.group.visible=active||guide.p.kind==="extension"&&!!state.upgrades.store1;
+  guide.highlight.visible=active;
+  guide.sign.visible=active||guide.p.kind==="extension"&&!!state.upgrades.store1;
+ }
+}
 const extensionProductGroups={};
 // Trois rayons commercialisables dans la nouvelle zone, avec cartons visibles.
 for(const p of catalog.filter(p=>p.kind==="extension")){
@@ -600,13 +631,16 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
   rack.add(item);displays[p.id].push(item);
  }
  scene.add(rack);extensionProductGroups[p.id]=rack;extensionMeshes.push(rack);
+ addShelfGuide(p,p.x,p.z);
  colliders.push({minX:p.x-1.4,maxX:p.x+1.4,minZ:p.z-.55,maxZ:p.z+.55,requiresUpgrade:"store1"});
 }
 
+for(const p of catalog.filter(p=>p.kind!=="extension"))addShelfGuide(p,p.x,p.level?p.z:-4);
 function refreshDisplays(){
  for(const p of catalog)displays[p.id].forEach((m,i)=>m.visible=productAvailable(p)&&i<state.inventory[p.id].shelf);
  for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
  for(const p of catalog.filter(p=>p.kind==="extension")){const g=extensionProductGroups[p.id];if(g)g.visible=!!state.upgrades.store1;}
+ updateShelfGuides();
 }
 cube(6.5,.55,6.5,3,1.1,1.3,0x475569,true);
 cube(6.5,1.13,6.5,3.1,.12,1.4,0x1e293b);
@@ -674,6 +708,7 @@ function refreshCarry(){
  const p=held&&catalog.find(p=>p.id===held.id);
  carryLabel.style.display=p?"block":"none";
  carryLabel.textContent=p?"Carton : "+p.name+" — "+held.quantity+" produit(s)":"";
+ updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
 function atReserve(){return near(12.5,5.5,3.1);}
@@ -766,7 +801,7 @@ function interact(){
    return;
   }
   if(atReserve()){showReserve();return;}
-  toast("Rejoins le rayon "+p.name+" puis appuie sur Interagir");
+  toast("Suis le rayon "+p.name+" surligné en bleu puis appuie sur Interagir");
   return;
  }
  if(near(11.3,9.13,1.45)&&camera.position.x>10.5){toggleStockroomLights();return;}
@@ -980,4 +1015,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.8.0 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.8.1 !");
