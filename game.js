@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.5.7 — orientation de la caisse corrigée
+// Business Empire Simulator V0.5.8 — niveaux, améliorations et compétences
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -8,10 +8,41 @@ const catalog=[
  {id:"savon",name:"Savon",cost:5,price:10,color:0x4ade80,x:5}
 ];
 const CAPACITY=30, BOX_UNITS=10;
+const upgradeCatalog=[
+ {id:"shelf7",name:"7e étagère",level:2,cost:450,description:"Débloque une étagère supplémentaire dans le magasin."},
+ {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
+ {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Débloque un espace de vente supplémentaire."},
+ {id:"phoneSkill",name:"Compétence Téléphonie",level:5,cost:1200,description:"Formation préalable à la vente de téléphones."},
+ {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:"phoneSkill",description:"Débloque la spécialisation téléphones."},
+ {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
+ {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",description:"Débloque la spécialisation consoles."}
+];
+function playerLevel(){return Math.max(1,Math.floor(state.sales/25)+1);}
+function reserveLimit(){return state.upgrades.reserve1?60:30;}
+function reserveBoxes(){return catalog.reduce((n,p)=>n+state.inventory[p.id].boxes+Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);}
+function canOrderBox(){return reserveBoxes()<reserveLimit();}
+function showUpgrades(){
+ openPanel("Améliorations du magasin");
+ paragraph("Niveau "+playerLevel()+" — "+state.sales+" articles vendus | Prochain niveau : "+(playerLevel()*25)+" ventes");
+ paragraph("Trésorerie : "+euro(state.money)+" | Réserve : "+reserveBoxes()+"/"+reserveLimit()+" cartons");
+ for(const u of upgradeCatalog){
+  const owned=!!state.upgrades[u.id];
+  paragraph(u.name+" — "+(owned?"ACQUIS":euro(u.cost))+" | Niveau "+u.level+" requis");
+  paragraph(u.description);
+  if(owned)continue;
+  const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires]);
+  const b=button(panel,eligible?"Acheter — "+euro(u.cost):"Verrouillé — niveau "+u.level,()=>{
+   if(!eligible)return;
+   if(state.money<u.cost){toast("Trésorerie insuffisante");return;}
+   state.money-=u.cost;state.upgrades[u.id]=true;sync();showUpgrades();toast("Amélioration débloquée : "+u.name);
+  });
+  b.disabled=!eligible;b.style.opacity=eligible?"1":".5";
+ }
+}
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:10,reserve:0,boxes:0,price:p.price});
- return {money:5000,day:1,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},hour:8};
+ return {money:5000,day:1,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:8};
 }
 function load(){
  const s=initial();
@@ -19,6 +50,7 @@ function load(){
   const current=JSON.parse(localStorage.getItem(SAVE));
   if(current?.inventory){
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
+   if(current.upgrades&&typeof current.upgrades==="object")for(const u of upgradeCatalog)s.upgrades[u.id]=current.upgrades[u.id]===true;
    if(current.finance)for(const k of Object.keys(s.finance))if(Number.isFinite(current.finance[k])&&current.finance[k]>=0)s.finance[k]=current.finance[k];
    // Une session rechargée démarre toujours en préparation à 08:00.
    s.hour=8;
@@ -79,6 +111,7 @@ function showOrders(){
  openPanel("Fournisseurs — cartons de 10");
  catalog.forEach(p=>button(panel,p.name+" : "+(p.cost*10)+" €",()=>{
   const cost=p.cost*10;
+  if(!canOrderBox()){toast("Réserve pleine — améliore sa capacité");return;}
   if(state.money<cost){toast("Trésorerie insuffisante");return;}
   state.money-=cost;finance.supplies+=cost;state.inventory[p.id].boxes++;
   sync();showOrders();toast("Carton livré : "+p.name);
@@ -116,6 +149,7 @@ function showProfile(){
  paragraph("Trésorerie : "+euro(state.money));
  paragraph("Articles vendus : "+state.sales);
  paragraph("Transactions : "+finance.transactions);
+ paragraph("Niveau du magasin : "+playerLevel());
  button(panel,"← Retour au menu",showMainMenu);
 }
 function showMainMenu(){
@@ -127,6 +161,7 @@ function showMainMenu(){
   else{panel.style.display="none";toast("Partie reprise");}
  });
  button(panel,"Profil",showProfile);
+ button(panel,"Améliorations et compétences",showUpgrades);
  button(panel,"Stocks",showStocks);
  button(panel,"Réserve",showReserve);
  button(panel,"Commandes fournisseurs",showOrders);
@@ -164,6 +199,7 @@ function showComputer(){
  button(panel,"Fournisseurs — commander des cartons",showComputerOrders);
  button(panel,"Stocks du magasin",showStocks);
  button(panel,"Bilan financier",showFinance);
+ button(panel,"Améliorations",showUpgrades);
 }
 function showComputerOrders(){
  if(!near(7.3,6.5,3.4)){toast("Approche-toi de l'ordinateur");return;}
@@ -173,6 +209,7 @@ function showComputerOrders(){
   const a=state.inventory[p.id],cost=p.cost*BOX_UNITS;
   paragraph(p.name+" | "+euro(cost)+"/carton | "+a.boxes+" carton(s) en réserve");
   button(panel,"Commander 1 carton — "+euro(cost),()=>{
+   if(!canOrderBox()){toast("Réserve pleine — améliore sa capacité");return;}
    if(state.money<cost){toast("Trésorerie insuffisante");return;}
    state.money-=cost;finance.supplies+=cost;a.boxes++;
    sync();showComputerOrders();toast("Commande livrée : "+p.name);
@@ -594,4 +631,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.5.7 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.5.8 !");
