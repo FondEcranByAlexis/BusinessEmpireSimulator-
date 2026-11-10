@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.7.3 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.7.4 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -335,7 +335,7 @@ $("game").appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xffffff,0x718096,2.2));
 const sun=new THREE.DirectionalLight(0xffffff,1.4);sun.position.set(5,12,4);scene.add(sun);
 const ambient=scene.children.find(o=>o.isHemisphereLight);
-let storeLightsOn=true;
+let storeLightsOn=true,stockroomLightsOn=true;
 const ceilingLights=new THREE.Group();scene.add(ceilingLights);
 function ceilingLamp(x,z){
  const lamp=new THREE.PointLight(0xfff4db,0,9,1.8);lamp.position.set(x,4.45,z);ceilingLights.add(lamp);return lamp;
@@ -343,13 +343,14 @@ function ceilingLamp(x,z){
 const lamps=[];
 for(const x of [-6,0,6])for(const z of [-6,0,6])lamps.push({light:ceilingLamp(x,z),extension:false});
 for(const x of [-6,0,6])for(const z of [-14,-19])lamps.push({light:ceilingLamp(x,z),extension:true});
+for(const x of [11.6,13.8])for(const z of [3.5,7.5])lamps.push({light:ceilingLamp(x,z),stockroom:true});
 function updateLighting(){
  const hour=state.hour;
  const daylight=Math.max(.12,Math.min(1,(20-hour)/3.5));
  scene.background.setRGB(.055+.55*daylight,.09+.69*daylight,.17+.74*daylight);
  sun.intensity=.12+1.28*daylight;
  ambient.intensity=.25+1.95*daylight;
- for(const l of lamps)l.light.intensity=storeLightsOn&&(!l.extension||state.upgrades.store1)?1.35:0;
+ for(const l of lamps)l.light.intensity=l.stockroom?(stockroomLightsOn?1.7:0):(storeLightsOn&&(!l.extension||state.upgrades.store1)?1.35:0);
 }
 const colliders=[];
 function cube(x,y,z,w,h,d,color,solid=false){
@@ -577,6 +578,14 @@ terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
 // Petit interrupteur fixé sur le flanc de la caisse, côté employé.
 const lightSwitch=cube(8.08,1.16,6.93,.10,.09,.035,0x22c55e);
+// Interrupteur dédié, sur le mur intérieur de la réserve près de son entrée.
+const stockroomSwitch=cube(10.24,1.35,6.7,.045,.11,.12,0x22c55e);
+function toggleStockroomLights(){
+ stockroomLightsOn=!stockroomLightsOn;
+ stockroomSwitch.material.color.setHex(stockroomLightsOn?0x22c55e:0xef4444);
+ updateLighting();
+ toast("Lumière de la réserve : "+(stockroomLightsOn?"allumée":"éteinte"));
+}
 function toggleLights(){
  storeLightsOn=!storeLightsOn;
  lightSwitch.material.color.setHex(storeLightsOn?0x22c55e:0xef4444);
@@ -718,6 +727,7 @@ function interact(){
   toast("Rejoins le rayon "+p.name+" puis appuie sur Interagir");
   return;
  }
+ if(near(10.24,6.7,1.05)&&camera.position.x>9.7){toggleStockroomLights();return;}
  if(atReserve()){showReserve();return;}
  if(fridgeDoor&&playerLevel()>=4&&near(-8.5,-3.5,2.4)){
   fridgeOpen=!fridgeOpen;fridgeDoor.rotation.y=fridgeOpen?-1.15:0;
@@ -910,4 +920,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.7.3 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.7.4 !");
