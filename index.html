@@ -1,0 +1,54 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1,
+        maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#101820">
+  <title>Business Empire Simulator V0.2</title>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <div id="game"></div>
+
+  <div id="hud">
+    <h1>BUSINESS EMPIRE</h1>
+    <span>SUPERMARKET SIMULATOR</span>
+
+    <div class="stats">
+      <div>Argent : <b id="money">5 000 €</b></div>
+      <div>Jour : <b id="day">1</b></div>
+      <div>Stock : <b id="stock">30</b></div>
+    </div>
+  </div>
+
+  <div id="crosshair">+</div>
+
+  <div id="actions">
+    <button id="restock">Réapprovisionner</button>
+    <button id="openShop">Ouvrir le magasin</button>
+  </div>
+
+  <div id="controls">
+    <div class="movement">
+      <button id="forward">▲</button>
+      <div>
+        <button id="left">◀</button>
+        <button id="backward">▼</button>
+        <button id="right">▶</button>
+      </div>
+    </div>
+    <div class="hint">Glisse sur l'écran pour regarder</div>
+  </div>
+
+  <div id="message"></div>
+
+  <script type="module" src="game.js"></script>
+
+</body>
+</html>
