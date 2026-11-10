@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.8.4 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.8.5 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -465,6 +465,51 @@ cube(0,4.2,10,4,1.6,.3,0xe2e8f0);
 cube(0,-.17,12,8,.3,5,0x94a3b8);
 cube(0,.015,8.5,3,.03,2,0x334155);
 for(const x of [-6,0,6])for(const z of [-6,0,6])cube(x,4.94,z,2.8,.05,.5,0xffffff);
+// Emballages 3D stylisés, avec étiquettes lisibles et silhouettes distinctes.
+const productTextures={};
+function packageTexture(p){
+ if(productTextures[p.id])return productTextures[p.id];
+ const c=document.createElement("canvas");c.width=256;c.height=256;
+ const x=c.getContext("2d");x.fillStyle="#"+p.color.toString(16).padStart(6,"0");x.fillRect(0,0,256,256);
+ x.fillStyle="rgba(255,255,255,.86)";x.fillRect(14,55,228,146);
+ x.fillStyle="#172033";x.textAlign="center";x.font="bold 29px Arial";
+ const words=p.name.split(" ");let lines=[],line="";
+ for(const word of words){if((line+" "+word).length>12){lines.push(line);line=word;}else line=(line+" "+word).trim();}
+ if(line)lines.push(line);
+ lines.slice(0,3).forEach((v,i)=>x.fillText(v,128,112+i*34,216));
+ x.fillStyle="#ffffff";x.fillRect(18,213,220,9);
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;productTextures[p.id]=t;return t;
+}
+function productModel(p){
+ const g=new THREE.Group(),base=new THREE.MeshStandardMaterial({color:p.color,roughness:.72});
+ const label=new THREE.MeshStandardMaterial({map:packageTexture(p),roughness:.68});
+ const white=new THREE.MeshStandardMaterial({color:0xf1f5f9,roughness:.65});
+ const add=(geometry,material,x=0,y=0,z=0)=>{
+  const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);g.add(mesh);return mesh;
+ };
+ if(p.id==="eau"||p.id==="jus"){
+  const bottle=p.id==="eau";
+  add(new THREE.CylinderGeometry(bottle?.105:.14,bottle?.115:.14,.35,10),base,0,.015,0);
+  add(new THREE.CylinderGeometry(.055,.065,.09,10),white,0,.235,0);
+  add(new THREE.CylinderGeometry(.065,.065,.04,10),new THREE.MeshStandardMaterial({color:0x1d4ed8}),0,.30,0);
+  const wrap=add(new THREE.CylinderGeometry(bottle?.117:.143,bottle?.117:.143,.17,12,1,true),label,0,.02,0);
+ }else if(p.id==="pommes"){
+  add(new THREE.SphereGeometry(.18,12,10),base);
+  add(new THREE.CylinderGeometry(.018,.025,.09,6),new THREE.MeshStandardMaterial({color:0x365314}),0,.18,0);
+ }else if(p.id==="fromage"){
+  add(new THREE.CylinderGeometry(.17,.17,.15,3),base);
+  add(new THREE.BoxGeometry(.22,.035,.12),label,0,.09,0);
+ }else if(p.id==="surgeles"){
+  add(new THREE.BoxGeometry(.36,.075,.32),label);
+  add(new THREE.BoxGeometry(.33,.025,.29),base,0,.048,0);
+ }else{
+  const tall=p.id==="cafe"||p.id==="cereales";
+  const h=tall?.49:.39,w=tall?.29:.33;
+  add(new THREE.BoxGeometry(w,h,.27),[base,base,base,base,label,base]);
+  add(new THREE.BoxGeometry(w*.9,.035,.23),white,0,h/2+.018,0);
+ }
+ return g;
+}
 const displays={},extraShelves=[];
 let freezerLid=null,freezerOpen=false;
 let fridgeDoor=null,fridgeOpen=false;
@@ -503,10 +548,8 @@ for(const p of catalog){
     }
    }
    for(let i=0;i<5;i++){
-    const item=isFruit
-     ?new THREE.Mesh(new THREE.SphereGeometry(.19,12,10),mat)
-     :new THREE.Mesh(new THREE.BoxGeometry(.3,.4,.45),mat);
-    item.position.set(-.9+i*.45,y+(isFruit?.23:.25),0);
+    const item=productModel(p);
+    item.position.set(-.9+i*.45,y+(isFruit?.23:.26),0);
     if(!isFruit)item.rotation.x=tilt;
     group.add(item);displays[p.id].push(item);
    }
@@ -645,7 +688,7 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
  }
  for(let i=0;i<CAPACITY;i++){
   const tier=Math.floor(i/10),slot=i%10;
-  const item=new THREE.Mesh(new THREE.BoxGeometry(.19,.3,.32),productMat);
+  const item=productModel(p);
   item.position.set(-1.08+(slot%5)*.52,.72+tier*.67,slot<5?-.20:.19);
   rack.add(item);displays[p.id].push(item);
  }
@@ -1038,4 +1081,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.8.4 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.8.5 !");
