@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.11 — version synchronisée
+// Business Empire Simulator V0.9.12 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -876,7 +876,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.11 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.12 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -916,6 +916,12 @@ checkoutLogoTex.colorSpace=THREE.SRGBColorSpace;
 const checkoutLogo=new THREE.Mesh(new THREE.PlaneGeometry(1.7,.425),
  new THREE.MeshBasicMaterial({map:checkoutLogoTex,side:THREE.DoubleSide}));
 checkoutLogo.position.set(6.5,.70,7.158);scene.add(checkoutLogo);
+// Même enseigne côté opposé de la caisse, lisible depuis l'autre allée.
+const checkoutLogoOpposite=new THREE.Mesh(new THREE.PlaneGeometry(1.7,.425),
+ new THREE.MeshBasicMaterial({map:checkoutLogoTex,side:THREE.DoubleSide}));
+checkoutLogoOpposite.position.set(6.5,.70,5.842);
+checkoutLogoOpposite.rotation.y=Math.PI;
+scene.add(checkoutLogoOpposite);
 // Petit interrupteur fixé sur le flanc de la caisse, côté employé.
 const lightSwitch=cube(8.08,1.16,6.93,.10,.09,.035,0x22c55e);
 // Interrupteur dédié, sur le mur intérieur de la réserve près de son entrée.
@@ -1277,4 +1283,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.11 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.12 !");
