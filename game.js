@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.7.7 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.7.8 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -799,7 +799,7 @@ function movePlayer(dt){
  if(panel.style.display!=="none")return;
  const f=Number(keys.forward)-Number(keys.backward)-joyY,s=Number(keys.right)-Number(keys.left)+joyX;
  if(!f&&!s)return;
- const len=Math.max(1,Math.hypot(f,s)),speed=3.85*dt;
+ const len=Math.max(1,Math.hypot(f,s)),speed=4*dt;
  const dx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)/len*speed;
  const dz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)/len*speed;
  if(!blocked(camera.position.x+dx,camera.position.z))camera.position.x+=dx;
@@ -941,4 +941,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.7.7 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.7.8 !");
