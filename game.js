@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.8.3 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.8.4 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -603,11 +603,24 @@ function shelfSign(label){
 function addShelfGuide(p,x,z){
  const group=new THREE.Group();group.position.set(x,0,z);
  const sign=shelfSign(p.name);sign.position.set(0,2.72,0);group.add(sign);
- const highlight=new THREE.Mesh(
-  new THREE.BoxGeometry(2.75,.09,1.12),
-  new THREE.MeshBasicMaterial({color:0x22d3ee,transparent:true,opacity:.48,depthTest:false,depthWrite:false})
+ // Balise lumineuse sur toute la hauteur et la largeur du meuble, visible à travers les murs.
+ const isCompact=!!p.level&&p.kind!=="extension"&&p.kind!=="froid"&&p.kind!=="congelateur";
+ const width=isCompact?1.3:p.kind==="froid"?1.35:p.kind==="congelateur"?1.55:2.9;
+ const depth=isCompact?.95:p.kind==="congelateur"?3.6:p.kind==="froid"?1.8:1.2;
+ const height=p.kind==="congelateur"?1.35:2.5;
+ const geometry=new THREE.BoxGeometry(width,height,depth);
+ const highlight=new THREE.Group();
+ const glow=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({
+  color:0x00e5ff,transparent:true,opacity:.22,depthTest:false,depthWrite:false,side:THREE.DoubleSide
+ }));
+ glow.renderOrder=997;highlight.add(glow);
+ const edges=new THREE.LineSegments(
+  new THREE.EdgesGeometry(geometry),
+  new THREE.LineBasicMaterial({color:0x00ffff,transparent:true,opacity:1,depthTest:false,depthWrite:false})
  );
- highlight.position.y=1.88;highlight.renderOrder=999;group.add(highlight);
+ edges.renderOrder=1000;highlight.add(edges);
+ // Montants lumineux verticaux et bordures rendent le rayon identifiable de loin.
+ highlight.position.y=height/2;group.add(highlight);
  scene.add(group);shelfGuides[p.id]={group,highlight,sign,p};
 }
 function updateShelfGuides(){
@@ -1025,4 +1038,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.8.3 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.8.4 !");
