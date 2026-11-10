@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.5 — plateaux inclinés avec rebords
+// Business Empire Simulator V0.6.6 — pente corrigée et fruits arrondis
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -367,15 +367,7 @@ for(const p of catalog){
     const casing=new THREE.Mesh(new THREE.BoxGeometry(2.55,2.35,1.08),new THREE.MeshStandardMaterial({color:p.kind==="congelateur"?0x60a5fa:0xe2e8f0,transparent:true,opacity:.25,metalness:.35}));
     casing.position.y=1.2;group.add(casing);
    }
-   if(p.kind==="fruits"){
-    // Bacs intégrés au plateau inférieur, sans traverser les pieds de l'étagère.
-    const wood=new THREE.MeshStandardMaterial({color:0x92400e,roughness:.85});
-    for(const x of [-.55,.55]){
-     const bin=new THREE.Mesh(new THREE.BoxGeometry(1,.16,.76),wood);
-     bin.position.set(x,.56,0);
-     group.add(bin);
-    }
-   }
+
   }
   for(const x of [-1.15,1.15])for(const dz of [-.4,.4]){
    const post=new THREE.Mesh(new THREE.BoxGeometry(.08,2.4,.08),metal);
@@ -384,15 +376,25 @@ for(const p of catalog){
   for(let level=0;level<3;level++){
    const y=.45+level*.75;
    // Plateau légèrement incliné vers le client, avec butée anti-chute.
-   const tilt=-.11;
-   const plank=new THREE.Mesh(new THREE.BoxGeometry(2.4,.1,1),metal);
+   const tilt=.12; // pente vers le client (avant = z positif)
+   const isFruit=p.kind==="fruits";
+   const plank=new THREE.Mesh(new THREE.BoxGeometry(2.4,.075,1),isFruit?new THREE.MeshStandardMaterial({color:0x9a6b3b,roughness:.9}):metal);
    plank.position.y=y;plank.rotation.x=tilt;group.add(plank);
-   const lip=new THREE.Mesh(new THREE.BoxGeometry(2.4,.18,.065),metal);
-   lip.position.set(0,y+.085,.49);group.add(lip);
+   const lip=new THREE.Mesh(new THREE.BoxGeometry(2.4,.065,.045),isFruit?new THREE.MeshStandardMaterial({color:0x7c4a24}):metal);
+   lip.position.set(0,y+.075,.49);group.add(lip);
+   if(isFruit){
+    const wood=new THREE.MeshStandardMaterial({color:0x8b5a2b,roughness:.9});
+    for(const x of [-1.1,0,1.1]){
+     const side=new THREE.Mesh(new THREE.BoxGeometry(.035,.12,.94),wood);
+     side.position.set(x,y+.11,0);side.rotation.x=tilt;group.add(side);
+    }
+   }
    for(let i=0;i<5;i++){
-    const item=new THREE.Mesh(new THREE.BoxGeometry(.3,.4,.45),mat);
-    item.position.set(-.9+i*.45,y+.26,0);
-    item.rotation.x=tilt;
+    const item=isFruit
+     ?new THREE.Mesh(new THREE.SphereGeometry(.19,12,10),mat)
+     :new THREE.Mesh(new THREE.BoxGeometry(.3,.4,.45),mat);
+    item.position.set(-.9+i*.45,y+(isFruit?.23:.25),0);
+    if(!isFruit)item.rotation.x=tilt;
     group.add(item);displays[p.id].push(item);
    }
   }
@@ -727,4 +729,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.5 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.6 !");
