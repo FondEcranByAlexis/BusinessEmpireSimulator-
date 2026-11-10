@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.7.2 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.7.3 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -361,7 +361,15 @@ function cube(x,y,z,w,h,d,color,solid=false){
 cube(0,-.15,0,20,.3,20,0xb9c1c8);
 cube(0,5.1,0,20,.2,20,0xf1f5f9);
 cube(-10,2.5,0,.3,5,20,0xe2e8f0,true);
-cube(10,2.5,0,.3,5,20,0xe2e8f0,true);
+cube(10,2.5,-3,.3,5,14,0xe2e8f0,true);
+cube(10,2.5,9,.3,5,2,0xe2e8f0,true);
+cube(10,4.15,5.5,.3,1.7,3,0xe2e8f0);
+cube(12.65,-.15,5.5,5.3,.3,8,0xb9c1c8);
+cube(12.65,5.1,5.5,5.3,.2,8,0xf1f5f9);
+cube(15.3,2.5,5.5,.3,5,8,0xe2e8f0,true);
+cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
+cube(12.65,2.5,9.5,5.3,5,.3,0xe2e8f0,true);
+cube(10.05,3.6,5.5,.08,.42,1.9,0x0f172a);
 // Mur arrière avec passage central réservé à la première extension.
 cube(-6,2.5,-10,8,5,.3,0xe2e8f0,true);
 cube(6,2.5,-10,8,5,.3,0xe2e8f0,true);
@@ -381,6 +389,31 @@ extensionCube(-10,2.5,-16,.3,5,12,0xe2e8f0);
 extensionCube(10,2.5,-16,.3,5,12,0xe2e8f0);
 extensionCube(0,2.5,-22,20,5,.3,0xe2e8f0);
 for(const x of [-6,0,6])for(const z of [-14,-19])extensionCube(x,4.94,z,2.8,.05,.5,0xffffff);
+// Rayonnages muraux, avec tablettes inclinées et bordures.
+function addWallRack(x,z,rotation=0,extension=true){
+ const rack=new THREE.Group();rack.position.set(x,0,z);rack.rotation.y=rotation;
+ const steel=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
+ for(const y of [.45,1.15,1.85]){
+  const plank=new THREE.Mesh(new THREE.BoxGeometry(2.55,.075,.78),steel);
+  plank.position.y=y;plank.rotation.x=.12;rack.add(plank);
+  const lip=new THREE.Mesh(new THREE.BoxGeometry(2.55,.055,.04),steel);
+  lip.position.set(0,y+.08,.38);rack.add(lip);
+ }
+ for(const px of [-1.2,1.2])for(const pz of [-.34,.34]){
+  const post=new THREE.Mesh(new THREE.BoxGeometry(.055,2.3,.055),steel);
+  post.position.set(px,1.15,pz);rack.add(post);
+ }
+ scene.add(rack);
+ if(extension)extensionMeshes.push(rack);
+ const alongX=Math.abs(Math.cos(rotation))>.5;
+ colliders.push({minX:x-(alongX?1.3:.42),maxX:x+(alongX?1.3:.42),
+  minZ:z-(alongX?.42:1.3),maxZ:z+(alongX?.42:1.3),
+  ...(extension?{requiresUpgrade:"store1"}:{})});
+}
+for(const x of [-7,-3.5,3.5,7])addWallRack(x,-21.1,0,true);
+for(const z of [-13.5,-17,-20]){addWallRack(-9.15,z,Math.PI/2,true);addWallRack(9.15,z,-Math.PI/2,true);}
+addWallRack(-8.9,5.9,Math.PI/2,false);
+addWallRack(-5.2,7.8,0,false);
 // Gondoles d'extension avec allées libres, uniquement visibles après achat.
 for(const x of [-5,0,5])for(const z of [-15,-19]){
  const rack=new THREE.Group();rack.position.set(x,0,z);
@@ -550,18 +583,18 @@ function toggleLights(){
  updateLighting();
  toast("Éclairage du magasin : "+(storeLightsOn?"allumé":"éteint"));
 }
-cube(-7.5,.1,6.5,3,.2,2.5,0x8b5e3c);
+cube(12.8,.1,5.5,3.5,.2,5.8,0x8b5e3c);
 // Représentation 3D : jusqu'à 3 cartons par produit, plus un lot ouvert
 const boxes={},reserveModels={};
 for(const [i,p] of catalog.entries()){
  boxes[p.id]=[];
  for(let j=0;j<3;j++){
-  const mesh=cube(-8.5+i*.9,.48+j*.68,6.5,.7,.65,.7,0xb98246);
+  const mesh=cube(11.3+(i%4)*.85,.48+j*.68,3.3+Math.floor(i/4)*1.55,.7,.65,.7,0xb98246);
   const band=new THREE.Mesh(new THREE.BoxGeometry(.72,.13,.72),new THREE.MeshStandardMaterial({color:p.color}));
   band.position.y=.18;mesh.add(band);
   boxes[p.id].push(mesh);
  }
- reserveModels[p.id]=cube(-8.5+i*.9,.25,7.4,.55,.4,.45,p.color);
+ reserveModels[p.id]=cube(11.3+(i%4)*.85,.25,4.1+Math.floor(i/4)*1.55,.55,.4,.45,p.color);
 }
 function refreshBoxes(){
  catalog.forEach(p=>{
@@ -592,7 +625,7 @@ function refreshCarry(){
  carryLabel.textContent=p?"Carton : "+p.name+" ("+held.quantity+" produit(s))":"Mains libres";
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
-function atReserve(){return near(-7.5,6.5,3.3);}
+function atReserve(){return near(12.5,5.5,3.1);}
 function putBack(){
  if(!held)return;
  state.inventory[held.id].reserve+=held.quantity;
@@ -726,7 +759,9 @@ document.addEventListener("keydown",e=>{if(keyMap[e.code]){keys[keyMap[e.code]]=
 document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=false;});
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;});
 function blocked(x,z,r=.4){
- if(x< -9.45+r||x>9.45-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>13.8-r)return true;
+ if(x< -9.45+r||x>15-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>13.8-r)return true;
+ if(x>9.45&&x<10.55&&!(z>4.05&&z<6.95))return true;
+ if(x>10.5&&(z<1.85||z>9.15))return true;
  return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 function movePlayer(dt){
@@ -875,4 +910,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.7.2 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.7.3 !");
