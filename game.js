@@ -373,7 +373,35 @@ function cube(x,y,z,w,h,d,color,solid=false){
  if(solid)colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2});
  return mesh;
 }
+// Carrelage commercial : dalles claires et joints fins, sans texture externe.
+function tileFloor(width,depth,x,z){
+ const c=document.createElement("canvas");c.width=512;c.height=512;
+ const ctx=c.getContext("2d");ctx.fillStyle="#d9dfe3";ctx.fillRect(0,0,512,512);
+ for(let iy=0;iy<8;iy++)for(let ix=0;ix<8;ix++){
+  ctx.fillStyle=(ix+iy)%3===0?"#e7eaed":"#dfe4e7";
+  ctx.fillRect(ix*64+2,iy*64+2,60,60);
+ }
+ const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+ tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(width/8,depth/8);
+ const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),new THREE.MeshStandardMaterial({map:tex,roughness:.88}));
+ mesh.rotation.x=-Math.PI/2;mesh.position.set(x,.012,z);scene.add(mesh);return mesh;
+}
+function wallBaseboard(x,z,w,d,extension=false){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,.16,d),new THREE.MeshStandardMaterial({color:0x475569,roughness:.55}));
+ m.position.set(x,.12,z);scene.add(m);if(extension)extensionMeshes.push(m);return m;
+}
+function ceilingPanel(x,z,extension=false){
+ const frame=new THREE.Mesh(new THREE.BoxGeometry(2.45,.045,.40),new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.5}));
+ frame.position.set(x,4.91,z);scene.add(frame);
+ const diffuser=new THREE.Mesh(new THREE.BoxGeometry(2.3,.028,.29),new THREE.MeshBasicMaterial({color:0xfff7db}));
+ diffuser.position.set(x,4.87,z);scene.add(diffuser);
+ if(extension)extensionMeshes.push(frame,diffuser);
+}
 cube(0,-.15,0,20,.3,20,0xb9c1c8);
+tileFloor(19.65,19.65,0,0);
+for(const x of [-9.78,9.78])wallBaseboard(x,-3,.07,13.7);
+wallBaseboard(0,9.77,19.5,.07);
+for(const x of [-6,0,6])for(const z of [-6,0,6])ceilingPanel(x,z);
 cube(0,5.1,0,20,.2,20,0xf1f5f9);
 cube(-10,2.5,0,.3,5,20,0xe2e8f0,true);
 cube(10,2.5,-3,.3,5,14,0xe2e8f0,true);
@@ -400,6 +428,10 @@ function extensionCube(x,y,z,w,h,d,color){
  extensionMeshes.push(mesh);return mesh;
 }
 extensionCube(0,-.15,-16,20,.3,12,0xb9c1c8);
+const extensionTiles=tileFloor(19.65,11.7,0,-16);extensionMeshes.push(extensionTiles);
+wallBaseboard(0,-21.77,19.5,.07,true);
+for(const x of [-9.78,9.78])wallBaseboard(x,-16,.07,11.6,true);
+for(const x of [-6,0,6])for(const z of [-14,-19])ceilingPanel(x,z,true);
 extensionCube(0,5.1,-16,20,.2,12,0xf1f5f9);
 extensionCube(-10,2.5,-16,.3,5,12,0xe2e8f0);
 extensionCube(10,2.5,-16,.3,5,12,0xe2e8f0);
