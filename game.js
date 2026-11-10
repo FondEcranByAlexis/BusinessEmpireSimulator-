@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.5.8 — niveaux, améliorations et compétences
+// Business Empire Simulator V0.5.9 — niveaux selon chiffre d’affaires encaissé
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -17,13 +17,16 @@ const upgradeCatalog=[
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
  {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",description:"Débloque la spécialisation consoles."}
 ];
-function playerLevel(){return Math.max(1,Math.floor(state.sales/25)+1);}
+// Chaque euro de chiffre d'affaires encaissé compte pour la progression.
+const REVENUE_PER_LEVEL=500;
+function playerLevel(){return Math.max(1,Math.floor(finance.revenue/REVENUE_PER_LEVEL)+1);}
+function nextLevelRevenue(){return playerLevel()*REVENUE_PER_LEVEL;}
 function reserveLimit(){return state.upgrades.reserve1?60:30;}
 function reserveBoxes(){return catalog.reduce((n,p)=>n+state.inventory[p.id].boxes+Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);}
 function canOrderBox(){return reserveBoxes()<reserveLimit();}
 function showUpgrades(){
  openPanel("Améliorations du magasin");
- paragraph("Niveau "+playerLevel()+" — "+state.sales+" articles vendus | Prochain niveau : "+(playerLevel()*25)+" ventes");
+ paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
  paragraph("Trésorerie : "+euro(state.money)+" | Réserve : "+reserveBoxes()+"/"+reserveLimit()+" cartons");
  for(const u of upgradeCatalog){
   const owned=!!state.upgrades[u.id];
@@ -150,6 +153,8 @@ function showProfile(){
  paragraph("Articles vendus : "+state.sales);
  paragraph("Transactions : "+finance.transactions);
  paragraph("Niveau du magasin : "+playerLevel());
+ paragraph("Chiffre d’affaires encaissé : "+euro(finance.revenue));
+ paragraph("Prochain niveau à "+euro(nextLevelRevenue())+" de chiffre d’affaires");
  button(panel,"← Retour au menu",showMainMenu);
 }
 function showMainMenu(){
@@ -631,4 +636,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.5.8 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.5.9 !");
