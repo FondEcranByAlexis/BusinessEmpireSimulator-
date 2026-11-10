@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.7.4 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.7.5 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -363,14 +363,14 @@ cube(0,-.15,0,20,.3,20,0xb9c1c8);
 cube(0,5.1,0,20,.2,20,0xf1f5f9);
 cube(-10,2.5,0,.3,5,20,0xe2e8f0,true);
 cube(10,2.5,-3,.3,5,14,0xe2e8f0,true);
-cube(10,2.5,9,.3,5,2,0xe2e8f0,true);
-cube(10,4.15,5.5,.3,1.7,3,0xe2e8f0);
+cube(10,2.5,8.5,.3,5,3,0xe2e8f0,true);
+cube(10,4.2,5.5,.3,1.6,3,0xe2e8f0);
 cube(12.65,-.15,5.5,5.3,.3,8,0xb9c1c8);
 cube(12.65,5.1,5.5,5.3,.2,8,0xf1f5f9);
 cube(15.3,2.5,5.5,.3,5,8,0xe2e8f0,true);
 cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 cube(12.65,2.5,9.5,5.3,5,.3,0xe2e8f0,true);
-cube(10.05,3.6,5.5,.08,.42,1.9,0x0f172a);
+// Ouverture rectangulaire de 3 m, du sol jusqu’à 3,4 m, sans panneau suspendu.
 // Mur arrière avec passage central réservé à la première extension.
 cube(-6,2.5,-10,8,5,.3,0xe2e8f0,true);
 cube(6,2.5,-10,8,5,.3,0xe2e8f0,true);
@@ -579,7 +579,9 @@ const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
 // Petit interrupteur fixé sur le flanc de la caisse, côté employé.
 const lightSwitch=cube(8.08,1.16,6.93,.10,.09,.035,0x22c55e);
 // Interrupteur dédié, sur le mur intérieur de la réserve près de son entrée.
-const stockroomSwitch=cube(10.24,1.35,6.7,.045,.11,.12,0x22c55e);
+// Plaque et bouton fixés sur le mur du fond de la réserve, côté intérieur.
+const stockroomSwitchPlate=cube(11.3,1.35,9.28,.19,.22,.045,0xf8fafc);
+const stockroomSwitch=cube(11.3,1.35,9.245,.09,.11,.045,0x22c55e);
 function toggleStockroomLights(){
  stockroomLightsOn=!stockroomLightsOn;
  stockroomSwitch.material.color.setHex(stockroomLightsOn?0x22c55e:0xef4444);
@@ -727,7 +729,7 @@ function interact(){
   toast("Rejoins le rayon "+p.name+" puis appuie sur Interagir");
   return;
  }
- if(near(10.24,6.7,1.05)&&camera.position.x>9.7){toggleStockroomLights();return;}
+ if(near(11.3,9.245,1.45)&&camera.position.x>10.5){toggleStockroomLights();return;}
  if(atReserve()){showReserve();return;}
  if(fridgeDoor&&playerLevel()>=4&&near(-8.5,-3.5,2.4)){
   fridgeOpen=!fridgeOpen;fridgeDoor.rotation.y=fridgeOpen?-1.15:0;
@@ -920,4 +922,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.7.4 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.7.5 !");
