@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.5.5 — menu principal et pause réelle
+// Business Empire Simulator V0.5.6 — ordinateur de caisse interactif
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -131,7 +131,7 @@ function showMainMenu(){
  button(panel,"Réserve",showReserve);
  button(panel,"Commandes fournisseurs",showOrders);
  button(panel,"Prix de vente",showPrices);
- button(panel,"Caisse",showCheckout);
+ button(panel,"Ordinateur de caisse",showComputer);
  button(panel,"Bilan financier",showFinance);
  button(panel,"Fermer le menu",()=>panel.style.display="none");
 }
@@ -153,6 +153,32 @@ function showFinance(){
 function formatHour(hour){
  const h=Math.floor(hour),m=Math.floor((hour-h)*60);
  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+}
+function showComputer(){
+ if(!near(7.3,6.5,3.4)){toast("Approche-toi de l'ordinateur de caisse");return;}
+ openPanel("ORDINATEUR — Business Empire OS");
+ paragraph("Terminal de caisse et gestion des fournisseurs");
+ paragraph("Client à encaisser : "+(cashier?"Oui — "+euro(cashier.total):"Aucun"));
+ paragraph("Trésorerie disponible : "+euro(state.money));
+ button(panel,"Caisse — paiements",showCheckout);
+ button(panel,"Fournisseurs — commander des cartons",showComputerOrders);
+ button(panel,"Stocks du magasin",showStocks);
+ button(panel,"Bilan financier",showFinance);
+}
+function showComputerOrders(){
+ if(!near(7.3,6.5,3.4)){toast("Approche-toi de l'ordinateur");return;}
+ openPanel("ORDINATEUR — Fournisseurs");
+ paragraph("Commandes livrées en réserve. Chaque carton contient "+BOX_UNITS+" produits.");
+ for(const p of catalog){
+  const a=state.inventory[p.id],cost=p.cost*BOX_UNITS;
+  paragraph(p.name+" | "+euro(cost)+"/carton | "+a.boxes+" carton(s) en réserve");
+  button(panel,"Commander 1 carton — "+euro(cost),()=>{
+   if(state.money<cost){toast("Trésorerie insuffisante");return;}
+   state.money-=cost;finance.supplies+=cost;a.boxes++;
+   sync();showComputerOrders();toast("Commande livrée : "+p.name);
+  });
+ }
+ button(panel,"← Bureau",showComputer);
 }
 function showCheckout(){
  if(!cashier){toast("Aucun client à encaisser");return;}
@@ -250,6 +276,9 @@ cube(6.5,.55,6.5,3,1.1,1.3,0x475569,true);
 cube(6.5,1.13,6.5,3.1,.12,1.4,0x1e293b);
 cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 cube(7.3,1.5,6.37,.48,.3,.05,0x38bdf8);
+const terminalScreen=cube(7.3,1.5,6.33,.48,.3,.045,0x22c55e);
+terminalScreen.material.emissive=new THREE.Color(0x064e3b);
+const terminalKeyboard=cube(7.3,1.22,6.13,.65,.035,.24,0x94a3b8);
 cube(-7.5,.1,6.5,3,.2,2.5,0x8b5e3c);
 // Représentation 3D : jusqu'à 3 cartons par produit, plus un lot ouvert
 const boxes={},reserveModels={};
@@ -386,7 +415,8 @@ function interact(){
   return;
  }
  if(atReserve()){showReserve();return;}
- toast("Va à la réserve pour prendre un carton");
+ if(near(7.3,6.5,3.4)){showComputer();return;}
+ toast("Va à la réserve ou approche-toi de l’ordinateur à la caisse");
 }
 refreshCarry();
 // Commandes de déplacement et caméra lissée
@@ -564,4 +594,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.5.5 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.5.6 !");
