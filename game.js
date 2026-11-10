@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.7.0 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.7.1 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -51,7 +51,7 @@ function unlockedShelves(){return 6+Math.max(0,playerLevel()-1);}
 function showUpgrades(){
  openPanel("Améliorations du magasin");
  paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
- paragraph("Objectif : "+unlockedShelves()+" étagères au niveau actuel. Rayons supplémentaires installés : "+extraShelves.filter(e=>e.level<=playerLevel()).length+". Première extension physique accessible après achat au niveau 4 ; futurs agrandissements en préparation.");
+ paragraph("Objectif : "+unlockedShelves()+" étagères au niveau actuel. Rayons supplémentaires installés : "+extraShelves.filter(e=>e.level<=playerLevel()).length+". Première extension aménagée avec six gondoles ; futurs agrandissements en préparation.");
  paragraph("Trésorerie : "+euro(state.money)+" | Réserve : "+reserveBoxes()+"/"+reserveLimit()+" cartons");
  for(const u of upgradeCatalog){
   const owned=!!state.upgrades[u.id];
@@ -334,6 +334,23 @@ renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=false;
 $("game").appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xffffff,0x718096,2.2));
 const sun=new THREE.DirectionalLight(0xffffff,1.4);sun.position.set(5,12,4);scene.add(sun);
+const ambient=scene.children.find(o=>o.isHemisphereLight);
+let storeLightsOn=true;
+const ceilingLights=new THREE.Group();scene.add(ceilingLights);
+function ceilingLamp(x,z){
+ const lamp=new THREE.PointLight(0xfff4db,0,9,1.8);lamp.position.set(x,4.45,z);ceilingLights.add(lamp);return lamp;
+}
+const lamps=[];
+for(const x of [-6,0,6])for(const z of [-6,0,6])lamps.push({light:ceilingLamp(x,z),extension:false});
+for(const x of [-6,0,6])for(const z of [-14,-19])lamps.push({light:ceilingLamp(x,z),extension:true});
+function updateLighting(){
+ const hour=state.hour;
+ const daylight=Math.max(.12,Math.min(1,(20-hour)/3.5));
+ scene.background.setRGB(.055+.55*daylight,.09+.69*daylight,.17+.74*daylight);
+ sun.intensity=.12+1.28*daylight;
+ ambient.intensity=.25+1.95*daylight;
+ for(const l of lamps)l.light.intensity=storeLightsOn&&(!l.extension||state.upgrades.store1)?1.35:0;
+}
 const colliders=[];
 function cube(x,y,z,w,h,d,color,solid=false){
  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.8}));
@@ -364,6 +381,23 @@ extensionCube(-10,2.5,-16,.3,5,12,0xe2e8f0);
 extensionCube(10,2.5,-16,.3,5,12,0xe2e8f0);
 extensionCube(0,2.5,-22,20,5,.3,0xe2e8f0);
 for(const x of [-6,0,6])for(const z of [-14,-19])extensionCube(x,4.94,z,2.8,.05,.5,0xffffff);
+// Gondoles d'extension avec allées libres, uniquement visibles après achat.
+for(const x of [-5,0,5])for(const z of [-15,-19]){
+ const rack=new THREE.Group();rack.position.set(x,0,z);
+ const steel=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.35});
+ for(const y of [.45,1.15,1.85]){
+  const shelf=new THREE.Mesh(new THREE.BoxGeometry(2.8,.09,.95),steel);
+  shelf.position.y=y;rack.add(shelf);
+  const rim=new THREE.Mesh(new THREE.BoxGeometry(2.8,.06,.04),steel);
+  rim.position.set(0,y+.07,.47);rack.add(rim);
+ }
+ for(const px of [-1.32,1.32])for(const pz of [-.43,.43]){
+  const post=new THREE.Mesh(new THREE.BoxGeometry(.06,2.25,.06),steel);
+  post.position.set(px,1.13,pz);rack.add(post);
+ }
+ scene.add(rack);extensionMeshes.push(rack);
+ colliders.push({minX:x-1.5,maxX:x+1.5,minZ:z-.55,maxZ:z+.55,requiresUpgrade:"store1"});
+}
 function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
  extensionGate.visible=!unlocked;
@@ -508,6 +542,13 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
+const lightSwitch=cube(8.05,1.3,6.53,.24,.2,.12,0x22c55e);
+function toggleLights(){
+ storeLightsOn=!storeLightsOn;
+ lightSwitch.material.color.setHex(storeLightsOn?0x22c55e:0xef4444);
+ updateLighting();
+ toast("Éclairage du magasin : "+(storeLightsOn?"allumé":"éteint"));
+}
 cube(-7.5,.1,6.5,3,.2,2.5,0x8b5e3c);
 // Représentation 3D : jusqu'à 3 cartons par produit, plus un lot ouvert
 const boxes={},reserveModels={};
@@ -533,7 +574,7 @@ const ctx=signCanvas.getContext("2d");ctx.fillStyle="#0f172a";ctx.fillRect(0,0,5
 ctx.fillStyle="#38bdf8";ctx.font="bold 34px Arial";ctx.textAlign="center";ctx.fillText("BUSINESS EMPIRE",256,78);
 const sign=new THREE.Mesh(new THREE.PlaneGeometry(5,1.25),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(signCanvas),side:THREE.DoubleSide}));
 sign.position.set(0,3.5,-9.8);scene.add(sign);
-function sync(){hud();refreshDisplays();refreshBoxes();refreshExtension();save();}
+function sync(){hud();refreshDisplays();refreshBoxes();refreshExtension();updateLighting();save();}
 // V0.4.2 — transport de cartons entiers, remplissage en lot
 // held = {id, quantity}. Une unité d'ancienne réserve peut être regroupée en lot.
 let held=null;
@@ -652,8 +693,9 @@ function interact(){
   freezerOpen=!freezerOpen;freezerLid.rotation.z=freezerOpen?-.95:0;
   toast(freezerOpen?"Congélateur ouvert":"Congélateur fermé");return;
  }
+ if(near(8.05,6.53,1.2)){toggleLights();return;}
  if(near(7.3,6.5,3.4)){showComputer();return;}
- toast("Va à la réserve ou approche-toi de l’ordinateur à la caisse");
+ toast("Approche-toi de la réserve, de la caisse ou de l’interrupteur lumineux");
 }
 refreshCarry();
 // Commandes de déplacement et caméra lissée
@@ -684,7 +726,7 @@ document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=fal
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;});
 function blocked(x,z,r=.4){
  if(x< -9.45+r||x>9.45-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>13.8-r)return true;
- return colliders.some(c=>!c.disabled&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
+ return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 function movePlayer(dt){
  if(panel.style.display!=="none")return;
@@ -702,7 +744,7 @@ const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
 const timeLabel=document.createElement("div");
 Object.assign(timeLabel.style,{position:"fixed",top:"80px",left:"12px",zIndex:"11",padding:"6px 10px",background:"#0f172acb",borderRadius:"8px",color:"white",fontSize:"12px",pointerEvents:"none"});
 document.body.appendChild(timeLabel);
-function updateTime(){timeLabel.textContent="Jour "+state.day+" — "+formatHour(state.hour)+" — "+(shopOpen?"OUVERT":"FERMÉ");}
+function updateTime(){updateLighting();timeLabel.textContent="Jour "+state.day+" — "+formatHour(state.hour)+" — "+(shopOpen?"OUVERT":"FERMÉ");}
 function makeCustomer(){
  const group=new THREE.Group();
  const shirts=[0xef4444,0x2563eb,0x16a34a,0xf59e0b,0x9333ea];
@@ -832,4 +874,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.7.0 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.7.1 !");
