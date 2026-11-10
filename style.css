@@ -1,0 +1,257 @@
+
+/* BUSINESS EMPIRE SIMULATOR V0.2 */
+/* Interface du jeu */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #101820;
+  font-family: Arial, sans-serif;
+  color: white;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button {
+  font-family: inherit;
+  color: white;
+  border: none;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* AFFICHAGE 3D */
+
+#game {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+#game canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* INTERFACE PRINCIPALE */
+
+#hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  padding: 12px;
+  background: rgba(8, 14, 22, 0.85);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+#hud h1 {
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: #38bdf8;
+}
+
+#hud span {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #94a3b8;
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.stats b {
+  color: #4ade80;
+}
+
+/* VISEUR CENTRAL */
+
+#crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 26px;
+  font-weight: 300;
+  color: rgba(255,255,255,0.85);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ACTIONS DU MAGASIN */
+
+#actions {
+  position: absolute;
+  right: 12px;
+  top: 15px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#actions button {
+  padding: 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: bold;
+  background: #2563eb;
+  box-shadow: 0 3px 10px #0005;
+}
+
+#restock {
+  background: #16a34a !important;
+}
+
+#openShop {
+  background: #2563eb;
+}
+
+/* COMMANDES DE DÉPLACEMENT */
+
+#controls {
+  position: absolute;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: 15px;
+  right: 15px;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.movement {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: auto;
+}
+
+.movement > div {
+  display: flex;
+  gap: 5px;
+}
+
+.movement button {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid #64748b;
+  font-size: 19px;
+}
+
+.movement button:active {
+  background: #0284c7;
+  transform: scale(0.95);
+}
+
+.hint {
+  max-width: 125px;
+  padding: 9px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 11px;
+  text-align: center;
+  color: #cbd5e1;
+}
+
+/* NOTIFICATIONS */
+
+#message {
+  position: absolute;
+  left: 50%;
+  bottom: 180px;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: max-content;
+  max-width: 85%;
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #38bdf8;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+
+#message.visible {
+  opacity: 1;
+}
+
+/* ADAPTATION MOBILE */
+
+@media (max-width: 600px) {
+  #hud {
+    top: 8px;
+    left: 8px;
+    padding: 9px;
+  }
+
+  #hud h1 {
+    font-size: 13px;
+  }
+
+  .stats {
+    font-size: 11px;
+  }
+
+  #actions {
+    top: 8px;
+    right: 8px;
+  }
+
+  #actions button {
+    max-width: 135px;
+    padding: 10px 8px;
+    font-size: 10px;
+  }
+
+  .movement button {
+    width: 50px;
+    height: 50px;
+  }
+}
+
+@media (max-height: 450px) {
+  #hud {
+    padding: 7px;
+  }
+
+  .stats {
+    gap: 3px;
+    margin-top: 5px;
+  }
+
+  .movement button {
+    width: 42px;
+    height: 42px;
+  }
+
+  #message {
+    bottom: 110px;
+  }
+}
