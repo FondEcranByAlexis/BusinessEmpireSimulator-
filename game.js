@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.8.1 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.8.2 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -419,6 +419,9 @@ function addWallRack(x,z,rotation=0,extension=true){
   const post=new THREE.Mesh(new THREE.BoxGeometry(.055,2.3,.055),steel);
   post.position.set(px,1.15,pz);rack.add(post);
  }
+ // Chaque étagère vide possède son propre repère.
+ const sign=shelfSign("Rayon disponible");
+ sign.position.set(0,2.65,0);rack.add(sign);
  scene.add(rack);
  if(extension)extensionMeshes.push(rack);
  const alongX=Math.abs(Math.cos(rotation))>.5;
@@ -444,6 +447,9 @@ for(const x of [-5,0,5])for(const z of [-19]){
   const post=new THREE.Mesh(new THREE.BoxGeometry(.06,2.25,.06),steel);
   post.position.set(px,1.13,pz);rack.add(post);
  }
+ // Panneau pour distinguer les étagères encore sans catégorie attribuée.
+ const availableSign=shelfSign("Rayon disponible");
+ availableSign.position.set(0,2.65,0);rack.add(availableSign);
  scene.add(rack);extensionMeshes.push(rack);
  colliders.push({minX:x-1.5,maxX:x+1.5,minZ:z-.55,maxZ:z+.55,requiresUpgrade:"store1"});
 }
@@ -591,7 +597,7 @@ function shelfSign(label){
  ctx.fillStyle="#ffffff";ctx.font="bold 43px Arial";ctx.textAlign="center";
  ctx.fillText(label,256,80,480);
  const texture=new THREE.CanvasTexture(canvas);
- const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));
+ const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:true,depthWrite:false}));
  sprite.scale.set(2.5,.62,1);return sprite;
 }
 function addShelfGuide(p,x,z){
@@ -607,9 +613,9 @@ function addShelfGuide(p,x,z){
 function updateShelfGuides(){
  for(const guide of Object.values(shelfGuides)){
   const active=!!held&&held.id===guide.p.id&&productAvailable(guide.p);
-  guide.group.visible=active||guide.p.kind==="extension"&&!!state.upgrades.store1;
+  guide.group.visible=productAvailable(guide.p)&&(guide.p.kind!=="extension"||!!state.upgrades.store1);
   guide.highlight.visible=active;
-  guide.sign.visible=active||guide.p.kind==="extension"&&!!state.upgrades.store1;
+  guide.sign.visible=guide.group.visible;
  }
 }
 const extensionProductGroups={};
@@ -629,6 +635,10 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
   const item=new THREE.Mesh(new THREE.BoxGeometry(.19,.3,.32),productMat);
   item.position.set(-1.08+(slot%5)*.52,.72+tier*.67,slot<5?-.20:.19);
   rack.add(item);displays[p.id].push(item);
+ }
+ for(const px of [-1.27,1.27])for(const pz of [-.43,.43]){
+  const post=new THREE.Mesh(new THREE.BoxGeometry(.075,2.35,.075),metal);
+  post.position.set(px,1.175,pz);rack.add(post);
  }
  scene.add(rack);extensionProductGroups[p.id]=rack;extensionMeshes.push(rack);
  addShelfGuide(p,p.x,p.z);
@@ -1015,4 +1025,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.8.1 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.8.2 !");
