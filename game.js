@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.5.9 — niveaux selon chiffre d’affaires encaissé
+// Business Empire Simulator V0.6.0 — paliers de CA progressifs
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -18,9 +18,18 @@ const upgradeCatalog=[
  {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",description:"Débloque la spécialisation consoles."}
 ];
 // Chaque euro de chiffre d'affaires encaissé compte pour la progression.
-const REVENUE_PER_LEVEL=500;
-function playerLevel(){return Math.max(1,Math.floor(finance.revenue/REVENUE_PER_LEVEL)+1);}
-function nextLevelRevenue(){return playerLevel()*REVENUE_PER_LEVEL;}
+function revenueThreshold(level){
+ if(level<=1)return 0;
+ if(level===2)return 500;
+ if(level===3)return 2000;
+ return 4000*Math.pow(2,level-4);
+}
+function playerLevel(){
+ let level=1;
+ while(level<50&&finance.revenue>=revenueThreshold(level+1))level++;
+ return level;
+}
+function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
 function reserveLimit(){return state.upgrades.reserve1?60:30;}
 function reserveBoxes(){return catalog.reduce((n,p)=>n+state.inventory[p.id].boxes+Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);}
 function canOrderBox(){return reserveBoxes()<reserveLimit();}
@@ -636,4 +645,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.5.9 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.0 !");
