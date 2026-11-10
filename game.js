@@ -43,7 +43,7 @@ function unlockedShelves(){return 6+Math.max(0,playerLevel()-1);}
 function showUpgrades(){
  openPanel("Améliorations du magasin");
  paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
- paragraph("Étagères débloquées automatiquement : "+unlockedShelves()+" | Nouveaux rayons gratuits à chaque niveau.");
+ paragraph("Objectif : "+unlockedShelves()+" étagères au niveau actuel. Rayons supplémentaires installés : "+extraShelves.filter(e=>e.level<=playerLevel()).length+". Les extensions après le niveau 6 arrivent dans les prochaines versions.");
  paragraph("Trésorerie : "+euro(state.money)+" | Réserve : "+reserveBoxes()+"/"+reserveLimit()+" cartons");
  for(const u of upgradeCatalog){
   const owned=!!state.upgrades[u.id];
@@ -312,7 +312,19 @@ for(const p of catalog){
   const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
   const mat=new THREE.MeshStandardMaterial({color:p.color});
   const group=new THREE.Group();group.position.set(p.x,0,z);
-  if(p.level){group.scale.set(.47,1,.8);group.visible=playerLevel()>=p.level;extraShelves.push({group,level:p.level});}
+  if(p.level){
+   group.scale.set(.47,1,.8);
+   group.visible=playerLevel()>=p.level;
+   extraShelves.push({group,level:p.level});
+   if(p.kind==="froid"||p.kind==="congelateur"){
+    const casing=new THREE.Mesh(new THREE.BoxGeometry(2.55,2.35,1.08),new THREE.MeshStandardMaterial({color:p.kind==="congelateur"?0x60a5fa:0xe2e8f0,transparent:true,opacity:.25,metalness:.35}));
+    casing.position.y=1.2;group.add(casing);
+   }
+   if(p.kind==="fruits"){
+    const basket=new THREE.Mesh(new THREE.BoxGeometry(2.5,.35,1),new THREE.MeshStandardMaterial({color:0x92400e}));
+    basket.position.y=.5;group.add(basket);
+   }
+  }
   for(const x of [-1.15,1.15])for(const dz of [-.4,.4]){
    const post=new THREE.Mesh(new THREE.BoxGeometry(.08,2.4,.08),metal);
    post.position.set(x,1.2,dz);group.add(post);
