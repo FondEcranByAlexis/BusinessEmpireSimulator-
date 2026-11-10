@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.9 — version synchronisée
+// Business Empire Simulator V0.9.10 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -914,11 +914,6 @@ function refreshBoxes(){
   reserveModels[p.id].visible=a.reserve>0;
  });
 }
-const signCanvas=document.createElement("canvas");signCanvas.width=512;signCanvas.height=128;
-const ctx=signCanvas.getContext("2d");ctx.fillStyle="#0f172a";ctx.fillRect(0,0,512,128);
-ctx.fillStyle="#38bdf8";ctx.font="bold 34px Arial";ctx.textAlign="center";ctx.fillText("BUSINESS EMPIRE",256,78);
-const sign=new THREE.Mesh(new THREE.PlaneGeometry(5,1.25),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(signCanvas),side:THREE.DoubleSide}));
-sign.position.set(0,3.5,-9.8);scene.add(sign);
 function sync(){hud();refreshDisplays();refreshBoxes();refreshExtension();updateLighting();save();}
 // V0.4.2 — transport de cartons entiers, remplissage en lot
 // held = {id, quantity}. Une unité d'ancienne réserve peut être regroupée en lot.
@@ -1242,4 +1237,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.9 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.10 !");
