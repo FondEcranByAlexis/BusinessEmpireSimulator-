@@ -237,6 +237,9 @@ scene.add(sign);
 let yaw = 0;
 let pitch = 0;
 
+let targetYaw = 0;
+let targetPitch = 0;
+
 const keys = {
   forward: false,
   backward: false,
@@ -303,9 +306,14 @@ renderer.domElement.addEventListener("pointerdown", e => {
 renderer.domElement.addEventListener("pointermove", e => {
   if (e.pointerId !== lookPointer) return;
 
-  yaw -= (e.clientX - lastX) * 0.004;
-  pitch -= (e.clientY - lastY) * 0.004;
-  pitch = THREE.MathUtils.clamp(pitch, -1.2, 1.2);
+  targetYaw -= (e.clientX - lastX) * 0.003;
+targetPitch -= (e.clientY - lastY) * 0.003;
+
+targetPitch = THREE.MathUtils.clamp(
+  targetPitch,
+  -1.2,
+  1.2
+);
 
   lastX = e.clientX;
   lastY = e.clientY;
@@ -672,9 +680,14 @@ function animate() {
   updateBusiness(dt);
   updateCustomers(dt);
 
-  camera.rotation.order = "YXZ";
-  camera.rotation.y = yaw;
-  camera.rotation.x = pitch;
+  const smooth = 1 - Math.exp(-12 * dt);
+
+yaw += (targetYaw - yaw) * smooth;
+pitch += (targetPitch - pitch) * smooth;
+
+camera.rotation.order = "YXZ";
+camera.rotation.y = yaw;
+camera.rotation.x = pitch;
 
   renderer.render(scene, camera);
 }
