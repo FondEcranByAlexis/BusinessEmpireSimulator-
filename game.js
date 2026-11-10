@@ -1,15 +1,20 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.0 — paliers de CA progressifs
+// Business Empire Simulator V0.6.1 — rayons automatiques par niveau
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
  {id:"eau",name:"Eau",cost:2,price:4,color:0x38bdf8,x:-5},
  {id:"pates",name:"Pâtes",cost:3,price:6,color:0xfacc15,x:0},
- {id:"savon",name:"Savon",cost:5,price:10,color:0x4ade80,x:5}
+ {id:"savon",name:"Savon",cost:5,price:10,color:0x4ade80,x:5},
+ {id:"riz",name:"Riz",cost:4,price:8,color:0xfde68a,x:-8.5,z:-7,level:2,kind:"sec"},
+ {id:"biscuits",name:"Biscuits",cost:5,price:11,color:0xf59e0b,x:8.5,z:-7,level:3,kind:"sec"},
+ {id:"fromage",name:"Fromage",cost:8,price:17,color:0xfef08a,x:-8.5,z:-3.5,level:4,kind:"froid"},
+ {id:"surgeles",name:"Pizza surgelée",cost:9,price:20,color:0x60a5fa,x:8.5,z:-3.5,level:4,kind:"congelateur"},
+ {id:"cereales",name:"Céréales",cost:6,price:13,color:0xc084fc,x:-8.5,z:0,level:5,kind:"sec"},
+ {id:"pommes",name:"Pommes",cost:3,price:7,color:0xf87171,x:8.5,z:0,level:6,kind:"fruits"}
 ];
 const CAPACITY=30, BOX_UNITS=10;
 const upgradeCatalog=[
- {id:"shelf7",name:"7e étagère",level:2,cost:450,description:"Débloque une étagère supplémentaire dans le magasin."},
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
  {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Débloque un espace de vente supplémentaire."},
  {id:"phoneSkill",name:"Compétence Téléphonie",level:5,cost:1200,description:"Formation préalable à la vente de téléphones."},
@@ -33,9 +38,12 @@ function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
 function reserveLimit(){return state.upgrades.reserve1?60:30;}
 function reserveBoxes(){return catalog.reduce((n,p)=>n+state.inventory[p.id].boxes+Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);}
 function canOrderBox(){return reserveBoxes()<reserveLimit();}
+function unlockedProducts(){return catalog.filter(p=>!p.level||playerLevel()>=p.level);}
+function unlockedShelves(){return 6+Math.max(0,playerLevel()-1);}
 function showUpgrades(){
  openPanel("Améliorations du magasin");
  paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
+ paragraph("Étagères débloquées automatiquement : "+unlockedShelves()+" | Nouveaux rayons gratuits à chaque niveau.");
  paragraph("Trésorerie : "+euro(state.money)+" | Réserve : "+reserveBoxes()+"/"+reserveLimit()+" cartons");
  for(const u of upgradeCatalog){
   const owned=!!state.upgrades[u.id];
@@ -121,7 +129,7 @@ function paragraph(t){
 }
 function showOrders(){
  openPanel("Fournisseurs — cartons de 10");
- catalog.forEach(p=>button(panel,p.name+" : "+(p.cost*10)+" €",()=>{
+ unlockedProducts().forEach(p=>button(panel,p.name+" : "+(p.cost*10)+" €",()=>{
   const cost=p.cost*10;
   if(!canOrderBox()){toast("Réserve pleine — améliore sa capacité");return;}
   if(state.money<cost){toast("Trésorerie insuffisante");return;}
@@ -131,7 +139,7 @@ function showOrders(){
 }
 function showStocks(){
  openPanel("Stocks");
- catalog.forEach(p=>{
+ unlockedProducts().forEach(p=>{
   const a=state.inventory[p.id];
   paragraph(p.name+" — Rayons "+a.shelf+"/"+CAPACITY+" | Réserve "+a.reserve+" | Cartons "+a.boxes+" | "+a.price+" €");
  });
@@ -219,7 +227,7 @@ function showComputerOrders(){
  if(!near(7.3,6.5,3.4)){toast("Approche-toi de l'ordinateur");return;}
  openPanel("ORDINATEUR — Fournisseurs");
  paragraph("Commandes livrées en réserve. Chaque carton contient "+BOX_UNITS+" produits.");
- for(const p of catalog){
+ for(const p of unlockedProducts()){
   const a=state.inventory[p.id],cost=p.cost*BOX_UNITS;
   paragraph(p.name+" | "+euro(cost)+"/carton | "+a.boxes+" carton(s) en réserve");
   button(panel,"Commander 1 carton — "+euro(cost),()=>{
@@ -297,13 +305,14 @@ cube(0,4.2,10,4,1.6,.3,0xe2e8f0);
 cube(0,-.17,12,8,.3,5,0x94a3b8);
 cube(0,.015,8.5,3,.03,2,0x334155);
 for(const x of [-6,0,6])for(const z of [-6,0,6])cube(x,4.94,z,2.8,.05,.5,0xffffff);
-const displays={};
+const displays={},extraShelves=[];
 for(const p of catalog){
  displays[p.id]=[];
- for(const z of [-4,1]){
+ for(const z of (p.level?[p.z]:[-4,1])){
   const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
   const mat=new THREE.MeshStandardMaterial({color:p.color});
   const group=new THREE.Group();group.position.set(p.x,0,z);
+  if(p.level){group.scale.set(.47,1,.8);group.visible=playerLevel()>=p.level;extraShelves.push({group,level:p.level});}
   for(const x of [-1.15,1.15])for(const dz of [-.4,.4]){
    const post=new THREE.Mesh(new THREE.BoxGeometry(.08,2.4,.08),metal);
    post.position.set(x,1.2,dz);group.add(post);
@@ -317,11 +326,12 @@ for(const p of catalog){
    }
   }
   scene.add(group);
-  colliders.push({minX:p.x-1.3,maxX:p.x+1.3,minZ:z-.65,maxZ:z+.65});
+  colliders.push({minX:p.x-(p.level?.62:1.3),maxX:p.x+(p.level?.62:1.3),minZ:z-(p.level?.52:.65),maxZ:z+(p.level?.52:.65),level:p.level||1});
  }
 }
 function refreshDisplays(){
- for(const p of catalog)displays[p.id].forEach((m,i)=>m.visible=i<state.inventory[p.id].shelf);
+ for(const p of catalog)displays[p.id].forEach((m,i)=>m.visible=playerLevel()>=(p.level||1)&&i<state.inventory[p.id].shelf);
+ for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
 }
 cube(6.5,.55,6.5,3,1.1,1.3,0x475569,true);
 cube(6.5,1.13,6.5,3.1,.12,1.4,0x1e293b);
@@ -440,7 +450,7 @@ function showReserve(){
   button(panel,"Reposer le carton dans la réserve",putBack);
   return;
  }
- for(const p of catalog){
+ for(const p of unlockedProducts()){
   const a=state.inventory[p.id];
   paragraph("● "+p.name+" — "+a.boxes+" carton(s) fermé(s) ("+(a.boxes*BOX_UNITS)+" unités) + "+a.reserve+" en vrac. Total : "+(a.reserve+a.boxes*BOX_UNITS));
   if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10));
@@ -451,7 +461,7 @@ function showReserve(){
 function interact(){
  if(held){
   const p=catalog.find(p=>p.id===held.id);
-  if(near(p.x,1,3.2)||near(p.x,-4,3.2)){
+  if(playerLevel()>=(p.level||1)&&(p.level?near(p.x,p.z,2.2):(near(p.x,1,3.2)||near(p.x,-4,3.2)))){
    const a=state.inventory[p.id],space=Math.max(0,CAPACITY-a.shelf);
    if(!space){toast("Rayons "+p.name+" pleins");return;}
    const placed=Math.min(space,held.quantity);
@@ -498,7 +508,7 @@ document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=fal
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;});
 function blocked(x,z,r=.4){
  if(x< -9.45+r||x>9.45-r||z< -9.45+r||z>13.8-r)return true;
- return colliders.some(c=>x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
+ return colliders.some(c=>playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 function movePlayer(dt){
  if(panel.style.display!=="none")return;
@@ -530,11 +540,12 @@ function makeCustomer(){
  const l=part(.18,.65,.2,pants,-.14,.48,0),r=part(.18,.65,.2,pants,.14,.48,0);
  part(.14,.65,.2,shirt,-.34,1.23,0);part(.14,.65,.2,shirt,.34,1.23,0);
  group.position.set(0,0,12.5);scene.add(group);
- const choices=[...catalog].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*catalog.length));
+ const choices=[...unlockedProducts()].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*catalog.length));
  const route=[{x:0,z:8}];
  for(const p of choices){
-  const aisleX=p.x===5?2.5:p.x-2.5;
-  route.push({x:aisleX,z:8},{x:aisleX,z:3.2},{x:aisleX,z:-1.5,shop:p.id},{x:aisleX,z:-6.5},{x:8.3,z:-6.5},{x:8.3,z:8});
+  const aisleX=p.level?(p.x<0?-7.2:7.2):(p.x===5?2.5:p.x-2.5);
+  const targetZ=p.level?p.z:-1.5;
+  route.push({x:aisleX,z:8},{x:aisleX,z:targetZ,shop:p.id},{x:aisleX,z:8});
  }
  route.push({x:8.3,z:4.5},{x:5.2,z:4.5});
  customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0});
@@ -577,7 +588,7 @@ function updateCustomers(dt){
    const i=queue.indexOf(c);
    if(i===0&&!cashier){
     queue.shift();cashier=c;c.phase="checkout";c.scanned=0;
-    toast("Client en caisse : utilise le bouton Caisse");
+    toast("Client en caisse : utilise l’ordinateur");
    }else walk(c,{x:5.2-Math.max(0,i)*.7,z:4.5},dt);
   }else if(c.phase==="checkout"){
    walk(c,{x:5.2,z:4.5},dt);
@@ -645,4 +656,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.0 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.1 !");
