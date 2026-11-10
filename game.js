@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.7.1 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.7.2 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -387,9 +387,9 @@ for(const x of [-5,0,5])for(const z of [-15,-19]){
  const steel=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.35});
  for(const y of [.45,1.15,1.85]){
   const shelf=new THREE.Mesh(new THREE.BoxGeometry(2.8,.09,.95),steel);
-  shelf.position.y=y;rack.add(shelf);
-  const rim=new THREE.Mesh(new THREE.BoxGeometry(2.8,.06,.04),steel);
-  rim.position.set(0,y+.07,.47);rack.add(rim);
+  shelf.position.y=y;shelf.rotation.x=.12;rack.add(shelf);
+  const rim=new THREE.Mesh(new THREE.BoxGeometry(2.8,.055,.04),steel);
+  rim.position.set(0,y+.08,.47);rack.add(rim);
  }
  for(const px of [-1.32,1.32])for(const pz of [-.43,.43]){
   const post=new THREE.Mesh(new THREE.BoxGeometry(.06,2.25,.06),steel);
@@ -542,7 +542,8 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-const lightSwitch=cube(8.05,1.3,6.53,.24,.2,.12,0x22c55e);
+// Petit interrupteur fixé sur le flanc de la caisse, côté employé.
+const lightSwitch=cube(8.08,1.16,6.93,.10,.09,.035,0x22c55e);
 function toggleLights(){
  storeLightsOn=!storeLightsOn;
  lightSwitch.material.color.setHex(storeLightsOn?0x22c55e:0xef4444);
@@ -693,7 +694,7 @@ function interact(){
   freezerOpen=!freezerOpen;freezerLid.rotation.z=freezerOpen?-.95:0;
   toast(freezerOpen?"Congélateur ouvert":"Congélateur fermé");return;
  }
- if(near(8.05,6.53,1.2)){toggleLights();return;}
+ if(near(8.08,6.93,1.15)){toggleLights();return;}
  if(near(7.3,6.5,3.4)){showComputer();return;}
  toast("Approche-toi de la réserve, de la caisse ou de l’interrupteur lumineux");
 }
@@ -874,4 +875,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.7.1 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.7.2 !");
