@@ -430,25 +430,6 @@ for(const x of [-7,-3.5,3.5,7])addWallRack(x,-21.1,0,true);
 for(const z of [-13.5,-17,-20]){addWallRack(-9.15,z,Math.PI/2,true);addWallRack(9.15,z,-Math.PI/2,true);}
 addWallRack(-8.9,5.9,Math.PI/2,false);
 addWallRack(-5.2,7.8,0,false);
-// Trois rayons commercialisables dans la nouvelle zone, avec cartons visibles.
-for(const p of catalog.filter(p=>p.kind==="extension")){
- const rack=new THREE.Group();rack.position.set(p.x,0,p.z);
- const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
- const productMat=new THREE.MeshStandardMaterial({color:p.color,roughness:.75});
- for(const y of [.48,1.15,1.82]){
-  const plank=new THREE.Mesh(new THREE.BoxGeometry(2.65,.08,.95),metal);
-  plank.position.y=y;plank.rotation.x=.12;rack.add(plank);
-  const lip=new THREE.Mesh(new THREE.BoxGeometry(2.65,.07,.045),metal);
-  lip.position.set(0,y+.09,.46);rack.add(lip);
- }
- for(let i=0;i<CAPACITY;i++){
-  const tier=Math.floor(i/10),slot=i%10;
-  const item=new THREE.Mesh(new THREE.BoxGeometry(.19,.3,.32),productMat);
-  item.position.set(-1.08+(slot%5)*.52,.72+tier*.67,slot<5?-.20:.19);
-  rack.add(item);displays[p.id].push(item);
- }
- scene.add(rack);extensionProductGroups[p.id]=rack;extensionMeshes.push(rack);
-}
 // Gondoles d'extension avec allées libres, uniquement visibles après achat.
 for(const x of [-5,0,5])for(const z of [-15,-19]){
  const rack=new THREE.Group();rack.position.set(x,0,z);
@@ -600,6 +581,26 @@ for(const p of catalog){
  }
 }
 const extensionProductGroups={};
+// Trois rayons commercialisables dans la nouvelle zone, avec cartons visibles.
+for(const p of catalog.filter(p=>p.kind==="extension")){
+ const rack=new THREE.Group();rack.position.set(p.x,0,p.z);
+ const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
+ const productMat=new THREE.MeshStandardMaterial({color:p.color,roughness:.75});
+ for(const y of [.48,1.15,1.82]){
+  const plank=new THREE.Mesh(new THREE.BoxGeometry(2.65,.08,.95),metal);
+  plank.position.y=y;plank.rotation.x=.12;rack.add(plank);
+  const lip=new THREE.Mesh(new THREE.BoxGeometry(2.65,.07,.045),metal);
+  lip.position.set(0,y+.09,.46);rack.add(lip);
+ }
+ for(let i=0;i<CAPACITY;i++){
+  const tier=Math.floor(i/10),slot=i%10;
+  const item=new THREE.Mesh(new THREE.BoxGeometry(.19,.3,.32),productMat);
+  item.position.set(-1.08+(slot%5)*.52,.72+tier*.67,slot<5?-.20:.19);
+  rack.add(item);displays[p.id].push(item);
+ }
+ scene.add(rack);extensionProductGroups[p.id]=rack;extensionMeshes.push(rack);
+}
+
 function refreshDisplays(){
  for(const p of catalog)displays[p.id].forEach((m,i)=>m.visible=productAvailable(p)&&i<state.inventory[p.id].shelf);
  for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
