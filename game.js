@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.4.2 — réapprovisionnement par cartons
+// Business Empire Simulator V0.4.3 — inventaire visuel et suppression de marchandises
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -101,6 +101,7 @@ Object.assign(actions.style,{position:"fixed",right:"12px",bottom:"110px",zIndex
 document.body.appendChild(actions);
 button(actions,"Stocks",showStocks);
 button(actions,"Prix",showPrices);
+button(actions,"Réserve",showReserve);
 button(actions,"Interagir",interact).style.background="#15803d";
 // Scène et éclairage léger
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc9e8);
@@ -161,9 +162,25 @@ cube(6.5,1.13,6.5,3.1,.12,1.4,0x1e293b);
 cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 cube(7.3,1.5,6.37,.48,.3,.05,0x38bdf8);
 cube(-7.5,.1,6.5,3,.2,2.5,0x8b5e3c);
-const boxes={};
-catalog.forEach((p,i)=>boxes[p.id]=cube(-8.3+i*.8,.55,6.5,.65,.65,.65,0xb98246));
-function refreshBoxes(){catalog.forEach(p=>boxes[p.id].visible=state.inventory[p.id].boxes>0);}
+// Représentation 3D : jusqu'à 3 cartons par produit, plus un lot ouvert
+const boxes={},reserveModels={};
+for(const [i,p] of catalog.entries()){
+ boxes[p.id]=[];
+ for(let j=0;j<3;j++){
+  const mesh=cube(-8.5+i*.9,.48+j*.68,6.5,.7,.65,.7,0xb98246);
+  const band=new THREE.Mesh(new THREE.BoxGeometry(.72,.13,.72),new THREE.MeshStandardMaterial({color:p.color}));
+  band.position.y=.18;mesh.add(band);
+  boxes[p.id].push(mesh);
+ }
+ reserveModels[p.id]=cube(-8.5+i*.9,.25,7.4,.55,.4,.45,p.color);
+}
+function refreshBoxes(){
+ catalog.forEach(p=>{
+  const a=state.inventory[p.id];
+  boxes[p.id].forEach((m,i)=>m.visible=i<Math.min(3,a.boxes));
+  reserveModels[p.id].visible=a.reserve>0;
+ });
+}
 const signCanvas=document.createElement("canvas");signCanvas.width=512;signCanvas.height=128;
 const ctx=signCanvas.getContext("2d");ctx.fillStyle="#0f172a";ctx.fillRect(0,0,512,128);
 ctx.fillStyle="#38bdf8";ctx.font="bold 34px Arial";ctx.textAlign="center";ctx.fillText("BUSINESS EMPIRE",256,78);
@@ -204,6 +221,47 @@ function takeCarton(p,amount){
  sync();refreshCarry();panel.style.display="none";
  toast("Carton de "+p.name+" : "+held.quantity+" produits. Va au rayon.");
 }
+// Gestion des déchets : uniquement les produits réellement en réserve.
+// Confirmation obligatoire ; aucun remboursement.
+function showDisposal(p){
+ const a=state.inventory[p.id];
+ openPanel("Jeter des marchandises — "+p.name);
+ paragraph("Stock disponible : "+a.reserve+" unité(s) en vrac et "+a.boxes+" carton(s) de 10.");
+ paragraph("Les produits jetés sont définitivement perdus, sans remboursement.");
+ const quantityLabel=document.createElement("label");
+ quantityLabel.textContent="Quantité à jeter (unités) : ";
+ quantityLabel.style.display="block";
+ quantityLabel.style.marginTop="12px";
+ panel.appendChild(quantityLabel);
+ const input=document.createElement("input");
+ input.type="number";input.min="1";input.max=String(a.reserve+a.boxes*BOX_UNITS);
+ input.step="1";input.value="1";input.inputMode="numeric";
+ Object.assign(input.style,{width:"100%",padding:"10px",marginTop:"6px",borderRadius:"8px",background:"#fff",color:"#111"});
+ panel.appendChild(input);
+ button(panel,"Continuer",()=>{
+  const amount=Number(input.value);
+  const available=a.reserve+a.boxes*BOX_UNITS;
+  if(!Number.isSafeInteger(amount)||amount<1||amount>available){
+   toast("Choisis une quantité entre 1 et "+available);return;
+  }
+  openPanel("Confirmer la suppression");
+  paragraph("Jeter définitivement "+amount+" × "+p.name+" ?");
+  button(panel,"Oui, jeter "+amount+" produit(s)",()=>{
+   // Déballer virtuellement les cartons nécessaires pour prélever le solde.
+   const fromLoose=Math.min(a.reserve,amount);
+   a.reserve-=fromLoose;
+   let remaining=amount-fromLoose;
+   if(remaining>0){
+    const opened=Math.ceil(remaining/BOX_UNITS);
+    a.boxes-=opened;
+    a.reserve+=opened*BOX_UNITS-remaining;
+   }
+   sync();showReserve();toast(amount+" × "+p.name+" jetés");
+  });
+  button(panel,"Annuler",showReserve);
+ });
+ button(panel,"Annuler",showReserve);
+}
 function showReserve(){
  if(!atReserve()){toast("Approche-toi de la réserve");return;}
  openPanel("Réserve — cartons à transporter");
@@ -215,9 +273,10 @@ function showReserve(){
  }
  for(const p of catalog){
   const a=state.inventory[p.id];
-  paragraph(p.name+" — "+a.boxes+" carton(s) fermé(s), "+a.reserve+" unité(s) en réserve");
+  paragraph("● "+p.name+" — "+a.boxes+" carton(s) fermé(s) ("+(a.boxes*BOX_UNITS)+" unités) + "+a.reserve+" en vrac. Total : "+(a.reserve+a.boxes*BOX_UNITS));
   if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10));
   if(a.reserve>0)button(panel,"Prendre un lot de "+p.name+" ("+Math.min(10,a.reserve)+")",()=>takeCarton(p,10));
+  if(a.boxes>0||a.reserve>0)button(panel,"Jeter des "+p.name,()=>showDisposal(p));
  }
 }
 function interact(){
