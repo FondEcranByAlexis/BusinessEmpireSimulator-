@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.9 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.7.0 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -23,7 +23,7 @@ const catalog=[
 const CAPACITY=30, BOX_UNITS=10;
 const upgradeCatalog=[
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
- {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Débloque un espace de vente supplémentaire."},
+ {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Ouvre une nouvelle salle de vente de 20 × 12 m derrière le magasin, avec accès central."},
  {id:"phoneSkill",name:"Compétence Téléphonie",level:5,cost:1200,description:"Formation préalable à la vente de téléphones."},
  {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:"phoneSkill",description:"Débloque la spécialisation téléphones."},
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
@@ -51,7 +51,7 @@ function unlockedShelves(){return 6+Math.max(0,playerLevel()-1);}
 function showUpgrades(){
  openPanel("Améliorations du magasin");
  paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
- paragraph("Objectif : "+unlockedShelves()+" étagères au niveau actuel. Rayons supplémentaires installés : "+extraShelves.filter(e=>e.level<=playerLevel()).length+". Les extensions après le niveau 6 arrivent dans les prochaines versions.");
+ paragraph("Objectif : "+unlockedShelves()+" étagères au niveau actuel. Rayons supplémentaires installés : "+extraShelves.filter(e=>e.level<=playerLevel()).length+". Première extension physique accessible après achat au niveau 4 ; futurs agrandissements en préparation.");
  paragraph("Trésorerie : "+euro(state.money)+" | Réserve : "+reserveBoxes()+"/"+reserveLimit()+" cartons");
  for(const u of upgradeCatalog){
   const owned=!!state.upgrades[u.id];
@@ -345,7 +345,31 @@ cube(0,-.15,0,20,.3,20,0xb9c1c8);
 cube(0,5.1,0,20,.2,20,0xf1f5f9);
 cube(-10,2.5,0,.3,5,20,0xe2e8f0,true);
 cube(10,2.5,0,.3,5,20,0xe2e8f0,true);
-cube(0,2.5,-10,20,5,.3,0xe2e8f0,true);
+// Mur arrière avec passage central réservé à la première extension.
+cube(-6,2.5,-10,8,5,.3,0xe2e8f0,true);
+cube(6,2.5,-10,8,5,.3,0xe2e8f0,true);
+cube(0,4.15,-10,4,1.7,.3,0xe2e8f0);
+const extensionGate=cube(0,1.65,-10,3.95,3.3,.24,0x64748b);
+const extensionGateCollider={minX:-2,maxX:2,minZ:-10.2,maxZ:-9.8,level:1};
+colliders.push(extensionGateCollider);
+// Salle supplémentaire : 20 m de large et 12 m de profondeur.
+const extensionMeshes=[];
+function extensionCube(x,y,z,w,h,d,color){
+ const mesh=cube(x,y,z,w,h,d,color);
+ extensionMeshes.push(mesh);return mesh;
+}
+extensionCube(0,-.15,-16,20,.3,12,0xb9c1c8);
+extensionCube(0,5.1,-16,20,.2,12,0xf1f5f9);
+extensionCube(-10,2.5,-16,.3,5,12,0xe2e8f0);
+extensionCube(10,2.5,-16,.3,5,12,0xe2e8f0);
+extensionCube(0,2.5,-22,20,5,.3,0xe2e8f0);
+for(const x of [-6,0,6])for(const z of [-14,-19])extensionCube(x,4.94,z,2.8,.05,.5,0xffffff);
+function refreshExtension(){
+ const unlocked=!!state.upgrades.store1;
+ extensionGate.visible=!unlocked;
+ extensionGateCollider.disabled=unlocked;
+ for(const mesh of extensionMeshes)mesh.visible=unlocked;
+}
 cube(-6,2.5,10,8,5,.3,0xe2e8f0,true);
 cube(6,2.5,10,8,5,.3,0xe2e8f0,true);
 cube(0,4.2,10,4,1.6,.3,0xe2e8f0);
@@ -509,7 +533,7 @@ const ctx=signCanvas.getContext("2d");ctx.fillStyle="#0f172a";ctx.fillRect(0,0,5
 ctx.fillStyle="#38bdf8";ctx.font="bold 34px Arial";ctx.textAlign="center";ctx.fillText("BUSINESS EMPIRE",256,78);
 const sign=new THREE.Mesh(new THREE.PlaneGeometry(5,1.25),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(signCanvas),side:THREE.DoubleSide}));
 sign.position.set(0,3.5,-9.8);scene.add(sign);
-function sync(){hud();refreshDisplays();refreshBoxes();save();}
+function sync(){hud();refreshDisplays();refreshBoxes();refreshExtension();save();}
 // V0.4.2 — transport de cartons entiers, remplissage en lot
 // held = {id, quantity}. Une unité d'ancienne réserve peut être regroupée en lot.
 let held=null;
@@ -659,8 +683,8 @@ document.addEventListener("keydown",e=>{if(keyMap[e.code]){keys[keyMap[e.code]]=
 document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=false;});
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;});
 function blocked(x,z,r=.4){
- if(x< -9.45+r||x>9.45-r||z< -9.45+r||z>13.8-r)return true;
- return colliders.some(c=>playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
+ if(x< -9.45+r||x>9.45-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>13.8-r)return true;
+ return colliders.some(c=>!c.disabled&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 function movePlayer(dt){
  if(panel.style.display!=="none")return;
@@ -808,4 +832,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.9 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.7.0 !");
