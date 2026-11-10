@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.8.5 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.8.6 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -469,16 +469,26 @@ for(const x of [-6,0,6])for(const z of [-6,0,6])cube(x,4.94,z,2.8,.05,.5,0xfffff
 const productTextures={};
 function packageTexture(p){
  if(productTextures[p.id])return productTextures[p.id];
- const c=document.createElement("canvas");c.width=256;c.height=256;
- const x=c.getContext("2d");x.fillStyle="#"+p.color.toString(16).padStart(6,"0");x.fillRect(0,0,256,256);
- x.fillStyle="rgba(255,255,255,.86)";x.fillRect(14,55,228,146);
- x.fillStyle="#172033";x.textAlign="center";x.font="bold 29px Arial";
- const words=p.name.split(" ");let lines=[],line="";
- for(const word of words){if((line+" "+word).length>12){lines.push(line);line=word;}else line=(line+" "+word).trim();}
+ // Texture haute définition : nom très lisible sur la face avant du paquet.
+ const c=document.createElement("canvas");c.width=512;c.height=512;
+ const x=c.getContext("2d");
+ x.fillStyle="#"+p.color.toString(16).padStart(6,"0");x.fillRect(0,0,512,512);
+ x.fillStyle="#ffffff";x.fillRect(18,62,476,370);
+ x.fillStyle="#172033";x.textAlign="center";x.textBaseline="middle";
+ const words=p.name.split(" ");const lines=[];let line="";
+ for(const word of words){
+  const trial=(line+" "+word).trim();
+  if(line&&trial.length>12){lines.push(line);line=word;}else line=trial;
+ }
  if(line)lines.push(line);
- lines.slice(0,3).forEach((v,i)=>x.fillText(v,128,112+i*34,216));
- x.fillStyle="#ffffff";x.fillRect(18,213,220,9);
- const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;productTextures[p.id]=t;return t;
+ const visible=lines.slice(0,3),fontSize=visible.length>2?67:visible.length>1?83:106;
+ x.font="900 "+fontSize+"px Arial";
+ visible.forEach((v,i)=>x.fillText(v,256,246+(i-(visible.length-1)/2)*(fontSize+13),460));
+ x.fillStyle="#172033";x.fillRect(18,455,476,14);
+ const t=new THREE.CanvasTexture(c);
+ t.colorSpace=THREE.SRGBColorSpace;
+ t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+ productTextures[p.id]=t;return t;
 }
 function productModel(p){
  const g=new THREE.Group(),base=new THREE.MeshStandardMaterial({color:p.color,roughness:.72});
@@ -1081,4 +1091,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.8.5 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.8.6 !");
