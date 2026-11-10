@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.4 — correction du présentoir à fruits
+// Business Empire Simulator V0.6.5 — plateaux inclinés avec rebords
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -383,10 +383,17 @@ for(const p of catalog){
   }
   for(let level=0;level<3;level++){
    const y=.45+level*.75;
-   const plank=new THREE.Mesh(new THREE.BoxGeometry(2.4,.1,1),metal);plank.position.y=y;group.add(plank);
+   // Plateau légèrement incliné vers le client, avec butée anti-chute.
+   const tilt=-.11;
+   const plank=new THREE.Mesh(new THREE.BoxGeometry(2.4,.1,1),metal);
+   plank.position.y=y;plank.rotation.x=tilt;group.add(plank);
+   const lip=new THREE.Mesh(new THREE.BoxGeometry(2.4,.18,.065),metal);
+   lip.position.set(0,y+.085,.49);group.add(lip);
    for(let i=0;i<5;i++){
     const item=new THREE.Mesh(new THREE.BoxGeometry(.3,.4,.45),mat);
-    item.position.set(-.9+i*.45,y+.25,0);group.add(item);displays[p.id].push(item);
+    item.position.set(-.9+i*.45,y+.26,0);
+    item.rotation.x=tilt;
+    group.add(item);displays[p.id].push(item);
    }
   }
   scene.add(group);
@@ -720,4 +727,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.4 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.5 !");
