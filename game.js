@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.5.3 — correction pause stricte de l’horloge
+// Business Empire Simulator V0.5.4 — journée de 10 minutes
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -405,7 +405,7 @@ function movePlayer(dt){
 }
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
-const MAX_CUSTOMERS=5,DAY_SECONDS=1800,OPEN_HOUR=8,CLOSE_HOUR=20;
+const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
 const timeLabel=document.createElement("div");
 Object.assign(timeLabel.style,{position:"fixed",top:"80px",left:"12px",zIndex:"11",padding:"6px 10px",background:"#0f172acb",borderRadius:"8px",color:"white",fontSize:"12px",pointerEvents:"none"});
 document.body.appendChild(timeLabel);
@@ -536,4 +536,4 @@ function animate(){
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  movePlayer(dt);business(dt);updateCustomers(dt);renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.5.3 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.5.4 !");
