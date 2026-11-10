@@ -7,14 +7,23 @@
         content="width=device-width, initial-scale=1,
         maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#101820">
-  <title>Business Empire Simulator V0.7.7</title>
+  <title>Business Empire Simulator V0.7.8</title>
 
-  <link rel="stylesheet" href="style.css?v=0.7.7">
+  <link rel="stylesheet" href="style.css?v=0.7.8">
 </head>
 
 <body>
 
   <div id="game"></div>
+  <button id="fullscreenLandscape" type="button" aria-label="Activer le plein écran paysage">⛶ Plein écran</button>
+  <div id="rotateOverlay">
+    <div class="rotateContent">
+      <div class="rotateIcon">↻</div>
+      <strong>Tourne ton téléphone</strong>
+      <p>Business Empire Simulator se joue désormais en paysage.</p>
+      <button id="startLandscape" type="button">Passer en plein écran</button>
+    </div>
+  </div>
 
   <div id="hud">
     <h1>BUSINESS EMPIRE</h1>
@@ -41,7 +50,21 @@
 
   <div id="message"></div>
 
-  <script type="module" src="game.js?v=0.7.7"></script>
+  <script>
+    async function requestLandscape(){
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen)
+          await document.documentElement.requestFullscreen();
+        if (screen.orientation && screen.orientation.lock)
+          await screen.orientation.lock("landscape");
+      } catch(e) {
+        // Le navigateur peut refuser le verrouillage : rotation manuelle possible.
+      }
+    }
+    document.getElementById("startLandscape").addEventListener("click",requestLandscape);
+    document.getElementById("fullscreenLandscape").addEventListener("click",requestLandscape);
+  </script>
+  <script type="module" src="game.js?v=0.7.8"></script>
 
 </body>
 </html>
