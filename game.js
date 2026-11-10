@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.7.9 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.8.0 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -18,7 +18,10 @@ const catalog=[
  {id:"fromage",name:"Fromage",cost:8,price:17,color:0xfef08a,x:-8.5,z:-3.5,level:4,kind:"froid"},
  {id:"surgeles",name:"Pizza surgelée",cost:9,price:20,color:0x60a5fa,x:8.5,z:-3.5,level:4,kind:"congelateur"},
  {id:"cereales",name:"Céréales",cost:6,price:13,color:0xc084fc,x:-8.5,z:0,level:5,kind:"sec"},
- {id:"pommes",name:"Pommes",cost:3,price:7,color:0xf87171,x:8.5,z:0,level:6,kind:"fruits"}
+ {id:"pommes",name:"Pommes",cost:3,price:7,color:0xf87171,x:8.5,z:0,level:6,kind:"fruits"},
+ {id:"cafe",name:"Café",cost:7,price:15,color:0x92400e,x:-5,z:-15,level:4,kind:"extension",license:"extensionLicense"},
+ {id:"jus",name:"Jus de fruits",cost:4,price:9,color:0xfb923c,x:0,z:-15,level:4,kind:"extension",license:"extensionLicense"},
+ {id:"chocolat",name:"Chocolat",cost:5,price:12,color:0x78350f,x:5,z:-15,level:4,kind:"extension",license:"extensionLicense"}
 ];
 const CAPACITY=30, BOX_UNITS=10;
 const upgradeCatalog=[
@@ -27,7 +30,10 @@ const upgradeCatalog=[
  {id:"phoneSkill",name:"Compétence Téléphonie",level:5,cost:1200,description:"Formation préalable à la vente de téléphones."},
  {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:"phoneSkill",description:"Débloque la spécialisation téléphones."},
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
- {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",description:"Débloque la spécialisation consoles."}
+ {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",description:"Débloque la spécialisation consoles."},
+ {id:"freshLicense",name:"Licence produits frais et surgelés",level:4,cost:650,description:"Autorise la vente de fromage et de pizzas surgelées."},
+ {id:"fruitLicense",name:"Licence fruits et légumes",level:6,cost:450,description:"Autorise la vente de pommes et les futurs fruits."},
+ {id:"extensionLicense",name:"Licence épicerie de l'extension",level:4,cost:800,requires:"store1",description:"Autorise les nouveaux rayons de l'extension : café, jus de fruits et chocolat."}
 ];
 // Chaque euro de chiffre d'affaires encaissé compte pour la progression.
 function revenueThreshold(level){
@@ -46,13 +52,21 @@ function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
 function reserveLimit(){return state.upgrades.reserve1?60:30;}
 function reserveBoxes(){return catalog.reduce((n,p)=>n+state.inventory[p.id].boxes+Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);}
 function canOrderBox(){return reserveBoxes()<reserveLimit();}
-function unlockedProducts(){return catalog.filter(p=>!p.level||playerLevel()>=p.level);}
+function hasProductLicense(p){
+ if(p.license)return !!state.upgrades[p.license];
+ if(p.id==="fromage"||p.id==="surgeles")return !!state.upgrades.freshLicense;
+ if(p.id==="pommes")return !!state.upgrades.fruitLicense;
+ return true;
+}
+function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p);}
+function unlockedProducts(){return catalog.filter(productAvailable);}
 function unlockedShelves(){return 6+Math.max(0,playerLevel()-1);}
 function showUpgrades(){
  openPanel("Améliorations du magasin");
  paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
  paragraph("Objectif : "+unlockedShelves()+" étagères au niveau actuel. Rayons supplémentaires installés : "+extraShelves.filter(e=>e.level<=playerLevel()).length+". Première extension aménagée avec six gondoles ; futurs agrandissements en préparation.");
  paragraph("Trésorerie : "+euro(state.money)+" | Réserve : "+reserveBoxes()+"/"+reserveLimit()+" cartons");
+ paragraph("Licences commerciales : les produits concernés ne sont vendables qu’après achat de leur licence.");
  for(const u of upgradeCatalog){
   const owned=!!state.upgrades[u.id];
   paragraph(u.name+" — "+(owned?"ACQUIS":euro(u.cost))+" | Niveau "+u.level+" requis");
@@ -69,7 +83,7 @@ function showUpgrades(){
 }
 function initial(){
  const inventory={};
- catalog.forEach(p=>inventory[p.id]={shelf:10,reserve:0,boxes:0,price:p.price});
+ catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
  return {money:5000,day:1,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:8};
 }
 function load(){
@@ -416,6 +430,25 @@ for(const x of [-7,-3.5,3.5,7])addWallRack(x,-21.1,0,true);
 for(const z of [-13.5,-17,-20]){addWallRack(-9.15,z,Math.PI/2,true);addWallRack(9.15,z,-Math.PI/2,true);}
 addWallRack(-8.9,5.9,Math.PI/2,false);
 addWallRack(-5.2,7.8,0,false);
+// Trois rayons commercialisables dans la nouvelle zone, avec cartons visibles.
+for(const p of catalog.filter(p=>p.kind==="extension")){
+ const rack=new THREE.Group();rack.position.set(p.x,0,p.z);
+ const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
+ const productMat=new THREE.MeshStandardMaterial({color:p.color,roughness:.75});
+ for(const y of [.48,1.15,1.82]){
+  const plank=new THREE.Mesh(new THREE.BoxGeometry(2.65,.08,.95),metal);
+  plank.position.y=y;plank.rotation.x=.12;rack.add(plank);
+  const lip=new THREE.Mesh(new THREE.BoxGeometry(2.65,.07,.045),metal);
+  lip.position.set(0,y+.09,.46);rack.add(lip);
+ }
+ for(let i=0;i<CAPACITY;i++){
+  const tier=Math.floor(i/10),slot=i%10;
+  const item=new THREE.Mesh(new THREE.BoxGeometry(.19,.3,.32),productMat);
+  item.position.set(-1.08+(slot%5)*.52,.72+tier*.67,slot<5?-.20:.19);
+  rack.add(item);displays[p.id].push(item);
+ }
+ scene.add(rack);extensionProductGroups[p.id]=rack;extensionMeshes.push(rack);
+}
 // Gondoles d'extension avec allées libres, uniquement visibles après achat.
 for(const x of [-5,0,5])for(const z of [-15,-19]){
  const rack=new THREE.Group();rack.position.set(x,0,z);
@@ -566,9 +599,11 @@ for(const p of catalog){
   colliders.push({minX:p.x-(p.kind==="congelateur"?.7:p.kind==="froid"?.62:p.level?.62:1.3),maxX:p.x+(p.kind==="congelateur"?.7:p.level?.62:1.3),minZ:z-(p.kind==="congelateur"?1.75:p.kind==="froid"?.85:p.level?.52:.65),maxZ:z+(p.kind==="congelateur"?1.75:p.level?.52:.65),level:p.level||1});
  }
 }
+const extensionProductGroups={};
 function refreshDisplays(){
- for(const p of catalog)displays[p.id].forEach((m,i)=>m.visible=playerLevel()>=(p.level||1)&&i<state.inventory[p.id].shelf);
+ for(const p of catalog)displays[p.id].forEach((m,i)=>m.visible=productAvailable(p)&&i<state.inventory[p.id].shelf);
  for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
+ for(const p of catalog.filter(p=>p.kind==="extension")){const g=extensionProductGroups[p.id];if(g)g.visible=!!state.upgrades.store1;}
 }
 cube(6.5,.55,6.5,3,1.1,1.3,0x475569,true);
 cube(6.5,1.13,6.5,3.1,.12,1.4,0x1e293b);
@@ -717,7 +752,7 @@ function showReserve(){
 function interact(){
  if(held){
   const p=catalog.find(p=>p.id===held.id);
-  if(playerLevel()>=(p.level||1)&&(p.level?near(p.x,p.z,2.2):(near(p.x,1,3.2)||near(p.x,-4,3.2)))){
+  if(productAvailable(p)&&(p.level?near(p.x,p.z,2.2):(near(p.x,1,3.2)||near(p.x,-4,3.2)))){
    const a=state.inventory[p.id],space=Math.max(0,CAPACITY-a.shelf);
    if(!space){toast("Rayons "+p.name+" pleins");return;}
    const placed=Math.min(space,held.quantity);
@@ -942,4 +977,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.7.9 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.8.0 !");
