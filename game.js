@@ -591,7 +591,7 @@ function interact(){
  }
  if(atReserve()){showReserve();return;}
  if(freezerLid&&playerLevel()>=4&&near(8.5,-3.5,3.1)){
-  freezerOpen=!freezerOpen;freezerLid.rotation.x=freezerOpen?-.95:0;
+  freezerOpen=!freezerOpen;freezerLid.rotation.z=freezerOpen?-.95:0;
   toast(freezerOpen?"Congélateur ouvert":"Congélateur fermé");return;
  }
  if(near(7.3,6.5,3.4)){showComputer();return;}
