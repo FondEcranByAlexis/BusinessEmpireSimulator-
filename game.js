@@ -400,7 +400,12 @@ function ceilingPanel(x,z,extension=false){
 cube(0,-.15,0,20,.3,20,0xb9c1c8);
 tileFloor(19.65,19.65,0,0);
 for(const x of [-9.78,9.78])wallBaseboard(x,-3,.07,13.7);
-wallBaseboard(0,9.77,19.5,.07);
+// Entrée centrale libre : plinthes uniquement sur les portions de mur.
+wallBaseboard(-6,9.77,7.5,.07);
+wallBaseboard(6,9.77,7.5,.07);
+// Mur séparatif de l'extension : passage central de 4 m dégagé.
+wallBaseboard(-6,-9.78,7.7,.07);
+wallBaseboard(6,-9.78,7.7,.07);
 for(const x of [-6,0,6])for(const z of [-6,0,6])ceilingPanel(x,z);
 cube(0,5.1,0,20,.2,20,0xf1f5f9);
 cube(-10,2.5,0,.3,5,20,0xe2e8f0,true);
