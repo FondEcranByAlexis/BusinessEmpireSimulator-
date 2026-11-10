@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.5.4 — journée de 10 minutes
+// Business Empire Simulator V0.5.5 — menu principal et pause réelle
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -104,12 +104,38 @@ $("restock").addEventListener("click",showOrders);
 const actions=document.createElement("div");
 Object.assign(actions.style,{position:"fixed",right:"12px",bottom:"110px",zIndex:"12",width:"110px"});
 document.body.appendChild(actions);
-button(actions,"Stocks",showStocks);
-button(actions,"Prix",showPrices);
-button(actions,"Réserve",showReserve);
-button(actions,"Bilan",showFinance);
-button(actions,"Caisse",showCheckout);
+// Menu centralisé, adapté aux petits écrans.
+let paused=false;
+const menuButton=button(actions,"☰ Menu",showMainMenu);
+menuButton.style.background="#334155";
 button(actions,"Interagir",interact).style.background="#15803d";
+function showProfile(){
+ openPanel("Profil du commerçant");
+ paragraph("Entreprise : Business Empire Simulator");
+ paragraph("Jour : "+state.day+" | Heure : "+formatHour(state.hour));
+ paragraph("Trésorerie : "+euro(state.money));
+ paragraph("Articles vendus : "+state.sales);
+ paragraph("Transactions : "+finance.transactions);
+ button(panel,"← Retour au menu",showMainMenu);
+}
+function showMainMenu(){
+ openPanel("☰ Menu principal");
+ paragraph("Business Empire Simulator — Gestion du magasin");
+ button(panel,paused?"▶ Reprendre la partie":"⏸ Mettre en pause",()=>{
+  paused=!paused;
+  if(paused){showMainMenu();toast("Partie en pause");}
+  else{panel.style.display="none";toast("Partie reprise");}
+ });
+ button(panel,"Profil",showProfile);
+ button(panel,"Stocks",showStocks);
+ button(panel,"Réserve",showReserve);
+ button(panel,"Commandes fournisseurs",showOrders);
+ button(panel,"Prix de vente",showPrices);
+ button(panel,"Caisse",showCheckout);
+ button(panel,"Bilan financier",showFinance);
+ button(panel,"Fermer le menu",()=>panel.style.display="none");
+}
+
 
 const RENTS=35, ELECTRICITY=12, OTHER_CHARGES=8, DAILY_CHARGES=RENTS+ELECTRICITY+OTHER_CHARGES;
 function euro(n){return Math.round(n).toLocaleString("fr-FR")+" €";}
@@ -489,6 +515,7 @@ function updateOpen(){
  updateTime();
 }
 openButton.addEventListener("click",()=>{
+ if(paused){toast("Reprends la partie avant d’ouvrir le magasin");return;}
  if(closing){toast("Attends le départ des derniers clients");return;}
  if(shopOpen){
   shopOpen=false;updateOpen();toast("Fermé aux nouveaux clients");return;
@@ -534,6 +561,7 @@ function animate(){
  const dt=Math.min(clock.getDelta(),.05),smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
- movePlayer(dt);business(dt);updateCustomers(dt);renderer.render(scene,camera);
+ if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
+ renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.5.4 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.5.5 !");
