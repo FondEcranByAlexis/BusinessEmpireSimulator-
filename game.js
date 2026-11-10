@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.4.3 — inventaire visuel et suppression de marchandises
+// Business Empire Simulator V0.5 — caisse manuelle, paniers, finances et horaires
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -11,7 +11,7 @@ const CAPACITY=30, BOX_UNITS=10;
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:10,reserve:0,boxes:0,price:p.price});
- return {money:5000,day:1,sales:0,inventory};
+ return {money:5000,day:1,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},hour:8};
 }
 function load(){
  const s=initial();
@@ -19,6 +19,8 @@ function load(){
   const current=JSON.parse(localStorage.getItem(SAVE));
   if(current?.inventory){
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
+   if(current.finance)for(const k of Object.keys(s.finance))if(Number.isFinite(current.finance[k])&&current.finance[k]>=0)s.finance[k]=current.finance[k];
+   if(Number.isFinite(current.hour))s.hour=Math.min(22,Math.max(8,current.hour));
    for(const p of catalog){
     const src=current.inventory[p.id]||{},dst=s.inventory[p.id];
     for(const k of ["shelf","reserve","boxes"])if(Number.isFinite(src[k]))dst[k]=Math.max(0,Math.floor(src[k]));
@@ -40,6 +42,7 @@ function load(){
  return s;
 }
 const state=load();
+const finance=state.finance;
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
 function total(){return catalog.reduce((n,p)=>{const a=state.inventory[p.id];return n+a.shelf+a.reserve+a.boxes*BOX_UNITS;},0);}
 function hud(){
@@ -75,7 +78,7 @@ function showOrders(){
  catalog.forEach(p=>button(panel,p.name+" : "+(p.cost*10)+" €",()=>{
   const cost=p.cost*10;
   if(state.money<cost){toast("Trésorerie insuffisante");return;}
-  state.money-=cost;state.inventory[p.id].boxes++;
+  state.money-=cost;finance.supplies+=cost;state.inventory[p.id].boxes++;
   sync();showOrders();toast("Carton livré : "+p.name);
  }));
 }
@@ -102,7 +105,65 @@ document.body.appendChild(actions);
 button(actions,"Stocks",showStocks);
 button(actions,"Prix",showPrices);
 button(actions,"Réserve",showReserve);
+button(actions,"Bilan",showFinance);
+button(actions,"Caisse",showCheckout);
 button(actions,"Interagir",interact).style.background="#15803d";
+
+const RENTS=35, ELECTRICITY=12, OTHER_CHARGES=8, DAILY_CHARGES=RENTS+ELECTRICITY+OTHER_CHARGES;
+function euro(n){return Math.round(n).toLocaleString("fr-FR")+" €";}
+function showFinance(){
+ openPanel("Bilan financier");
+ paragraph("Jour "+state.day+" — Heure : "+formatHour(state.hour));
+ paragraph("Chiffre d'affaires cumulé : "+euro(finance.revenue));
+ paragraph("Achats fournisseurs : "+euro(finance.supplies));
+ paragraph("Charges cumulées : "+euro(finance.charges));
+ paragraph("Bénéfice net simplifié : "+euro(finance.revenue-finance.supplies-finance.charges));
+ paragraph("Transactions : "+finance.transactions+" | Articles vendus : "+state.sales);
+ paragraph("Charges journalières : loyer "+euro(RENTS)+", électricité "+euro(ELECTRICITY)+", autres "+euro(OTHER_CHARGES)+".");
+ paragraph("Le bilan est cumulatif et ne valorise pas le stock restant.");
+}
+function formatHour(hour){
+ const h=Math.floor(hour),m=Math.floor((hour-h)*60);
+ return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+}
+function showCheckout(){
+ if(!cashier){toast("Aucun client à encaisser");return;}
+ if(!near(6.5,6.5,3.5)){toast("Approche-toi de la caisse");return;}
+ openPanel("Caisse — client en attente");
+ const c=cashier;
+ const items=Object.entries(c.basket);
+ const count=items.reduce((n,[,q])=>n+q,0);
+ if(!count){
+  paragraph("Panier vide.");
+  button(panel,"Terminer le passage",()=>finishCheckout(c));
+  return;
+ }
+ for(const [id,q] of items){
+  const p=catalog.find(p=>p.id===id);
+  paragraph(p.name+" : "+q+" × "+euro(c.prices[id])+" = "+euro(q*c.prices[id]));
+ }
+ paragraph("Total : "+euro(c.total));
+ paragraph("Articles scannés : "+c.scanned+"/"+count);
+ button(panel,"Scanner un article",()=>{
+  if(c!==cashier){panel.style.display="none";return;}
+  if(c.scanned<count)c.scanned++;
+  if(c.scanned===count)toast("Tous les articles sont scannés");
+  showCheckout();
+ });
+ if(c.scanned===count)button(panel,"Encaisser "+euro(c.total),()=>{
+  if(c!==cashier)return;
+  state.money+=c.total;state.sales+=count;
+  finance.revenue+=c.total;finance.transactions++;
+  sync();finishCheckout(c);panel.style.display="none";
+  toast("Paiement reçu : +"+euro(c.total));
+ });
+}
+function finishCheckout(c){
+ if(c!==cashier)return;
+ cashier=null;c.phase="leaving";c.waypoint=0;
+ c.route=[{x:5.2,z:8},{x:0,z:8},{x:0,z:12.5}];
+ panel.style.display="none";
+}
 // Scène et éclairage léger
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc9e8);
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,100);
@@ -340,9 +401,13 @@ function movePlayer(dt){
  if(!blocked(camera.position.x+dx,camera.position.z))camera.position.x+=dx;
  if(!blocked(camera.position.x,camera.position.z+dz))camera.position.z+=dz;
 }
-// Clients : sélection de produit et paiement après passage en caisse
+// V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
-const MAX_CUSTOMERS=5;
+const MAX_CUSTOMERS=5,DAY_SECONDS=180,OPEN_HOUR=8,CLOSE_HOUR=20;
+const timeLabel=document.createElement("div");
+Object.assign(timeLabel.style,{position:"fixed",top:"80px",left:"12px",zIndex:"11",padding:"6px 10px",background:"#0f172acb",borderRadius:"8px",color:"white",fontSize:"12px",pointerEvents:"none"});
+document.body.appendChild(timeLabel);
+function updateTime(){timeLabel.textContent="Jour "+state.day+" — "+formatHour(state.hour)+" — "+(shopOpen?"OUVERT":"FERMÉ");}
 function makeCustomer(){
  const group=new THREE.Group();
  const shirts=[0xef4444,0x2563eb,0x16a34a,0xf59e0b,0x9333ea];
@@ -356,14 +421,14 @@ function makeCustomer(){
  const l=part(.18,.65,.2,pants,-.14,.48,0),r=part(.18,.65,.2,pants,.14,.48,0);
  part(.14,.65,.2,shirt,-.34,1.23,0);part(.14,.65,.2,shirt,.34,1.23,0);
  group.position.set(0,0,12.5);scene.add(group);
- const p=catalog[Math.floor(Math.random()*catalog.length)];
- const aisleX=p.x===5?2.5:p.x-2.5;
- const route=[
-  {x:0,z:8},{x:aisleX,z:8},{x:aisleX,z:3.2},
-  {x:aisleX,z:-1.5,shop:true},{x:aisleX,z:-6.5},
-  {x:8.3,z:-6.5},{x:8.3,z:4.5},{x:5.2,z:4.5}
- ];
- customers.push({group,route,waypoint:0,phase:"shopping",timer:0,productId:p.id,items:0,speed:1.2+Math.random()*.35,l,r,walkTime:0});
+ const choices=[...catalog].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*catalog.length));
+ const route=[{x:0,z:8}];
+ for(const p of choices){
+  const aisleX=p.x===5?2.5:p.x-2.5;
+  route.push({x:aisleX,z:8},{x:aisleX,z:3.2},{x:aisleX,z:-1.5,shop:p.id},{x:aisleX,z:-6.5},{x:8.3,z:-6.5},{x:8.3,z:8});
+ }
+ route.push({x:8.3,z:4.5},{x:5.2,z:4.5});
+ customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0});
 }
 function walk(c,t,dt){
  const p=c.group.position,dx=t.x-p.x,dz=t.z-p.z,dist=Math.hypot(dx,dz);
@@ -382,32 +447,31 @@ function updateCustomers(dt){
  for(const c of [...customers]){
   if(c.phase==="shopping"){
    const t=c.route[c.waypoint];
+   if(!t){c.phase="queue";queue.push(c);continue;}
    if(walk(c,t,dt)){
     c.waypoint++;
-    if(t.shop){c.phase="choosing";c.timer=2;}
+    if(t.shop){c.phase="choosing";c.timer=1.5;c.productId=t.shop;}
     else if(c.waypoint>=c.route.length){c.phase="queue";queue.push(c);}
    }
   }else if(c.phase==="choosing"){
    c.timer-=dt;
    if(c.timer<=0){
     const a=state.inventory[c.productId];
-    if(a.shelf>0){a.shelf--;c.items++;sync();}
+    const quantity=Math.min(a.shelf,1+Math.floor(Math.random()*3));
+    if(quantity>0){
+     a.shelf-=quantity;c.basket[c.productId]=(c.basket[c.productId]||0)+quantity;
+     c.prices[c.productId]=a.price;c.total+=quantity*a.price;sync();
+    }
     c.phase="shopping";
    }
   }else if(c.phase==="queue"){
    const i=queue.indexOf(c);
-   if(i===0&&!cashier){queue.shift();cashier=c;c.phase="checkout";c.timer=3;}
-   else walk(c,{x:5.2-Math.max(0,i)*.9,z:4.5},dt);
+   if(i===0&&!cashier){
+    queue.shift();cashier=c;c.phase="checkout";c.scanned=0;
+    toast("Client en caisse : utilise le bouton Caisse");
+   }else walk(c,{x:5.2-Math.max(0,i)*.7,z:4.5},dt);
   }else if(c.phase==="checkout"){
-   if(!walk(c,{x:5.2,z:4.5},dt))continue;
-   c.timer-=dt;
-   if(c.timer<=0){
-    const amount=c.items*state.inventory[c.productId].price;
-    state.money+=amount;state.sales+=c.items;sync();
-    toast(c.items?"Paiement reçu : +"+amount+" €":"Client reparti sans achat");
-    cashier=null;c.phase="leaving";c.waypoint=0;
-    c.route=[{x:5.2,z:8},{x:0,z:8},{x:0,z:12.5}];
-   }
+   walk(c,{x:5.2,z:4.5},dt);
   }else if(c.phase==="leaving"){
    if(walk(c,c.route[c.waypoint],dt)){
     c.waypoint++;if(c.waypoint>=c.route.length)removeCustomer(c);
@@ -416,17 +480,29 @@ function updateCustomers(dt){
  }
 }
 const openButton=$("openShop");
-function updateOpen(){openButton.textContent=shopOpen?"Fermer le magasin":"Ouvrir le magasin";}
+function updateOpen(){openButton.textContent=shopOpen?"Fermer le magasin":"Ouvrir le magasin";updateTime();}
 openButton.addEventListener("click",()=>{
- shopOpen=!shopOpen;updateOpen();
- if(shopOpen){spawnTimer=1;toast("Magasin ouvert");}
- else toast("Fermé aux nouveaux clients");
+ if(shopOpen){shopOpen=false;updateOpen();toast("Fermé aux nouveaux clients");return;}
+ if(state.hour>=CLOSE_HOUR){toast("Journée terminée : attends le lendemain");return;}
+ shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert");
 });
 function business(dt){
- if(!shopOpen)return;
- dayTimer+=dt;spawnTimer-=dt;
- if(spawnTimer<=0&&customers.length<MAX_CUSTOMERS){makeCustomer();spawnTimer=7+Math.random()*5;}
- if(dayTimer>=180){dayTimer-=180;state.day++;sync();toast("Jour "+state.day);}
+ // Horloge continue pendant la journée, même si le magasin est fermé.
+ dayTimer+=dt;
+ state.hour=OPEN_HOUR+Math.min(dayTimer/DAY_SECONDS,1)*(CLOSE_HOUR-OPEN_HOUR);
+ if(shopOpen){
+  spawnTimer-=dt;
+  if(spawnTimer<=0&&customers.length<MAX_CUSTOMERS){
+   makeCustomer();spawnTimer=7+Math.random()*5;
+  }
+ }
+ if(dayTimer>=DAY_SECONDS){
+  dayTimer=0;state.hour=OPEN_HOUR;state.day++;
+  state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
+  shopOpen=false;updateOpen();sync();
+  toast("Jour "+state.day+" : charges "+euro(DAILY_CHARGES));
+ }
+ updateTime();
 }
 window.addEventListener("resize",()=>{
  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
@@ -439,4 +515,4 @@ function animate(){
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  movePlayer(dt);business(dt);updateCustomers(dt);renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.4 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.5 !");
