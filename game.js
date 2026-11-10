@@ -559,19 +559,22 @@ const priceLabelTextures={};
 function addPriceRail(parent,p,y,width,front){
  const key=p.id;
  if(!priceLabelTextures[key]){
-  const canvas=document.createElement("canvas");canvas.width=512;canvas.height=128;
+  const canvas=document.createElement("canvas");canvas.width=512;canvas.height=192;
   const ctx=canvas.getContext("2d");
-  ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,512,128);
-  ctx.fillStyle="#0f172a";ctx.textAlign="center";ctx.textBaseline="middle";
-  ctx.font="bold 39px Arial";ctx.fillText(p.name,154,64,290);
-  ctx.font="bold 57px Arial";ctx.fillText(p.price.toFixed(2).replace(".",",")+" €",385,64,240);
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,512,192);
+  ctx.strokeStyle="#cbd5e1";ctx.lineWidth=5;ctx.strokeRect(3,3,506,186);
+  ctx.fillStyle="#0f172a";ctx.textAlign="left";ctx.textBaseline="middle";
+  ctx.font="bold 40px Arial";ctx.fillText(p.name,22,51,468);
+  ctx.font="bold 83px Arial";ctx.fillText(p.price.toFixed(2).replace(".",",")+" €",22,131,468);
   const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
+  tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   priceLabelTextures[key]=tex;
  }
- const rail=new THREE.Mesh(new THREE.BoxGeometry(width,.11,.035),new THREE.MeshStandardMaterial({color:0xe2e8f0,roughness:.6}));
+ // Réglette discrète au bord du plateau, avec un seul petit porte-prix.
+ const rail=new THREE.Mesh(new THREE.BoxGeometry(width,.065,.025),new THREE.MeshStandardMaterial({color:0xcbd5e1,roughness:.6}));
  rail.position.set(0,y,front);parent.add(rail);
- const sign=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(width*.9,1.9),.105),new THREE.MeshBasicMaterial({map:priceLabelTextures[key],side:THREE.DoubleSide}));
- sign.position.set(0,y,front+.021);parent.add(sign);
+ const sign=new THREE.Mesh(new THREE.PlaneGeometry(.52,.195),new THREE.MeshBasicMaterial({map:priceLabelTextures[key],side:THREE.DoubleSide}));
+ sign.position.set(0,y-.018,front+.016);parent.add(sign);
 }
 function addShelfDividers(parent,y,width){
  const mat=new THREE.MeshStandardMaterial({color:0xb6c8d5,transparent:true,opacity:.58,roughness:.22,depthWrite:false});
