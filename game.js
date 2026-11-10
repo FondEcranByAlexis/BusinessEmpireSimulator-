@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.7.6 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.7.7 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -762,15 +762,33 @@ canvas.addEventListener("pointermove",e=>{
 });
 function stopLook(e){if(e.pointerId===lookPointer)lookPointer=null;}
 for(const type of ["pointerup","pointercancel","lostpointercapture"])canvas.addEventListener(type,stopLook);
-for(const k of Object.keys(keys)){
- const b=$(k);
- b.addEventListener("pointerdown",e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys[k]=true;});
- for(const type of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(type,()=>keys[k]=false);
+// Joystick tactile analogique indépendant de la caméra.
+const joystick=$("joystick"),stick=$("joystickStick");
+let joystickPointer=null,joyX=0,joyY=0;
+function updateJoystick(e){
+ const rect=joystick.getBoundingClientRect();
+ const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
+ const max=rect.width*.32;
+ let x=(e.clientX-cx)/max,y=(e.clientY-cy)/max;
+ const magnitude=Math.hypot(x,y);
+ if(magnitude>1){x/=magnitude;y/=magnitude;}
+ joyX=Math.abs(x)<.09?0:x;joyY=Math.abs(y)<.09?0:y;
+ stick.style.transform="translate("+joyX*max+"px,"+joyY*max+"px)";
 }
+joystick.addEventListener("pointerdown",e=>{
+ e.preventDefault();if(joystickPointer!==null)return;
+ joystickPointer=e.pointerId;joystick.setPointerCapture(e.pointerId);updateJoystick(e);
+});
+joystick.addEventListener("pointermove",e=>{if(e.pointerId===joystickPointer){e.preventDefault();updateJoystick(e);}});
+function resetJoystick(e){
+ if(e.pointerId!==joystickPointer)return;
+ joystickPointer=null;joyX=0;joyY=0;stick.style.transform="translate(0px,0px)";
+}
+for(const type of ["pointerup","pointercancel","lostpointercapture"])joystick.addEventListener(type,resetJoystick);
 const keyMap={KeyW:"forward",KeyZ:"forward",ArrowUp:"forward",KeyS:"backward",ArrowDown:"backward",KeyA:"left",KeyQ:"left",ArrowLeft:"left",KeyD:"right",ArrowRight:"right"};
 document.addEventListener("keydown",e=>{if(keyMap[e.code]){keys[keyMap[e.code]]=true;e.preventDefault();}});
 document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=false;});
-window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;});
+window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;joystickPointer=null;joyX=0;joyY=0;stick.style.transform="translate(0px,0px)";});
 function blocked(x,z,r=.4){
  if(x< -9.45+r||x>15-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>13.8-r)return true;
  if(x>9.45&&x<10.55&&!(z>4.05&&z<6.95))return true;
@@ -779,9 +797,9 @@ function blocked(x,z,r=.4){
 }
 function movePlayer(dt){
  if(panel.style.display!=="none")return;
- const f=Number(keys.forward)-Number(keys.backward),s=Number(keys.right)-Number(keys.left);
+ const f=Number(keys.forward)-Number(keys.backward)-joyY,s=Number(keys.right)-Number(keys.left)+joyX;
  if(!f&&!s)return;
- const len=Math.hypot(f,s),speed=3.3*dt;
+ const len=Math.max(1,Math.hypot(f,s)),speed=3.85*dt;
  const dx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)/len*speed;
  const dz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)/len*speed;
  if(!blocked(camera.position.x+dx,camera.position.z))camera.position.x+=dx;
@@ -923,4 +941,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.7.6 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.7.7 !");
