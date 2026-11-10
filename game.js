@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.10 — version synchronisée
+// Business Empire Simulator V0.9.11 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -876,6 +876,46 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
+// V0.9.11 — Équipements réalistes de la caisse, purement visuels.
+const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
+const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
+const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
+const checkoutGlow=new THREE.MeshStandardMaterial({color:0x38bdf8,emissive:0x075985,emissiveIntensity:.32});
+function checkoutPart(x,y,z,w,h,d,mat){
+ const part=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+ part.position.set(x,y,z);scene.add(part);return part;
+}
+// Tapis roulant incrusté dans le plateau, avec rouleaux et rebords.
+checkoutPart(5.72,1.205,6.46,1.23,.025,.94,checkoutRubber);
+for(const z of [6.0,6.92])checkoutPart(5.72,1.232,z,1.27,.055,.045,checkoutSteel);
+for(const x of [5.1,6.34])checkoutPart(x,1.233,6.46,.045,.055,.99,checkoutSteel);
+for(const x of [5.36,5.72,6.08])checkoutPart(x,1.223,6.46,.015,.006,.89,checkoutBlack);
+// Scanner encastré au milieu du comptoir.
+checkoutPart(6.61,1.211,6.35,.38,.018,.47,checkoutSteel);
+checkoutPart(6.61,1.223,6.35,.28,.012,.35,checkoutBlack);
+for(const x of [6.52,6.61,6.70])checkoutPart(x,1.231,6.35,.012,.004,.28,checkoutGlow);
+// Terminal bancaire orienté vers le client (côté rayons).
+checkoutPart(7.66,1.245,6.10,.25,.08,.36,checkoutBlack);
+const paymentDisplay=checkoutPart(7.66,1.30,6.05,.205,.012,.16,checkoutGlow);
+paymentDisplay.rotation.x=-.32;
+for(let row=0;row<3;row++)for(let col=0;col<3;col++)
+ checkoutPart(7.58+col*.078,1.295,6.20+row*.052,.043,.008,.029,checkoutSteel);
+// Zone d'ensachage et séparateur des achats.
+checkoutPart(6.95,1.208,6.46,.38,.012,.94,checkoutSteel);
+checkoutPart(6.94,1.28,6.46,.045,.14,.94,checkoutBlack);
+// Façade commerciale FBA sur la face client du meuble.
+const checkoutLogoCanvas=document.createElement("canvas");
+checkoutLogoCanvas.width=512;checkoutLogoCanvas.height=128;
+const checkoutLogoCtx=checkoutLogoCanvas.getContext("2d");
+checkoutLogoCtx.fillStyle="#0f172a";checkoutLogoCtx.fillRect(0,0,512,128);
+checkoutLogoCtx.fillStyle="#38bdf8";checkoutLogoCtx.fillRect(0,0,512,9);
+checkoutLogoCtx.fillStyle="#ffffff";checkoutLogoCtx.textAlign="center";
+checkoutLogoCtx.font="bold 54px Arial";checkoutLogoCtx.fillText("FBA SUPERMARKET",256,81);
+const checkoutLogoTex=new THREE.CanvasTexture(checkoutLogoCanvas);
+checkoutLogoTex.colorSpace=THREE.SRGBColorSpace;
+const checkoutLogo=new THREE.Mesh(new THREE.PlaneGeometry(1.7,.425),
+ new THREE.MeshBasicMaterial({map:checkoutLogoTex,side:THREE.DoubleSide}));
+checkoutLogo.position.set(6.5,.70,7.158);scene.add(checkoutLogo);
 // Petit interrupteur fixé sur le flanc de la caisse, côté employé.
 const lightSwitch=cube(8.08,1.16,6.93,.10,.09,.035,0x22c55e);
 // Interrupteur dédié, sur le mur intérieur de la réserve près de son entrée.
@@ -1237,4 +1277,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.10 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.11 !");
