@@ -1,7 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.1 — rayons automatiques par niveau
+// Business Empire Simulator V0.6.2 — mode test développeur indépendant
 const $=id=>document.getElementById(id);
-const SAVE="business-empire-v04", LEGACY="business-empire-v02";
+const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
+const DEV_MODE=localStorage.getItem("fba-dev-enabled")==="true";
+const SAVE=DEV_MODE?DEV_SAVE:NORMAL_SAVE;
 const catalog=[
  {id:"eau",name:"Eau",cost:2,price:4,color:0x38bdf8,x:-5},
  {id:"pates",name:"Pâtes",cost:3,price:6,color:0xfacc15,x:0},
@@ -30,6 +32,7 @@ function revenueThreshold(level){
  return 4000*Math.pow(2,level-4);
 }
 function playerLevel(){
+ if(DEV_MODE)return Math.max(1,Math.min(200,Number(state.devLevel)||1));
  let level=1;
  while(level<50&&finance.revenue>=revenueThreshold(level+1))level++;
  return level;
@@ -69,6 +72,7 @@ function load(){
  try{
   const current=JSON.parse(localStorage.getItem(SAVE));
   if(current?.inventory){
+   if(Number.isFinite(current.devLevel))s.devLevel=current.devLevel;
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(current.upgrades&&typeof current.upgrades==="object")for(const u of upgradeCatalog)s.upgrades[u.id]=current.upgrades[u.id]===true;
    if(current.finance)for(const k of Object.keys(s.finance))if(Number.isFinite(current.finance[k])&&current.finance[k]>=0)s.finance[k]=current.finance[k];
@@ -95,6 +99,7 @@ function load(){
  return s;
 }
 const state=load();
+if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
 state.hour=8;
 const finance=state.finance;
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
@@ -174,15 +179,51 @@ function showProfile(){
  paragraph("Prochain niveau à "+euro(nextLevelRevenue())+" de chiffre d’affaires");
  button(panel,"← Retour au menu",showMainMenu);
 }
+function switchDevMode(enable){
+ if(enable){
+  if(!localStorage.getItem(DEV_SAVE)){
+   const copy=initial();copy.money=100000;copy.devLevel=1;
+   localStorage.setItem(DEV_SAVE,JSON.stringify(copy));
+  }
+  localStorage.setItem("fba-dev-enabled","true");
+ }else localStorage.setItem("fba-dev-enabled","false");
+ location.reload();
+}
+function showDevTools(){
+ openPanel("FBA GAMES — MODE TEST");
+ paragraph("Sauvegarde de test indépendante. Ces commandes ne modifient pas ta partie normale.");
+ paragraph("Niveau de test : "+playerLevel()+" | Argent : "+euro(state.money));
+ const selector=document.createElement("select");
+ Object.assign(selector.style,{width:"100%",padding:"12px",background:"#1e293b",color:"white",borderRadius:"8px"});
+ for(const n of [1,2,3,4,5,6,8,10,15,25,50,100,150,200]){
+  const opt=document.createElement("option");opt.value=n;opt.textContent="Niveau "+n;opt.selected=playerLevel()===n;selector.appendChild(opt);
+ }
+ panel.appendChild(selector);
+ button(panel,"Appliquer le niveau",()=>{
+  state.devLevel=Number(selector.value);sync();showDevTools();toast("Niveau de test : "+state.devLevel);
+ });
+ button(panel,"Ajouter 100 000 €",()=>{state.money+=100000;sync();showDevTools();});
+ button(panel,"Débloquer toutes les améliorations existantes",()=>{
+  for(const u of upgradeCatalog)state.upgrades[u.id]=true;
+  sync();showDevTools();toast("Améliorations de test activées");
+ });
+ button(panel,"Remplir tous les rayons débloqués",()=>{
+  for(const p of unlockedProducts())state.inventory[p.id].shelf=CAPACITY;
+  sync();showDevTools();
+ });
+ button(panel,"Retour à la partie normale",()=>switchDevMode(false));
+}
 function showMainMenu(){
  openPanel("☰ Menu principal");
- paragraph("Business Empire Simulator — Gestion du magasin");
+ paragraph("Business Empire Simulator — Gestion du magasin"+(DEV_MODE?" | MODE TEST":""));
  button(panel,paused?"▶ Reprendre la partie":"⏸ Mettre en pause",()=>{
   paused=!paused;
   if(paused){showMainMenu();toast("Partie en pause");}
   else{panel.style.display="none";toast("Partie reprise");}
  });
  button(panel,"Profil",showProfile);
+ if(DEV_MODE)button(panel,"OUTILS DÉVELOPPEUR",showDevTools);
+ else button(panel,"Activer le mode test FBA Games",()=>switchDevMode(true));
  button(panel,"Améliorations et compétences",showUpgrades);
  button(panel,"Stocks",showStocks);
  button(panel,"Réserve",showReserve);
@@ -668,4 +709,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.1 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.2 !");
