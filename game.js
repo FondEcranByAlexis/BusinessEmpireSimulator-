@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.6 — pente corrigée et fruits arrondis
+// Business Empire Simulator V0.6.7 — congélateur coffre horizontal
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -353,6 +353,7 @@ cube(0,-.17,12,8,.3,5,0x94a3b8);
 cube(0,.015,8.5,3,.03,2,0x334155);
 for(const x of [-6,0,6])for(const z of [-6,0,6])cube(x,4.94,z,2.8,.05,.5,0xffffff);
 const displays={},extraShelves=[];
+let freezerLid=null,freezerOpen=false;
 for(const p of catalog){
  displays[p.id]=[];
  for(const z of (p.level?[p.z]:[-4,1])){
@@ -363,17 +364,17 @@ for(const p of catalog){
    group.scale.set(.47,1,.8);
    group.visible=playerLevel()>=p.level;
    extraShelves.push({group,level:p.level});
-   if(p.kind==="froid"||p.kind==="congelateur"){
-    const casing=new THREE.Mesh(new THREE.BoxGeometry(2.55,2.35,1.08),new THREE.MeshStandardMaterial({color:p.kind==="congelateur"?0x60a5fa:0xe2e8f0,transparent:true,opacity:.25,metalness:.35}));
+   if(p.kind==="froid"){
+    const casing=new THREE.Mesh(new THREE.BoxGeometry(2.55,2.35,1.08),new THREE.MeshStandardMaterial({color:0xe2e8f0,transparent:true,opacity:.25,metalness:.35}));
     casing.position.y=1.2;group.add(casing);
    }
 
   }
-  for(const x of [-1.15,1.15])for(const dz of [-.4,.4]){
+  if(p.kind!=="congelateur")for(const x of [-1.15,1.15])for(const dz of [-.4,.4]){
    const post=new THREE.Mesh(new THREE.BoxGeometry(.08,2.4,.08),metal);
    post.position.set(x,1.2,dz);group.add(post);
   }
-  for(let level=0;level<3;level++){
+  for(let level=0;level<(p.kind==="congelateur"?1:3);level++){
    const y=.45+level*.75;
    // Plateau légèrement incliné vers le client, avec butée anti-chute.
    const tilt=.12; // pente vers le client (avant = z positif)
@@ -397,6 +398,32 @@ for(const p of catalog){
     if(!isFruit)item.rotation.x=tilt;
     group.add(item);displays[p.id].push(item);
    }
+  }
+  if(p.kind==="congelateur"){
+   // Congélateur coffre horizontal : cuve isolée et couvercle vitré ouvrant sur le dessus.
+   const white=new THREE.MeshStandardMaterial({color:0xe8f1f6,metalness:.18,roughness:.42});
+   const dark=new THREE.MeshStandardMaterial({color:0x334155,metalness:.4});
+   const glass=new THREE.MeshStandardMaterial({color:0x9ddcf4,transparent:true,opacity:.36,metalness:.2,roughness:.1,side:THREE.DoubleSide});
+   const box=new THREE.Mesh(new THREE.BoxGeometry(2.6,.86,1.25),white);
+   box.position.y=.52;group.add(box);
+   const inner=new THREE.Mesh(new THREE.BoxGeometry(2.36,.08,1.03),dark);
+   inner.position.y=.96;group.add(inner);
+   const lid=new THREE.Group();
+   lid.position.set(0,1.02,-.62);
+   const pane=new THREE.Mesh(new THREE.BoxGeometry(2.43,.045,1.18),glass);
+   pane.position.z=.59;lid.add(pane);
+   for(const x of [-1.23,1.23]){
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(.045,.075,1.2),dark);
+    rail.position.set(x,0,.59);lid.add(rail);
+   }
+   for(const z2 of [0,1.18]){
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(2.48,.075,.045),dark);
+    rail.position.z=z2;lid.add(rail);
+   }
+   const handle=new THREE.Mesh(new THREE.BoxGeometry(.52,.07,.09),dark);
+   handle.position.set(0,.06,1.18);lid.add(handle);
+   group.add(lid);
+   freezerLid=lid;
   }
   scene.add(group);
   colliders.push({minX:p.x-(p.level?.62:1.3),maxX:p.x+(p.level?.62:1.3),minZ:z-(p.level?.52:.65),maxZ:z+(p.level?.52:.65),level:p.level||1});
@@ -549,6 +576,10 @@ function interact(){
   return;
  }
  if(atReserve()){showReserve();return;}
+ if(freezerLid&&playerLevel()>=4&&near(8.5,-3.5,2.2)){
+  freezerOpen=!freezerOpen;freezerLid.rotation.x=freezerOpen?-.95:0;
+  toast(freezerOpen?"Congélateur ouvert":"Congélateur fermé");return;
+ }
  if(near(7.3,6.5,3.4)){showComputer();return;}
  toast("Va à la réserve ou approche-toi de l’ordinateur à la caisse");
 }
@@ -729,4 +760,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.6 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.7 !");
