@@ -578,7 +578,7 @@ function addPriceRail(parent,p,y,width,front){
 }
 function addShelfDividers(parent,y,width){
  const mat=new THREE.MeshStandardMaterial({color:0xb6c8d5,transparent:true,opacity:.58,roughness:.22,depthWrite:false});
- for(const x of [-width/4,0,width/4]){
+ for(const x of [-width*.30,-width*.10,width*.10,width*.30]){
   const divider=new THREE.Mesh(new THREE.BoxGeometry(.018,.13,.85),mat);
   divider.position.set(x,y+.115,0);parent.add(divider);
  }
@@ -622,9 +622,11 @@ for(const p of catalog){
      side.position.set(x,y+.11,0);side.rotation.x=tilt;group.add(side);
     }
    }
-   for(let i=0;i<5;i++){
+   // Dix articles par plateau : cinq devant et cinq derrière, trente par meuble.
+   for(let i=0;i<10;i++){
     const item=productModel(p);
-    item.position.set(-.9+i*.45,y+(isFruit?.23:.26),0);
+    const col=i%5,row=Math.floor(i/5);
+    item.position.set(-.96+col*.48,y+(isFruit?.23:.26),row===0?.22:-.22);
     if(!isFruit)item.rotation.x=tilt;
     group.add(item);displays[p.id].push(item);
    }
