@@ -431,7 +431,7 @@ for(const z of [-13.5,-17,-20]){addWallRack(-9.15,z,Math.PI/2,true);addWallRack(
 addWallRack(-8.9,5.9,Math.PI/2,false);
 addWallRack(-5.2,7.8,0,false);
 // Gondoles d'extension avec allées libres, uniquement visibles après achat.
-for(const x of [-5,0,5])for(const z of [-15,-19]){
+for(const x of [-5,0,5])for(const z of [-19]){
  const rack=new THREE.Group();rack.position.set(x,0,z);
  const steel=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.35});
  for(const y of [.45,1.15,1.85]){
@@ -464,6 +464,7 @@ let freezerLid=null,freezerOpen=false;
 let fridgeDoor=null,fridgeOpen=false;
 for(const p of catalog){
  displays[p.id]=[];
+ if(p.kind==="extension")continue;
  for(const z of (p.level?[p.z]:[-4,1])){
   const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
   const mat=new THREE.MeshStandardMaterial({color:p.color});
@@ -599,6 +600,7 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
   rack.add(item);displays[p.id].push(item);
  }
  scene.add(rack);extensionProductGroups[p.id]=rack;extensionMeshes.push(rack);
+ colliders.push({minX:p.x-1.4,maxX:p.x+1.4,minZ:p.z-.55,maxZ:p.z+.55,requiresUpgrade:"store1"});
 }
 
 function refreshDisplays(){
