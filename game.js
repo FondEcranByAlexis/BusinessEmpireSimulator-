@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.7 — version synchronisée
+// Business Empire Simulator V0.9.9 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -539,7 +539,8 @@ function brandPanel(title,subtitle,width=5.6,height=1.0){
  return m;
 }
 const entranceBrand=brandPanel("FBA SUPERMARKET","BUSINESS EMPIRE SIMULATOR",5.6,1.25);
-entranceBrand.position.set(0,4.24,9.82);scene.add(entranceBrand);
+// Face extérieure du mur d’entrée (z positif), texte orienté vers le visiteur.
+entranceBrand.position.set(0,4.24,10.20);scene.add(entranceBrand);
 const corridorBrand=brandPanel("FBA SUPERMARKET","EXTENSION DU MAGASIN",3.75,.72);
 corridorBrand.position.set(0,4.18,-9.78);scene.add(corridorBrand);
 
@@ -1241,4 +1242,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.7 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.9 !");
