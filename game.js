@@ -399,7 +399,11 @@ function ceilingPanel(x,z,extension=false){
 }
 cube(0,-.15,0,20,.3,20,0xb9c1c8);
 tileFloor(19.65,19.65,0,0);
-for(const x of [-9.78,9.78])wallBaseboard(x,-3,.07,13.7);
+// Plinthes du magasin principal : couvrir tout le mur gauche jusqu'à l'entrée.
+wallBaseboard(-9.78,0,.07,19.5);
+// Mur droit segmenté autour de l'accès à la réserve.
+wallBaseboard(9.78,-3,.07,13.7);
+wallBaseboard(9.78,8.5,.07,2.7);
 // Entrée centrale libre : plinthes uniquement sur les portions de mur.
 wallBaseboard(-6,9.77,7.5,.07);
 wallBaseboard(6,9.77,7.5,.07);
@@ -442,6 +446,9 @@ for(const z of [-9.78,-10.22])for(const x of [-6,6])wallBaseboard(x,z,7.7,.065,t
 wallBaseboard(15.08,5.5,.065,7.65);
 wallBaseboard(12.65,1.73,5.0,.065);
 wallBaseboard(12.65,9.12,5.0,.065);
+// Face magasin de la cloison caisse/réserve, sans traverser sa porte.
+wallBaseboard(9.78,2.7,.065,2.35);
+wallBaseboard(9.78,8.45,.065,2.75);
 wallBaseboard(10.22,2.45,.065,1.65);
 wallBaseboard(10.22,8.25,.065,2.0);
 // Encadrement du passage principal / extension : montants et linteau commerciaux.
