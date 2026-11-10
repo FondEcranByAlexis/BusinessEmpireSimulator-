@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.8 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.6.9 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -354,6 +354,7 @@ cube(0,.015,8.5,3,.03,2,0x334155);
 for(const x of [-6,0,6])for(const z of [-6,0,6])cube(x,4.94,z,2.8,.05,.5,0xffffff);
 const displays={},extraShelves=[];
 let freezerLid=null,freezerOpen=false;
+let fridgeDoor=null,fridgeOpen=false;
 for(const p of catalog){
  displays[p.id]=[];
  for(const z of (p.level?[p.z]:[-4,1])){
@@ -361,20 +362,17 @@ for(const p of catalog){
   const mat=new THREE.MeshStandardMaterial({color:p.color});
   const group=new THREE.Group();group.position.set(p.x,0,z);
   if(p.level){
-   group.scale.set(p.kind==="congelateur"?1:.47,1,p.kind==="congelateur"?1:.8);
+   group.scale.set((p.kind==="congelateur"||p.kind==="froid")?1:.47,1,(p.kind==="congelateur"||p.kind==="froid")?1:.8);
    group.visible=playerLevel()>=p.level;
    extraShelves.push({group,level:p.level});
-   if(p.kind==="froid"){
-    const casing=new THREE.Mesh(new THREE.BoxGeometry(2.55,2.35,1.08),new THREE.MeshStandardMaterial({color:0xe2e8f0,transparent:true,opacity:.25,metalness:.35}));
-    casing.position.y=1.2;group.add(casing);
-   }
+
 
   }
-  if(p.kind!=="congelateur")for(const x of [-1.15,1.15])for(const dz of [-.4,.4]){
+  if(p.kind!=="congelateur"&&p.kind!=="froid")for(const x of [-1.15,1.15])for(const dz of [-.4,.4]){
    const post=new THREE.Mesh(new THREE.BoxGeometry(.08,2.4,.08),metal);
    post.position.set(x,1.2,dz);group.add(post);
   }
-  for(let level=0;level<(p.kind==="congelateur"?0:3);level++){
+  for(let level=0;level<((p.kind==="congelateur"||p.kind==="froid")?0:3);level++){
    const y=.45+level*.75;
    // Plateau légèrement incliné vers le client, avec butée anti-chute.
    const tilt=.12; // pente vers le client (avant = z positif)
@@ -396,6 +394,38 @@ for(const p of catalog){
      :new THREE.Mesh(new THREE.BoxGeometry(.3,.4,.45),mat);
     item.position.set(-.9+i*.45,y+(isFruit?.23:.25),0);
     if(!isFruit)item.rotation.x=tilt;
+    group.add(item);displays[p.id].push(item);
+   }
+  }
+  if(p.kind==="froid"){
+   // Réfrigérateur vertical creux, contre le mur gauche ; ouverture côté allée.
+   const shell=new THREE.MeshStandardMaterial({color:0xe5edf4,roughness:.45,metalness:.15});
+   const liner=new THREE.MeshStandardMaterial({color:0xc5d9e6,roughness:.58});
+   const trim=new THREE.MeshStandardMaterial({color:0x334155,metalness:.42});
+   const glass=new THREE.MeshStandardMaterial({color:0x9ddcf4,transparent:true,opacity:.19,roughness:.08,depthWrite:false,side:THREE.DoubleSide});
+   const add=(w,h,d,x,y,z,material,parent=group)=>{
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+    mesh.position.set(x,y,z);parent.add(mesh);return mesh;
+   };
+   // Environ 1,15 m de profondeur, 1,65 m de longueur, 2,2 m de hauteur.
+   add(.10,2.18,1.65,-.54,1.13,0,shell); // fond contre mur
+   add(1.15,.12,1.65,0,.10,0,shell);
+   add(1.15,.12,1.65,0,2.18,0,shell);
+   for(const z2 of [-.78,.78])add(1.15,2.18,.10,0,1.13,z2,shell);
+   for(const y of [.62,1.15,1.68])add(1.02,.045,1.43,.04,y,0,liner);
+   // Porte vitrée montée sur charnière verticale, côté z négatif.
+   const door=new THREE.Group();
+   door.position.set(.58,1.13,-.8);
+   add(.035,2.02,1.55,0,0,.775,glass,door);
+   for(const z2 of [0,1.55])add(.07,2.08,.07,0,0,z2,trim,door);
+   for(const y of [-1.02,1.02])add(.07,.07,1.58,0,y,.775,trim,door);
+   add(.13,.48,.055,.10,0,1.46,trim,door);
+   group.add(door);fridgeDoor=door;
+   // Fromages disposés sur trois étagères, visibilité synchronisée au stock.
+   for(let i=0;i<CAPACITY;i++){
+    const shelf=Math.floor(i/10),slot=i%10;
+    const item=new THREE.Mesh(new THREE.BoxGeometry(.17,.14,.28),mat);
+    item.position.set(-.24+(slot%2)*.37,.73+shelf*.53,-.54+Math.floor(slot/2)*.27);
     group.add(item);displays[p.id].push(item);
    }
   }
@@ -440,7 +470,7 @@ for(const p of catalog){
    }
   }
   scene.add(group);
-  colliders.push({minX:p.x-(p.kind==="congelateur"?.7:p.level?.62:1.3),maxX:p.x+(p.kind==="congelateur"?.7:p.level?.62:1.3),minZ:z-(p.kind==="congelateur"?1.75:p.level?.52:.65),maxZ:z+(p.kind==="congelateur"?1.75:p.level?.52:.65),level:p.level||1});
+  colliders.push({minX:p.x-(p.kind==="congelateur"?.7:p.kind==="froid"?.62:p.level?.62:1.3),maxX:p.x+(p.kind==="congelateur"?.7:p.level?.62:1.3),minZ:z-(p.kind==="congelateur"?1.75:p.kind==="froid"?.85:p.level?.52:.65),maxZ:z+(p.kind==="congelateur"?1.75:p.level?.52:.65),level:p.level||1});
  }
 }
 function refreshDisplays(){
@@ -590,6 +620,10 @@ function interact(){
   return;
  }
  if(atReserve()){showReserve();return;}
+ if(fridgeDoor&&playerLevel()>=4&&near(-8.5,-3.5,2.4)){
+  fridgeOpen=!fridgeOpen;fridgeDoor.rotation.y=fridgeOpen?-1.15:0;
+  toast(fridgeOpen?"Réfrigérateur ouvert":"Réfrigérateur fermé");return;
+ }
  if(freezerLid&&playerLevel()>=4&&near(8.5,-3.5,3.1)){
   freezerOpen=!freezerOpen;freezerLid.rotation.z=freezerOpen?-.95:0;
   toast(freezerOpen?"Congélateur ouvert":"Congélateur fermé");return;
@@ -774,4 +808,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.8 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.9 !");
