@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.5.2 — horloge sur ouverture et fermeture automatique
+// Business Empire Simulator V0.5.3 — correction pause stricte de l’horloge
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -20,7 +20,8 @@ function load(){
   if(current?.inventory){
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(current.finance)for(const k of Object.keys(s.finance))if(Number.isFinite(current.finance[k])&&current.finance[k]>=0)s.finance[k]=current.finance[k];
-   if(Number.isFinite(current.hour))s.hour=Math.min(22,Math.max(8,current.hour));
+   // Une session rechargée démarre toujours en préparation à 08:00.
+   s.hour=8;
    for(const p of catalog){
     const src=current.inventory[p.id]||{},dst=s.inventory[p.id];
     for(const k of ["shelf","reserve","boxes"])if(Number.isFinite(src[k]))dst[k]=Math.max(0,Math.floor(src[k]));
@@ -42,6 +43,7 @@ function load(){
  return s;
 }
 const state=load();
+state.hour=8;
 const finance=state.finance;
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
 function total(){return catalog.reduce((n,p)=>{const a=state.inventory[p.id];return n+a.shelf+a.reserve+a.boxes*BOX_UNITS;},0);}
@@ -496,7 +498,9 @@ openButton.addEventListener("click",()=>{
 });
 function business(dt){
  // À 8 h, l'horloge reste arrêtée jusqu'à la première ouverture.
- if(!dayStarted){state.hour=OPEN_HOUR;updateTime();return;}
+ if(!dayStarted){state.hour=OPEN_HOUR;dayTimer=0;updateTime();return;}
+ // Horloge en pause dès que le magasin est fermé manuellement.
+ if(!shopOpen&&!closing){updateTime();return;}
  if(!closing){
   dayTimer=Math.min(DAY_SECONDS,dayTimer+dt);
   state.hour=OPEN_HOUR+(dayTimer/DAY_SECONDS)*(CLOSE_HOUR-OPEN_HOUR);
@@ -532,4 +536,4 @@ function animate(){
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  movePlayer(dt);business(dt);updateCustomers(dt);renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.5.2 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.5.3 !");
