@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.7 — congélateur coffre horizontal
+// Business Empire Simulator V0.6.8 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -361,7 +361,7 @@ for(const p of catalog){
   const mat=new THREE.MeshStandardMaterial({color:p.color});
   const group=new THREE.Group();group.position.set(p.x,0,z);
   if(p.level){
-   group.scale.set(.47,1,.8);
+   group.scale.set(p.kind==="congelateur"?1:.47,1,p.kind==="congelateur"?1:.8);
    group.visible=playerLevel()>=p.level;
    extraShelves.push({group,level:p.level});
    if(p.kind==="froid"){
@@ -374,7 +374,7 @@ for(const p of catalog){
    const post=new THREE.Mesh(new THREE.BoxGeometry(.08,2.4,.08),metal);
    post.position.set(x,1.2,dz);group.add(post);
   }
-  for(let level=0;level<(p.kind==="congelateur"?1:3);level++){
+  for(let level=0;level<(p.kind==="congelateur"?0:3);level++){
    const y=.45+level*.75;
    // Plateau légèrement incliné vers le client, avec butée anti-chute.
    const tilt=.12; // pente vers le client (avant = z positif)
@@ -400,33 +400,47 @@ for(const p of catalog){
    }
   }
   if(p.kind==="congelateur"){
-   // Congélateur coffre horizontal : cuve isolée et couvercle vitré ouvrant sur le dessus.
-   const white=new THREE.MeshStandardMaterial({color:0xe8f1f6,metalness:.18,roughness:.42});
-   const dark=new THREE.MeshStandardMaterial({color:0x334155,metalness:.4});
-   const glass=new THREE.MeshStandardMaterial({color:0x9ddcf4,transparent:true,opacity:.36,metalness:.2,roughness:.1,side:THREE.DoubleSide});
-   const box=new THREE.Mesh(new THREE.BoxGeometry(2.6,.86,1.25),white);
-   box.position.y=.52;group.add(box);
-   const inner=new THREE.Mesh(new THREE.BoxGeometry(2.36,.08,1.03),dark);
-   inner.position.y=.96;group.add(inner);
+   // Long congélateur coffre contre le mur droit, ouvert sur une vraie cuve creuse.
+   const shell=new THREE.MeshStandardMaterial({color:0xe7eef4,roughness:.46,metalness:.18});
+   const liner=new THREE.MeshStandardMaterial({color:0xc5d9e6,roughness:.6,side:THREE.DoubleSide});
+   const trim=new THREE.MeshStandardMaterial({color:0x334155,metalness:.4,roughness:.4});
+   const glass=new THREE.MeshStandardMaterial({color:0x9ddcf4,transparent:true,opacity:.22,roughness:.08,side:THREE.DoubleSide,depthWrite:false});
+   const add=(w,h,d,x,y,z,material,parent=group)=>{
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+    mesh.position.set(x,y,z);parent.add(mesh);return mesh;
+   };
+   // Longueur 3.5 m le long du mur x=10 ; accès côté allée (x négatif).
+   add(1.38,.14,3.5,0,.13,0,shell);
+   add(.13,.92,3.5,.625,.63,0,shell);
+   add(.13,.92,3.5,-.625,.63,0,shell);
+   add(1.38,.92,.13,0,.63,-1.685,shell);
+   add(1.38,.92,.13,0,.63,1.685,shell);
+   add(1.1,.04,3.22,0,.22,0,liner);
+   add(.035,.66,3.22,-.545,.58,0,liner);
+   add(.035,.66,3.22,.545,.58,0,liner);
+   // Rebord supérieur et poignée du couvercle.
+   for(const x of [-.65,.65])add(.07,.065,3.5,x,1.11,0,trim);
+   for(const z2 of [-1.72,1.72])add(1.38,.065,.07,0,1.11,z2,trim);
    const lid=new THREE.Group();
-   lid.position.set(0,1.02,-.62);
-   const pane=new THREE.Mesh(new THREE.BoxGeometry(2.43,.045,1.18),glass);
-   pane.position.z=.59;lid.add(pane);
-   for(const x of [-1.23,1.23]){
-    const rail=new THREE.Mesh(new THREE.BoxGeometry(.045,.075,1.2),dark);
-    rail.position.set(x,0,.59);lid.add(rail);
+   lid.position.set(.67,1.16,0); // charnière côté mur
+   add(1.35,.035,3.42,-.675,0,0,glass,lid);
+   add(.065,.07,3.44,-1.34,0,0,trim,lid);
+   add(.065,.07,3.44,0,0,0,trim,lid);
+   for(const z2 of [-1.7,1.7])add(1.35,.07,.06,-.675,0,z2,trim,lid);
+   add(.09,.06,.65,-1.36,.065,0,trim,lid);
+   group.add(lid);freezerLid=lid;
+   // Les pizzas sont réellement dans la cuve et non sur un plateau extérieur.
+   const pizzaMat=new THREE.MeshStandardMaterial({color:0x60a5fa,roughness:.75});
+   for(let i=0;i<CAPACITY;i++){
+    const item=new THREE.Mesh(new THREE.BoxGeometry(.62,.09,.29),pizzaMat);
+    const row=Math.floor(i/10),slot=i%10;
+    item.position.set(-.27+row*.27,.34+row*.12,-1.43+slot*.315);
+    item.rotation.y=.04*(i%3-1);
+    group.add(item);displays[p.id].push(item);
    }
-   for(const z2 of [0,1.18]){
-    const rail=new THREE.Mesh(new THREE.BoxGeometry(2.48,.075,.045),dark);
-    rail.position.z=z2;lid.add(rail);
-   }
-   const handle=new THREE.Mesh(new THREE.BoxGeometry(.52,.07,.09),dark);
-   handle.position.set(0,.06,1.18);lid.add(handle);
-   group.add(lid);
-   freezerLid=lid;
   }
   scene.add(group);
-  colliders.push({minX:p.x-(p.level?.62:1.3),maxX:p.x+(p.level?.62:1.3),minZ:z-(p.level?.52:.65),maxZ:z+(p.level?.52:.65),level:p.level||1});
+  colliders.push({minX:p.x-(p.kind==="congelateur"?.7:p.level?.62:1.3),maxX:p.x+(p.kind==="congelateur"?.7:p.level?.62:1.3),minZ:z-(p.kind==="congelateur"?1.75:p.level?.52:.65),maxZ:z+(p.kind==="congelateur"?1.75:p.level?.52:.65),level:p.level||1});
  }
 }
 function refreshDisplays(){
@@ -576,7 +590,7 @@ function interact(){
   return;
  }
  if(atReserve()){showReserve();return;}
- if(freezerLid&&playerLevel()>=4&&near(8.5,-3.5,2.2)){
+ if(freezerLid&&playerLevel()>=4&&near(8.5,-3.5,3.1)){
   freezerOpen=!freezerOpen;freezerLid.rotation.x=freezerOpen?-.95:0;
   toast(freezerOpen?"Congélateur ouvert":"Congélateur fermé");return;
  }
@@ -760,4 +774,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.7 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.8 !");
