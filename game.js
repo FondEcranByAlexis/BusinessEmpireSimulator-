@@ -1,8 +1,13 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.2 — mode test développeur indépendant
+// Business Empire Simulator V0.6.3 — activation locale du mode test
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
-const DEV_MODE=localStorage.getItem("fba-dev-enabled")==="true";
+// L'activation est locale au navigateur, pas une authentification sécurisée.
+const DEV_ACTIVATION=new URLSearchParams(location.search).get("fba-test");
+if(DEV_ACTIVATION==="activer")localStorage.setItem("fba-dev-authorized","true");
+const DEV_AUTHORIZED=localStorage.getItem("fba-dev-authorized")==="true";
+const DEV_MODE=DEV_AUTHORIZED&&localStorage.getItem("fba-dev-enabled")==="true";
+if(DEV_ACTIVATION==="activer")history.replaceState(null,"",location.pathname);
 const SAVE=DEV_MODE?DEV_SAVE:NORMAL_SAVE;
 const catalog=[
  {id:"eau",name:"Eau",cost:2,price:4,color:0x38bdf8,x:-5},
@@ -180,6 +185,7 @@ function showProfile(){
  button(panel,"← Retour au menu",showMainMenu);
 }
 function switchDevMode(enable){
+ if(enable&&!DEV_AUTHORIZED){toast("Mode test non autorisé sur ce navigateur");return;}
  if(enable){
   if(!localStorage.getItem(DEV_SAVE)){
    const copy=initial();copy.money=100000;copy.devLevel=1;
@@ -223,7 +229,7 @@ function showMainMenu(){
  });
  button(panel,"Profil",showProfile);
  if(DEV_MODE)button(panel,"OUTILS DÉVELOPPEUR",showDevTools);
- else button(panel,"Activer le mode test FBA Games",()=>switchDevMode(true));
+ else if(DEV_AUTHORIZED)button(panel,"Activer le mode test FBA Games",()=>switchDevMode(true));
  button(panel,"Améliorations et compétences",showUpgrades);
  button(panel,"Stocks",showStocks);
  button(panel,"Réserve",showReserve);
@@ -709,4 +715,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.2 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.3 !");
