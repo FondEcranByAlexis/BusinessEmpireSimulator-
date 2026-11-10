@@ -525,6 +525,24 @@ function refreshExtension(){
 cube(-6,2.5,10,8,5,.3,0xe2e8f0,true);
 cube(6,2.5,10,8,5,.3,0xe2e8f0,true);
 cube(0,4.2,10,4,1.6,.3,0xe2e8f0);
+// Identité commerciale FBA : enseignes fixées aux murs, visibles en entrant.
+function brandPanel(title,subtitle,width=5.6,height=1.0){
+ const c=document.createElement("canvas");c.width=1024;c.height=256;
+ const ctx=c.getContext("2d");
+ ctx.fillStyle="#101827";ctx.fillRect(0,0,1024,256);
+ ctx.fillStyle="#38bdf8";ctx.fillRect(0,0,1024,12);ctx.fillRect(0,244,1024,12);
+ ctx.fillStyle="#ffffff";ctx.textAlign="center";ctx.textBaseline="middle";
+ ctx.font="900 99px Arial";ctx.fillText(title,512,102,950);
+ ctx.fillStyle="#7dd3fc";ctx.font="bold 44px Arial";ctx.fillText(subtitle,512,193,940);
+ const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+ const m=new THREE.Mesh(new THREE.PlaneGeometry(width,height),new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide,depthTest:true}));
+ return m;
+}
+const entranceBrand=brandPanel("FBA SUPERMARKET","BUSINESS EMPIRE SIMULATOR",5.6,1.25);
+entranceBrand.position.set(0,4.24,9.82);scene.add(entranceBrand);
+const corridorBrand=brandPanel("FBA SUPERMARKET","EXTENSION DU MAGASIN",3.75,.72);
+corridorBrand.position.set(0,4.18,-9.78);scene.add(corridorBrand);
+
 cube(0,-.17,12,8,.3,5,0x94a3b8);
 cube(0,.015,8.5,3,.03,2,0x334155);
 for(const x of [-6,0,6])for(const z of [-6,0,6])cube(x,4.94,z,2.8,.05,.5,0xffffff);
