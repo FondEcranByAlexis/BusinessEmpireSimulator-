@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.4.1 — interactions marchandises corrigées
+// Business Empire Simulator V0.4.2 — réapprovisionnement par cartons
 const $=id=>document.getElementById(id);
 const SAVE="business-empire-v04", LEGACY="business-empire-v02";
 const catalog=[
@@ -170,65 +170,75 @@ ctx.fillStyle="#38bdf8";ctx.font="bold 34px Arial";ctx.textAlign="center";ctx.fi
 const sign=new THREE.Mesh(new THREE.PlaneGeometry(5,1.25),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(signCanvas),side:THREE.DoubleSide}));
 sign.position.set(0,3.5,-9.8);scene.add(sign);
 function sync(){hud();refreshDisplays();refreshBoxes();save();}
-// V0.4.1 — interaction explicite : cartons, réserve et rayons
+// V0.4.2 — transport de cartons entiers, remplissage en lot
+// held = {id, quantity}. Une unité d'ancienne réserve peut être regroupée en lot.
 let held=null;
 const carryLabel=document.createElement("div");
 Object.assign(carryLabel.style,{
  position:"fixed",left:"50%",bottom:"100px",transform:"translateX(-50%)",
  zIndex:"13",padding:"8px 12px",borderRadius:"9px",background:"#0f172ae8",
  border:"1px solid #38bdf8",color:"white",fontSize:"12px",fontWeight:"bold",
- pointerEvents:"none",maxWidth:"60vw",textAlign:"center"
+ pointerEvents:"none",maxWidth:"65vw",textAlign:"center"
 });
 document.body.appendChild(carryLabel);
 function refreshCarry(){
- const p=catalog.find(p=>p.id===held);
- carryLabel.textContent=p?"En main : "+p.name:"Mains libres";
+ const p=held&&catalog.find(p=>p.id===held.id);
+ carryLabel.textContent=p?"Carton : "+p.name+" ("+held.quantity+" produit(s))":"Mains libres";
 }
-function near(x,z,r=2.5){
- return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;
-}
+function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
 function atReserve(){return near(-7.5,6.5,3.3);}
+function putBack(){
+ if(!held)return;
+ state.inventory[held.id].reserve+=held.quantity;
+ held=null;sync();refreshCarry();showReserve();
+}
+function takeCarton(p,amount){
+ const a=state.inventory[p.id];
+ if(held){toast("Dépose d'abord le carton que tu portes");return;}
+ if(a.boxes>0){
+  a.boxes--;held={id:p.id,quantity:BOX_UNITS};
+ }else if(a.reserve>0){
+  const quantity=Math.min(amount,a.reserve);
+  a.reserve-=quantity;held={id:p.id,quantity};
+ }else{toast("Aucun produit disponible");return;}
+ sync();refreshCarry();panel.style.display="none";
+ toast("Carton de "+p.name+" : "+held.quantity+" produits. Va au rayon.");
+}
 function showReserve(){
- if(!atReserve()){toast("Approche-toi de la réserve à gauche de l'entrée");return;}
- openPanel("Réserve — choisir une action");
+ if(!atReserve()){toast("Approche-toi de la réserve");return;}
+ openPanel("Réserve — cartons à transporter");
  if(held){
-  const p=catalog.find(p=>p.id===held);
-  paragraph("Tu portes : "+p.name);
-  button(panel,"Reposer "+p.name+" dans la réserve",()=>{
-   state.inventory[held].reserve++;held=null;sync();refreshCarry();showReserve();
-  });
+  const p=catalog.find(p=>p.id===held.id);
+  paragraph("Tu portes "+held.quantity+" × "+p.name);
+  button(panel,"Reposer le carton dans la réserve",putBack);
   return;
  }
  for(const p of catalog){
   const a=state.inventory[p.id];
-  paragraph(p.name+" — "+a.boxes+" carton(s), "+a.reserve+" unité(s) en réserve");
-  if(a.boxes>0)button(panel,"Ouvrir un carton de "+p.name,()=>{
-   a.boxes--;a.reserve+=BOX_UNITS;sync();showReserve();
-   toast("Carton ouvert : +10 "+p.name);
-  });
-  if(a.reserve>0)button(panel,"Prendre un "+p.name,()=>{
-   a.reserve--;held=p.id;sync();refreshCarry();
-   panel.style.display="none";
-   toast(p.name+" en main. Rejoins le rayon "+p.name);
-  });
+  paragraph(p.name+" — "+a.boxes+" carton(s) fermé(s), "+a.reserve+" unité(s) en réserve");
+  if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10));
+  if(a.reserve>0)button(panel,"Prendre un lot de "+p.name+" ("+Math.min(10,a.reserve)+")",()=>takeCarton(p,10));
  }
 }
 function interact(){
  if(held){
-  const p=catalog.find(p=>p.id===held);
-  // Les rayons sont disposés en deux rangées : z=1 et z=-4.
+  const p=catalog.find(p=>p.id===held.id);
   if(near(p.x,1,3.2)||near(p.x,-4,3.2)){
-   const a=state.inventory[p.id];
-   if(a.shelf>=CAPACITY){toast("Rayons "+p.name+" pleins");return;}
-   a.shelf++;held=null;sync();refreshCarry();
-   toast(p.name+" placé dans le rayon");return;
+   const a=state.inventory[p.id],space=Math.max(0,CAPACITY-a.shelf);
+   if(!space){toast("Rayons "+p.name+" pleins");return;}
+   const placed=Math.min(space,held.quantity);
+   a.shelf+=placed;held.quantity-=placed;
+   if(held.quantity===0)held=null;
+   sync();refreshCarry();
+   toast(placed+" × "+p.name+" placés"+(held?" — "+held.quantity+" restants":""));
+   return;
   }
   if(atReserve()){showReserve();return;}
-  toast("Va au rayon "+p.name+" (x="+p.x+") puis appuie sur Interagir");
+  toast("Rejoins le rayon "+p.name+" puis appuie sur Interagir");
   return;
  }
  if(atReserve()){showReserve();return;}
- toast("Va à la réserve, ouvre un carton et prends un produit");
+ toast("Va à la réserve pour prendre un carton");
 }
 refreshCarry();
 // Commandes de déplacement et caméra lissée
