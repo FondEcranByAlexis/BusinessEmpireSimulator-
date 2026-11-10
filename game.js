@@ -554,6 +554,32 @@ function productModel(p){
  }
  return g;
 }
+// Réglettes de prix en euros, visibles sur le bord avant des rayons.
+const priceLabelTextures={};
+function addPriceRail(parent,p,y,width,front){
+ const key=p.id;
+ if(!priceLabelTextures[key]){
+  const canvas=document.createElement("canvas");canvas.width=512;canvas.height=128;
+  const ctx=canvas.getContext("2d");
+  ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,512,128);
+  ctx.fillStyle="#0f172a";ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.font="bold 39px Arial";ctx.fillText(p.name,154,64,290);
+  ctx.font="bold 57px Arial";ctx.fillText(p.price.toFixed(2).replace(".",",")+" €",385,64,240);
+  const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
+  priceLabelTextures[key]=tex;
+ }
+ const rail=new THREE.Mesh(new THREE.BoxGeometry(width,.11,.035),new THREE.MeshStandardMaterial({color:0xe2e8f0,roughness:.6}));
+ rail.position.set(0,y,front);parent.add(rail);
+ const sign=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(width*.9,1.9),.105),new THREE.MeshBasicMaterial({map:priceLabelTextures[key],side:THREE.DoubleSide}));
+ sign.position.set(0,y,front+.021);parent.add(sign);
+}
+function addShelfDividers(parent,y,width){
+ const mat=new THREE.MeshStandardMaterial({color:0xb6c8d5,transparent:true,opacity:.58,roughness:.22,depthWrite:false});
+ for(const x of [-width/4,0,width/4]){
+  const divider=new THREE.Mesh(new THREE.BoxGeometry(.018,.13,.85),mat);
+  divider.position.set(x,y+.115,0);parent.add(divider);
+ }
+}
 const displays={},extraShelves=[];
 let freezerLid=null,freezerOpen=false;
 let fridgeDoor=null,fridgeOpen=false;
@@ -584,6 +610,8 @@ for(const p of catalog){
    plank.position.y=y;plank.rotation.x=tilt;group.add(plank);
    const lip=new THREE.Mesh(new THREE.BoxGeometry(2.4,.065,.045),isFruit?new THREE.MeshStandardMaterial({color:0x7c4a24}):metal);
    lip.position.set(0,y+.075,.49);group.add(lip);
+   if(!isFruit){addPriceRail(group,p,y+.025,2.4,.525);addShelfDividers(group,y,2.4);}
+   else addPriceRail(group,p,y+.025,2.4,.525);
    if(isFruit){
     const wood=new THREE.MeshStandardMaterial({color:0x8b5a2b,roughness:.9});
     for(const x of [-1.1,0,1.1]){
@@ -729,6 +757,8 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
   plank.position.y=y;plank.rotation.x=.12;rack.add(plank);
   const lip=new THREE.Mesh(new THREE.BoxGeometry(2.65,.07,.045),metal);
   lip.position.set(0,y+.09,.46);rack.add(lip);
+  addPriceRail(rack,p,y+.025,2.65,.505);
+  addShelfDividers(rack,y,2.65);
  }
  for(let i=0;i<CAPACITY;i++){
   const tier=Math.floor(i/10),slot=i%10;
