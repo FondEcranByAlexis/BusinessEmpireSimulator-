@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.7.8 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.7.9 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -626,15 +626,16 @@ function sync(){hud();refreshDisplays();refreshBoxes();refreshExtension();update
 let held=null;
 const carryLabel=document.createElement("div");
 Object.assign(carryLabel.style,{
- position:"fixed",left:"50%",bottom:"100px",transform:"translateX(-50%)",
+ position:"fixed",left:"50%",top:"max(10px, env(safe-area-inset-top))",transform:"translateX(-50%)",
  zIndex:"13",padding:"8px 12px",borderRadius:"9px",background:"#0f172ae8",
  border:"1px solid #38bdf8",color:"white",fontSize:"12px",fontWeight:"bold",
- pointerEvents:"none",maxWidth:"65vw",textAlign:"center"
+ pointerEvents:"none",maxWidth:"45vw",textAlign:"center"
 });
 document.body.appendChild(carryLabel);
 function refreshCarry(){
  const p=held&&catalog.find(p=>p.id===held.id);
- carryLabel.textContent=p?"Carton : "+p.name+" ("+held.quantity+" produit(s))":"Mains libres";
+ carryLabel.style.display=p?"block":"none";
+ carryLabel.textContent=p?"Carton : "+p.name+" — "+held.quantity+" produit(s)":"";
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
 function atReserve(){return near(12.5,5.5,3.1);}
@@ -941,4 +942,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.7.8 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.7.9 !");
