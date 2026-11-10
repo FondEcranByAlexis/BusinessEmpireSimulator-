@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.8.2 — congélateur mural creux et produits visibles
+// Business Empire Simulator V0.8.3 — congélateur mural creux et produits visibles
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -605,9 +605,9 @@ function addShelfGuide(p,x,z){
  const sign=shelfSign(p.name);sign.position.set(0,2.72,0);group.add(sign);
  const highlight=new THREE.Mesh(
   new THREE.BoxGeometry(2.75,.09,1.12),
-  new THREE.MeshBasicMaterial({color:0x22d3ee,transparent:true,opacity:.48,depthWrite:false})
+  new THREE.MeshBasicMaterial({color:0x22d3ee,transparent:true,opacity:.48,depthTest:false,depthWrite:false})
  );
- highlight.position.y=1.88;group.add(highlight);
+ highlight.position.y=1.88;highlight.renderOrder=999;group.add(highlight);
  scene.add(group);shelfGuides[p.id]={group,highlight,sign,p};
 }
 function updateShelfGuides(){
@@ -1025,4 +1025,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.8.2 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.8.3 !");
