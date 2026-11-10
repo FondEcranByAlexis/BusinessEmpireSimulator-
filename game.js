@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.6.3 — activation locale du mode test
+// Business Empire Simulator V0.6.4 — correction du présentoir à fruits
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -368,8 +368,13 @@ for(const p of catalog){
     casing.position.y=1.2;group.add(casing);
    }
    if(p.kind==="fruits"){
-    const basket=new THREE.Mesh(new THREE.BoxGeometry(2.5,.35,1),new THREE.MeshStandardMaterial({color:0x92400e}));
-    basket.position.y=.5;group.add(basket);
+    // Bacs intégrés au plateau inférieur, sans traverser les pieds de l'étagère.
+    const wood=new THREE.MeshStandardMaterial({color:0x92400e,roughness:.85});
+    for(const x of [-.55,.55]){
+     const bin=new THREE.Mesh(new THREE.BoxGeometry(1,.16,.76),wood);
+     bin.position.set(x,.56,0);
+     group.add(bin);
+    }
    }
   }
   for(const x of [-1.15,1.15])for(const dz of [-.4,.4]){
@@ -715,4 +720,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.6.3 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.6.4 !");
