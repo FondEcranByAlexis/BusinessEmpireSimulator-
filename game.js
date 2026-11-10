@@ -437,6 +437,25 @@ const extensionTiles=tileFloor(19.65,11.7,0,-16);extensionMeshes.push(extensionT
 wallBaseboard(0,-21.77,19.5,.07,true);
 for(const x of [-9.78,9.78])wallBaseboard(x,-16,.07,11.6,true);
 for(const x of [-6,0,6])for(const z of [-14,-19])ceilingPanel(x,z,true);
+// Finitions des deux faces de la cloison et des murs de la réserve.
+for(const z of [-9.78,-10.22])for(const x of [-6,6])wallBaseboard(x,z,7.7,.065,true);
+wallBaseboard(15.08,5.5,.065,7.65);
+wallBaseboard(12.65,1.73,5.0,.065);
+wallBaseboard(12.65,9.12,5.0,.065);
+wallBaseboard(10.22,2.45,.065,1.65);
+wallBaseboard(10.22,8.25,.065,2.0);
+// Encadrement du passage principal / extension : montants et linteau commerciaux.
+const passageTrim=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.28,roughness:.48});
+for(const x of [-2.03,2.03]){
+ const post=new THREE.Mesh(new THREE.BoxGeometry(.09,3.38,.37),passageTrim);
+ post.position.set(x,1.69,-10);scene.add(post);
+}
+const lintel=new THREE.Mesh(new THREE.BoxGeometry(4.16,.12,.38),passageTrim);
+lintel.position.set(0,3.4,-10);scene.add(lintel);
+// Bande de seuil fine, affleurante au carrelage, sans obstacle au passage.
+const threshold=new THREE.Mesh(new THREE.BoxGeometry(3.8,.012,.18),new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.45}));
+threshold.position.set(0,.028,-10);scene.add(threshold);
+
 extensionCube(0,5.1,-16,20,.2,12,0xf1f5f9);
 extensionCube(-10,2.5,-16,.3,5,12,0xe2e8f0);
 extensionCube(10,2.5,-16,.3,5,12,0xe2e8f0);
