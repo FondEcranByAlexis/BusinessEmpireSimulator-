@@ -522,8 +522,35 @@ function productModel(p){
  }else{
   const tall=p.id==="cafe"||p.id==="cereales";
   const h=tall?.49:.39,w=tall?.29:.33;
-  add(new THREE.BoxGeometry(w,h,.27),[base,base,base,base,label,base]);
-  add(new THREE.BoxGeometry(w*.9,.035,.23),white,0,h/2+.018,0);
+  const silver=new THREE.MeshStandardMaterial({color:0xcbd5e1,metalness:.35,roughness:.36});
+  const dark=new THREE.MeshStandardMaterial({color:0x334155,roughness:.7});
+  // Formes adaptées aux produits : sachets souples, briques, boîtes et flacons.
+  if(p.id==="pates"||p.id==="riz"||p.id==="cafe"){
+   const bag=add(new THREE.BoxGeometry(w,h,.25),[base,base,base,base,label,base]);
+   add(new THREE.BoxGeometry(w*.96,.035,.265),silver,0,h/2+.008,0);
+   add(new THREE.BoxGeometry(w*.96,.028,.265),silver,0,-h/2+.008,0);
+   // Soudures latérales caractéristiques des sachets alimentaires.
+   for(const x of [-w/2,w/2])add(new THREE.BoxGeometry(.018,h*.92,.26),base,x,0,0);
+  }else if(p.id==="savon"){
+   // Flacon de savon à pompe.
+   add(new THREE.BoxGeometry(.25,.34,.22),base,0,-.035,0);
+   add(new THREE.PlaneGeometry(.22,.27),label,0,-.035,.113);
+   add(new THREE.CylinderGeometry(.045,.045,.075,10),white,0,.175,0);
+   add(new THREE.BoxGeometry(.15,.035,.055),dark,.045,.22,0);
+  }else if(p.id==="chocolat"){
+   // Tablette plate sous emballage avec pliures sur les côtés.
+   add(new THREE.BoxGeometry(.34,.39,.095),[base,base,base,base,label,base]);
+   for(const x of [-.16,.16])add(new THREE.BoxGeometry(.018,.36,.105),silver,x,0,0);
+  }else if(p.id==="biscuits"){
+   // Paquet de biscuits rectangulaire et coutures de fermeture.
+   add(new THREE.BoxGeometry(.34,.34,.30),[base,base,base,base,label,base]);
+   for(const y of [-.17,.17])add(new THREE.BoxGeometry(.32,.022,.31),silver,0,y,0);
+  }else{
+   // Boîte rigide de céréales et autres produits secs.
+   add(new THREE.BoxGeometry(w,h,.27),[base,base,base,base,label,base]);
+   add(new THREE.BoxGeometry(w*.9,.035,.23),white,0,h/2+.018,0);
+   add(new THREE.BoxGeometry(w*.92,.02,.23),dark,0,-h/2,0);
+  }
  }
  return g;
 }
