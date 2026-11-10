@@ -502,7 +502,9 @@ function productModel(p){
   add(new THREE.CylinderGeometry(bottle?.105:.14,bottle?.115:.14,.35,10),base,0,.015,0);
   add(new THREE.CylinderGeometry(.055,.065,.09,10),white,0,.235,0);
   add(new THREE.CylinderGeometry(.065,.065,.04,10),new THREE.MeshStandardMaterial({color:0x1d4ed8}),0,.30,0);
-  const wrap=add(new THREE.CylinderGeometry(bottle?.117:.143,bottle?.117:.143,.17,12,1,true),label,0,.02,0);
+  // Étiquette plane orientée vers l'allée (face avant +Z), sans inversion du texte.
+  const front=add(new THREE.PlaneGeometry(bottle?.19:.25,.18),label,0,.02,bottle?.119:.145);
+  front.material.side=THREE.DoubleSide;
  }else if(p.id==="pommes"){
   add(new THREE.SphereGeometry(.18,12,10),base);
   add(new THREE.CylinderGeometry(.018,.025,.09,6),new THREE.MeshStandardMaterial({color:0x365314}),0,.18,0);
