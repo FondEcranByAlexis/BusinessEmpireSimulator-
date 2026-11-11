@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.74 — version synchronisée
+// Business Empire Simulator V0.9.75 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -111,6 +111,7 @@ function load(){
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
    if(typeof current.workerName==="string")s.workerName=current.workerName.slice(0,24);
+   if(Number.isInteger(current.workerSentHomeDay))s.workerSentHomeDay=current.workerSentHomeDay;
    if(typeof current.workerEnabled==="boolean")s.workerEnabled=current.workerEnabled;
    if(Array.isArray(current.trolleyCargo))s.trolleyCargo=current.trolleyCargo.filter(it=>it&&catalog.some(p=>p.id===it.id)).slice(0,3).map(it=>({id:it.id}));
    if(["closed","morning"].includes(current.sundayMode))s.sundayMode=current.sundayMode;
@@ -147,6 +148,7 @@ if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
 state.hour=8;
 state.playerName=state.playerName||"Joueur";
 state.workerName=state.workerName||"George";
+state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSentHomeDay:0;
 const finance=state.finance;
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
 function total(){return catalog.reduce((n,p)=>{const a=state.inventory[p.id];return n+a.shelf+a.reserve+a.boxes*BOX_UNITS;},0);}
@@ -395,7 +397,7 @@ function showWorkerManagement(){
  openPanel("PERSONNEL — "+state.workerName);
  button(panel,"Modifier les prénoms",showNames);
  paragraph("Prototype du premier employé 3D : manutention au quai et rangement des cartons en réserve.");
- paragraph("État : "+(state.workerEnabled?"En service":"Non affecté")+".");
+ paragraph("État : "+(state.workerSentHomeDay===state.day?"Rentré chez lui pour aujourd’hui":state.workerEnabled?"En service":"Non affecté")+".");
  paragraph("Il travaille de 08:00 à 17:00 et respecte une pause de 12:00 à 13:00.");
  paragraph("Il déplace un carton à la fois, dans la limite des capacités de stockage.");
  paragraph("Approche-toi de lui et appuie sur Interagir pour discuter et suspendre temporairement son travail.");
@@ -1239,7 +1241,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.74 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.75 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1547,10 +1549,14 @@ function showWorkerInteraction(){
  button(panel,"Va décharger le camion",()=>workerReply(state.deliveryDock.length?"Pas de souci, j’y vais !":"Il n’y a aucun camion à décharger.",true));
  button(panel,"Combien de cartons restent ?",()=>workerReply("Il reste "+state.deliveryDock.length+" carton(s) au quai."));
  button(panel,"Reprends ton travail",()=>workerReply("D’accord, je reprends le travail !",true));
+ button(panel,"Tu peux rentrer chez toi pour aujourd’hui",()=>{
+  if(workerCargo||state.deliveryDock.length){workerReply("Il reste encore du travail. Je termine les cartons avant de rentrer.");return;}
+  state.workerSentHomeDay=state.day;workerTalking=false;workerRoute=[];save();workerReply("Merci "+state.playerName+" ! J’ai terminé, à demain !",true);
+ });
  button(panel,"Terminer la conversation",()=>{panel.style.display="none";workerTalking=false;});
 }
 function updateWorker(dt){
- const onDuty=state.workerEnabled&&state.hour>=8&&state.hour<17&&!(state.hour>=12&&state.hour<13);
+ const onDuty=state.workerEnabled&&state.workerSentHomeDay!==state.day&&state.hour>=8&&state.hour<17&&!(state.hour>=12&&state.hour<13);
  workerGroup.visible=!!onDuty;
  if(!onDuty){workerLeftLeg.rotation.x=workerRightLeg.rotation.x=0;return;}
  if(workerTalking){workerLeftLeg.rotation.x=workerRightLeg.rotation.x=0;workerLeftArm.rotation.x=workerRightArm.rotation.x=0;return;}
@@ -2065,4 +2071,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.74 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.75 !");
