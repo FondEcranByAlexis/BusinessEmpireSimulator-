@@ -310,3 +310,26 @@ button {
  #hud span{font-size:9px}
  #actions button{font-size:11px;padding:7px 9px}
 }
+
+/* Satisfaction client persistante — visible durant tout le jeu en paysage. */
+#satisfactionHud{
+ position:fixed;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+ z-index:12;width:clamp(155px,29vw,275px);padding:9px 12px;
+ background:rgba(8,14,22,.89);border:1px solid #475569;border-radius:11px;
+ box-shadow:0 3px 12px #0006;pointer-events:none;
+}
+.satisfactionTitle{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:700}
+#satisfactionValue{font-size:14px;white-space:nowrap}
+.satisfactionTrack{margin-top:7px;height:10px;overflow:hidden;border-radius:99px;background:#334155}
+#satisfactionFill{height:100%;width:80%;background:#22c55e;border-radius:99px;transition:width .3s ease,background .3s ease}
+#satisfactionStatus{margin-top:5px;font-size:10px;color:#cbd5e1;text-align:right}
+@media (orientation:landscape) and (max-height:450px){
+ #satisfactionHud{padding:6px 9px;width:clamp(155px,28vw,220px);top:6px}
+ .satisfactionTitle{font-size:10px}
+ #satisfactionValue{font-size:12px}
+ .satisfactionTrack{height:7px;margin-top:4px}
+ #satisfactionStatus{font-size:9px;margin-top:3px}
+}
+@media (max-width:600px) and (orientation:landscape){
+ #satisfactionHud{width:160px;padding:5px 7px}
+}
