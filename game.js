@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.61 — version synchronisée
+// Business Empire Simulator V0.9.62 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -99,7 +99,7 @@ function showUpgrades(){
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
- return {money:5000,day:1,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:8};
+ return {money:5000,day:1,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
  const s=initial();
@@ -138,7 +138,7 @@ const state=load();
 state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
 state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
 if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
-state.hour=8;
+state.hour=7;
 const finance=state.finance;
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
 function total(){return catalog.reduce((n,p)=>{const a=state.inventory[p.id];return n+a.shelf+a.reserve+a.boxes*BOX_UNITS;},0);}
@@ -1181,7 +1181,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.61 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.62 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1556,6 +1556,8 @@ function movePlayer(dt){
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
 const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
+const PREOPEN_HOUR=7,PREOPEN_SECONDS=60;
+let preopenTimer=0;
 function updateTime(){
  updateLighting();
  $("day").textContent=state.day;
@@ -1766,12 +1768,14 @@ const openButton=$("openShop");
 let dayStarted=false,closing=false;
 function updateOpen(){
  openButton.textContent=shopOpen?"Fermer le magasin":closing?"Fermeture en cours":"Ouvrir le magasin";
- openButton.disabled=closing;
+ openButton.disabled=closing||state.hour<OPEN_HOUR;
+ openButton.title=state.hour<OPEN_HOUR?"Ouverture possible à 08:00":"";
  updateTime();
 }
 openButton.addEventListener("click",()=>{
  if(paused){toast("Reprends la partie avant d’ouvrir le magasin");return;}
  if(closing){toast("Attends le départ des derniers clients");return;}
+ if(state.hour<OPEN_HOUR){toast("Ouverture possible à 08:00");return;}
  if(shopOpen){
   shopOpen=false;updateOpen();toast("Fermé aux nouveaux clients");return;
  }
@@ -1779,8 +1783,15 @@ openButton.addEventListener("click",()=>{
  dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert");
 });
 function business(dt){
- // À 8 h, l'horloge reste arrêtée jusqu'à la première ouverture.
- if(!dayStarted){state.hour=OPEN_HOUR;dayTimer=0;updateTime();return;}
+ // Préparation de 7 h à 8 h : 60 secondes réelles, puis attente de l'ouverture.
+ if(!dayStarted){
+  if(preopenTimer<PREOPEN_SECONDS){
+   preopenTimer=Math.min(PREOPEN_SECONDS,preopenTimer+dt);
+   state.hour=PREOPEN_HOUR+(preopenTimer/PREOPEN_SECONDS)*(OPEN_HOUR-PREOPEN_HOUR);
+   if(preopenTimer>=PREOPEN_SECONDS){state.hour=OPEN_HOUR;toast("08:00 — Tu peux ouvrir le magasin");}
+  }else state.hour=OPEN_HOUR;
+  dayTimer=0;updateOpen();return;
+ }
  // Horloge en pause dès que le magasin est fermé manuellement.
  if(!shopOpen&&!closing){updateTime();return;}
  if(!closing){
@@ -1799,11 +1810,11 @@ function business(dt){
  }
  // Les clients déjà présents terminent leurs achats et passent en caisse.
  if(closing&&customers.length===0&&queue.length===0&&!cashier){
-  dayTimer=0;state.hour=OPEN_HOUR;state.day++;
+  dayTimer=0;preopenTimer=0;state.hour=PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
   dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
   updateOpen();sync();
-  toast("Jour "+state.day+" — 8 h : préparation libre, charges "+euro(DAILY_CHARGES));
+  toast("Jour "+state.day+" — 7 h : préparation du magasin, charges "+euro(DAILY_CHARGES));
  }
  updateTime();
 }
@@ -1819,4 +1830,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.61 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.62 !");
