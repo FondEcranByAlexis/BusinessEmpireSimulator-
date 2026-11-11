@@ -3001,7 +3001,7 @@ function animate(){
  const dt=Math.min(clock.getDelta(),.05),smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
- if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);updateWorker(dt);updateStocker(dt);updateConstruction(dt);}
+ if(!paused){movePlayer(dt);updateConstruction(dt);business(dt);updateCustomers(dt);updateWorker(dt);updateStocker(dt);}
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
  renderer.render(scene,camera);
