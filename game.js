@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.1 — version synchronisée
+// Business Empire Simulator V0.10.2 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -57,8 +57,18 @@ function playerLevel(){
  return level;
 }
 function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
+// Deux capacités logistiques indépendantes ; la chambre froide sera agrandie plus tard.
 function reserveLimit(){return 30+(state.upgrades.reserve1?30:0)+(state.upgrades.store1?40:0);}
-function reserveBoxes(){return catalog.reduce((n,p)=>n+state.inventory[p.id].boxes+Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);}
+function coldLimit(){return 20;}
+function coldStorageProduct(p){return p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits";}
+function storageKind(p){return coldStorageProduct(p)?"cold":"dry";}
+function storageName(kind){return kind==="cold"?"Chambre froide":"Réserve sèche";}
+function storageLimit(kind){return kind==="cold"?coldLimit():reserveLimit();}
+function storageBoxes(kind){
+ return catalog.filter(p=>storageKind(p)===kind).reduce((n,p)=>n+state.inventory[p.id].boxes+
+  Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);
+}
+function reserveBoxes(){return storageBoxes("dry");}
 const MAX_BOXES_PER_PRODUCT=5;
 function productStoredUnits(p){const a=state.inventory[p.id];return a.boxes*BOX_UNITS+a.reserve;}
 function stockAlert(p){
@@ -66,11 +76,13 @@ function stockAlert(p){
  return available===0?"RUPTURE":available<=10?"STOCK FAIBLE":"OK";
 }
 function canOrderBox(p){
- return reserveBoxes()<reserveLimit()&&(!p||state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT);
+ if(!p)return storageBoxes("dry")<reserveLimit()||storageBoxes("cold")<coldLimit();
+ const kind=storageKind(p);
+ return storageBoxes(kind)<storageLimit(kind)&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT;
 }
 function orderBlockReason(p){
  if(state.inventory[p.id].boxes>=MAX_BOXES_PER_PRODUCT)return "Maximum de 5 cartons de "+p.name+" atteint";
- if(reserveBoxes()>=reserveLimit())return "Réserve pleine — améliore sa capacité";
+ if(storageBoxes(storageKind(p))>=storageLimit(storageKind(p)))return storageName(storageKind(p))+" pleine";
  return "";
 }
 function hasProductLicense(p){
@@ -86,7 +98,7 @@ function showUpgrades(){
  openPanel("Améliorations du magasin");
  paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
  paragraph("Objectif : "+unlockedShelves()+" étagères au niveau actuel. Rayons supplémentaires installés : "+extraShelves.filter(e=>e.level<=playerLevel()).length+". Première extension aménagée avec six gondoles ; futurs agrandissements en préparation.");
- paragraph("Trésorerie : "+euro(state.money)+" | Réserve : "+reserveBoxes()+"/"+reserveLimit()+" cartons");
+ paragraph("Trésorerie : "+euro(state.money)+" | Réserve sèche : "+storageBoxes("dry")+"/"+reserveLimit()+" cartons | Chambre froide : "+storageBoxes("cold")+"/"+coldLimit()+" cartons");
  paragraph("Licences commerciales : les produits concernés ne sont vendables qu’après achat de leur licence.");
  for(const u of upgradeCatalog){
   const owned=!!state.upgrades[u.id];
@@ -200,53 +212,68 @@ function paragraph(t){
 // Panier fournisseurs : paiement groupé, délai normal 30 s ou express 5 s.
 const supplierCart={};
 function pendingBoxes(id){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+(it.id===id?it.qty:0),0),0)+state.deliveryDock.filter(it=>it.id===id).length;}
-function pendingTotal(){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+it.qty,0),0)+state.deliveryDock.length;}
-function cartCount(){return Object.values(supplierCart).reduce((n,v)=>n+v,0);}
+function pendingTotal(kind){
+ return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>{
+  const p=catalog.find(p=>p.id===it.id);
+  return m+(p&&(!kind||storageKind(p)===kind)?it.qty:0);
+ },0),0)+state.deliveryDock.filter(it=>{
+  const p=catalog.find(p=>p.id===it.id);return p&&(!kind||storageKind(p)===kind);
+ }).length+state.trolleyCargo.filter(it=>{
+  const p=catalog.find(p=>p.id===it.id);return p&&(!kind||storageKind(p)===kind);
+ }).length+(held&&held.source==="delivery"&&(!kind||storageKind(catalog.find(p=>p.id===held.id))===kind)?1:0);
+}
+function cartCount(kind){
+ return Object.entries(supplierCart).reduce((n,[id,qty])=>{
+  const p=catalog.find(p=>p.id===id);return n+(p&&(!kind||storageKind(p)===kind)?qty:0);
+ },0);
+}
 function cartSubtotal(){return catalog.reduce((n,p)=>n+(supplierCart[p.id]||0)*p.cost*BOX_UNITS,0);}
-function cartCapacity(){return Math.max(0,reserveLimit()-reserveBoxes()-pendingTotal());}
-function stockCapacityStatus(includeCart=true){
- const limit=reserveLimit(),stored=reserveBoxes(),incoming=pendingTotal(),cart=includeCart?cartCount():0;
+function cartCapacity(kind){return Math.max(0,storageLimit(kind)-storageBoxes(kind)-pendingTotal(kind));}
+function stockCapacityStatus(kind,includeCart=true){
+ const limit=storageLimit(kind),stored=storageBoxes(kind),incoming=pendingTotal(kind),cart=includeCart?cartCount(kind):0;
  const used=stored+incoming+cart,free=Math.max(0,limit-used);
- const full=free===0,nearFull=!full&&free<=Math.max(3,Math.ceil(limit*.15));
- return {limit,stored,incoming,cart,used,free,
+ const full=free===0,nearFull=!full&&free<=Math.max(2,Math.ceil(limit*.15));
+ return {kind,limit,stored,incoming,cart,used,free,
   status:full?"STOCK COMPLET":nearFull?"PRESQUE PLEIN":"DISPONIBLE",
   color:full?"#ef4444":nearFull?"#f59e0b":"#22c55e"};
 }
 function renderStockCapacity(parent,includeCart=true){
- const data=stockCapacityStatus(includeCart);
- const container=document.createElement("section");
- Object.assign(container.style,{padding:"12px",borderRadius:"11px",background:"#142336",border:"1px solid "+data.color,margin:"12px 0",color:"#fff"});
- const header=document.createElement("div");
- Object.assign(header.style,{display:"flex",gap:"10px",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",fontWeight:"bold"});
- const title=document.createElement("span");title.textContent="CAPACITÉ DE STOCKAGE";
- const status=document.createElement("span");status.textContent=data.status;status.style.color=data.color;
- header.append(title,status);container.appendChild(header);
- const summary=document.createElement("p");
- summary.textContent=data.used+" / "+data.limit+" cartons réservés — "+data.free+" place(s) restante(s)";
- Object.assign(summary.style,{fontSize:"13px",margin:"10px 0 6px"});container.appendChild(summary);
- const bar=document.createElement("div");
- Object.assign(bar.style,{width:"100%",height:"12px",background:"#334155",borderRadius:"9px",overflow:"hidden"});
- const filled=document.createElement("div");
- Object.assign(filled.style,{height:"100%",width:Math.min(100,data.used/data.limit*100)+"%",background:data.color,transition:"width .2s ease"});
- bar.appendChild(filled);container.appendChild(bar);
- const details=document.createElement("p");
- details.textContent="En réserve : "+data.stored+" · Livraisons et quai : "+data.incoming+(includeCart?" · Panier : "+data.cart:"");
- Object.assign(details.style,{fontSize:"12px",margin:"8px 0 0",color:"#cbd5e1"});container.appendChild(details);
- if(data.free===0){
-  const warning=document.createElement("p");
-  warning.textContent="Aucune nouvelle commande possible : retire un carton du panier ou libère de la place"+
-   (!state.upgrades.reserve1?" (ou agrandis la réserve).":!state.upgrades.store1?" (ou débloque la première extension du magasin).":".");
-  Object.assign(warning.style,{fontSize:"12px",fontWeight:"bold",color:"#fca5a5",margin:"8px 0 0"});
-  container.appendChild(warning);
+ const result={};
+ for(const kind of ["dry","cold"]){
+  const data=stockCapacityStatus(kind,includeCart);result[kind]=data;
+  const container=document.createElement("section");
+  Object.assign(container.style,{padding:"12px",borderRadius:"11px",background:"#142336",border:"1px solid "+data.color,margin:"12px 0",color:"#fff"});
+  const header=document.createElement("div");
+  Object.assign(header.style,{display:"flex",gap:"10px",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",fontWeight:"bold"});
+  const title=document.createElement("span");title.textContent=storageName(kind).toUpperCase();
+  const status=document.createElement("span");status.textContent=data.status;status.style.color=data.color;
+  header.append(title,status);container.appendChild(header);
+  const summary=document.createElement("p");
+  summary.textContent=data.used+" / "+data.limit+" cartons réservés — "+data.free+" place(s) restante(s)";
+  Object.assign(summary.style,{fontSize:"13px",margin:"10px 0 6px"});container.appendChild(summary);
+  const bar=document.createElement("div");
+  Object.assign(bar.style,{width:"100%",height:"12px",background:"#334155",borderRadius:"9px",overflow:"hidden"});
+  const filled=document.createElement("div");
+  Object.assign(filled.style,{height:"100%",width:Math.min(100,data.used/data.limit*100)+"%",background:data.color,transition:"width .2s ease"});
+  bar.appendChild(filled);container.appendChild(bar);
+  const details=document.createElement("p");
+  details.textContent="Stocké : "+data.stored+" · À livrer / en transport : "+data.incoming+(includeCart?" · Panier : "+data.cart:"");
+  Object.assign(details.style,{fontSize:"12px",margin:"8px 0 0",color:"#cbd5e1"});container.appendChild(details);
+  if(data.free===0){
+   const warning=document.createElement("p");
+   warning.textContent=storageName(kind)+" pleine : impossible d'y ajouter de nouveaux cartons. L'autre zone reste indépendante.";
+   Object.assign(warning.style,{fontSize:"12px",fontWeight:"bold",color:"#fca5a5",margin:"8px 0 0"});
+   container.appendChild(warning);
+  }
+  parent.appendChild(container);
  }
- parent.appendChild(container);
- return data;
+ return result;
 }
-
 function addSupplierItem(p){
  const count=state.inventory[p.id].boxes+pendingBoxes(p.id)+(supplierCart[p.id]||0);
  if(count>=MAX_BOXES_PER_PRODUCT){toast("Maximum de 5 cartons, commandes en attente incluses");return;}
- if(cartCount()>=reserveLimit()-reserveBoxes()-pendingTotal()){toast("Capacité de réserve insuffisante");return;}
+ const kind=storageKind(p);
+ if(cartCount(kind)>=cartCapacity(kind)){toast(storageName(kind)+" pleine — pas de nouvelle commande possible");return;}
  supplierCart[p.id]=(supplierCart[p.id]||0)+1;showOrders();
 }
 function processSupplierOrders(){
@@ -271,7 +298,10 @@ function checkoutSupplier(express){
   const p=catalog.find(p=>p.id===it.id);
   if(state.inventory[it.id].boxes+pendingBoxes(it.id)+it.qty>MAX_BOXES_PER_PRODUCT){toast("Limite atteinte : "+p.name);return;}
  }
- if(items.reduce((n,it)=>n+it.qty,0)>cartCapacity()){toast("Capacité de réserve insuffisante");return;}
+ for(const kind of ["dry","cold"]){
+  const count=items.reduce((n,it)=>{const p=catalog.find(p=>p.id===it.id);return n+(p&&storageKind(p)===kind?it.qty:0);},0);
+  if(count>cartCapacity(kind)){toast(storageName(kind)+" pleine — commande refusée");return;}
+ }
  const subtotal=cartSubtotal(),fee=express?Math.round(subtotal*20)/100:0,totalCost=subtotal+fee;
  if(state.money<totalCost){toast("Trésorerie insuffisante : "+euro(totalCost));return;}
  state.money-=totalCost;finance.supplies+=totalCost;
@@ -283,15 +313,16 @@ function showOrders(){
  processSupplierOrders();
  openPanel("FOURNISSEURS — Mon panier");
  const capacity=renderStockCapacity(panel);
- paragraph("Ajoute tes cartons, puis choisis le mode de livraison au paiement. Limite : 5 cartons par produit, commandes en attente comprises.");
- if(capacity.free===0)paragraph("Les cartons déjà commandés ou présents dans le panier occupent aussi des emplacements.");
+ paragraph("Chaque zone possède sa capacité indépendante. Limite : 5 cartons par produit, commandes en attente comprises.");
+ if(capacity.dry.free===0||capacity.cold.free===0)paragraph("Une zone pleine n'empêche pas de commander des produits pour l'autre zone.");
  for(const p of unlockedProducts()){
   const a=state.inventory[p.id],qty=supplierCart[p.id]||0,pending=pendingBoxes(p.id);
   const perProductRemaining=MAX_BOXES_PER_PRODUCT-a.boxes-pending-qty;
+  const kind=storageKind(p);
   const productStatus=perProductRemaining<=0?"PLEIN":perProductRemaining===1?"DERNIÈRE PLACE":"Disponible";
-  paragraph(p.name+" — "+productStatus+" | "+a.boxes+"/5 en réserve | "+pending+" en livraison | Panier : "+qty+" | "+euro(p.cost*BOX_UNITS)+"/carton");
+  paragraph(p.name+" ("+storageName(kind)+") — "+productStatus+" | "+a.boxes+"/5 stockés | "+pending+" à livrer | Panier : "+qty+" | "+euro(p.cost*BOX_UNITS)+"/carton");
   const add=button(panel,"+ Ajouter 1 carton de "+p.name,()=>addSupplierItem(p));
-  add.disabled=a.boxes+pending+qty>=MAX_BOXES_PER_PRODUCT||cartCapacity()<=cartCount();
+  add.disabled=a.boxes+pending+qty>=MAX_BOXES_PER_PRODUCT||cartCapacity(kind)<=cartCount(kind);
   if(add.disabled)add.style.opacity=".45";
   if(qty)button(panel,"− Retirer 1 carton de "+p.name,()=>{supplierCart[p.id]--;if(!supplierCart[p.id])delete supplierCart[p.id];showOrders();});
  }
@@ -1620,7 +1651,7 @@ function toggleLights(){
 }
 // Chaque produit sec possède six places sur les étagères : cinq cartons et un lot ouvert.
 const boxes={},reserveModels={};
-const coldProduct=p=>p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits";
+const coldProduct=p=>coldStorageProduct(p);
 const dryProducts=catalog.filter(p=>!coldProduct(p));
 if(dryStorageSlots.length<dryProducts.length*(MAX_BOXES_PER_PRODUCT+1))
  throw Error("Capacité visuelle de la réserve insuffisante");
@@ -1684,7 +1715,14 @@ function atColdRoom(){return camera.position.x>15.55&&camera.position.x<23.75&&c
 function atStorageFor(p){return coldProduct(p)?atColdRoom():atReserve();}
 function putBack(){
  if(!held)return;
- if(held.source==="delivery"&&held.quantity===BOX_UNITS){state.inventory[held.id].boxes++;}
+ if(held.source==="delivery"&&held.quantity===BOX_UNITS){
+  const p=catalog.find(p=>p.id===held.id);
+  if(!p||state.inventory[held.id].boxes>=MAX_BOXES_PER_PRODUCT||
+   storageBoxes(storageKind(p))>=storageLimit(storageKind(p))){
+   toast(p?storageName(storageKind(p))+" pleine ou limite par produit atteinte":"Produit inconnu");return;
+  }
+  state.inventory[held.id].boxes++;
+ }
  else state.inventory[held.id].reserve+=held.quantity;
  held=null;sync();refreshCarry();showReserve();
 }
@@ -2145,7 +2183,7 @@ function updateWorker(dt){
  if(workerPhase==="pickup"){
   const idx=state.deliveryDock.findIndex(it=>{
    const p=catalog.find(p=>p.id===it.id);
-   return p&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&reserveBoxes()<reserveLimit();
+   return p&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&storageBoxes(storageKind(p))<storageLimit(storageKind(p));
   });
   if(idx>=0){workerCargo=state.deliveryDock.splice(idx,1)[0];refreshDeliveryDock();sync();
    const p=catalog.find(p=>p.id===workerCargo.id);
@@ -2153,7 +2191,7 @@ function updateWorker(dt){
   }else workerGo(workerRouteDock,"dock");
  }else if(workerPhase==="storage"&&workerCargo){
   const p=catalog.find(p=>p.id===workerCargo.id);
-  if(p&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&reserveBoxes()<reserveLimit()){
+  if(p&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&storageBoxes(storageKind(p))<storageLimit(storageKind(p))){
    state.inventory[p.id].boxes++;toast("Manutentionnaire : carton de "+p.name+" rangé");
   }else state.deliveryDock.push(workerCargo);
   workerCargo=null;sync();refreshDeliveryDock();workerGo((p&&coldProduct(p)?workerRouteCold:workerRouteDry).slice().reverse(),"dock");
@@ -2207,7 +2245,7 @@ function showTrolley(){
    if(p&&atStorageFor(p))button(panel,"Décharger "+p.name,()=>{
     const a=state.inventory[p.id];
     if(a.boxes>=MAX_BOXES_PER_PRODUCT){toast("Maximum de cartons pour "+p.name);return;}
-    if(reserveBoxes()>=reserveLimit()){toast("Réserve pleine");return;}
+    if(storageBoxes(storageKind(p))>=storageLimit(storageKind(p))){toast(storageName(storageKind(p))+" pleine");return;}
     a.boxes++;state.trolleyCargo.splice(i,1);sync();showTrolley();toast("Carton rangé : "+p.name);
    });
   }
@@ -2848,4 +2886,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.10.1 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.10.2 !");
