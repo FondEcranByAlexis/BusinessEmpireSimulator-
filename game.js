@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.91 — version synchronisée
+// Business Empire Simulator V0.9.92 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -17,6 +17,8 @@ const catalog=[
  {id:"sucre",name:"Sucre",cost:3,price:7,color:0x93c5fd,x:0,z:1,starter:true},
  {id:"farine",name:"Farine",cost:3,price:7,color:0xfde68a,x:5,z:1,starter:true},
  {id:"riz",name:"Riz",cost:4,price:8,color:0xfde68a,x:-8.5,z:-7,level:2,kind:"sec"},
+ {id:"conserves",name:"Conserves",cost:4,price:9,color:0xf97316,x:-8.9,z:5.9,level:2,kind:"wall"},
+ {id:"papier",name:"Papier toilette",cost:5,price:11,color:0xe2e8f0,x:-5.2,z:7.8,level:2,kind:"wall"},
  {id:"biscuits",name:"Biscuits",cost:5,price:11,color:0xf59e0b,x:8.5,z:-7,level:3,kind:"sec"},
  {id:"fromage",name:"Fromage",cost:8,price:17,color:0xfef08a,x:-8.5,z:-3.5,level:4,kind:"froid"},
  {id:"surgeles",name:"Pizza surgelée",cost:9,price:20,color:0x60a5fa,x:8.5,z:-3.5,level:4,kind:"congelateur"},
@@ -79,7 +81,7 @@ function hasProductLicense(p){
 }
 function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p);}
 function unlockedProducts(){return catalog.filter(productAvailable);}
-function unlockedShelves(){return 6+Math.max(0,playerLevel()-1);}
+function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=2?2:0);}
 function showUpgrades(){
  openPanel("Améliorations du magasin");
  paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
@@ -981,7 +983,8 @@ extensionCube(10,2.5,-16,.3,5,12,0xe2e8f0);
 extensionCube(0,2.5,-22,20,5,.3,0xe2e8f0);
 for(const x of [-6,0,6])for(const z of [-14,-19])extensionCube(x,4.94,z,2.8,.05,.5,0xffffff);
 // Rayonnages muraux, avec tablettes inclinées et bordures.
-function addWallRack(x,z,rotation=0,extension=true){
+const wallProductRacks=[];
+function addWallRack(x,z,rotation=0,extension=true,assignedProduct=null){
  const rack=new THREE.Group();rack.position.set(x,0,z);rack.rotation.y=rotation;
  const steel=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
  for(const y of [.45,1.15,1.85]){
@@ -997,6 +1000,13 @@ function addWallRack(x,z,rotation=0,extension=true){
  // Chaque étagère vide possède son propre repère.
  const sign=shelfSign("Rayon disponible");
  sign.position.set(0,2.65,0);rack.add(sign);
+ if(assignedProduct){
+  const productSign=shelfSign(assignedProduct.name);
+  productSign.position.set(0,2.65,0);rack.add(productSign);
+  sign.visible=!productAvailable(assignedProduct);
+  productSign.visible=productAvailable(assignedProduct);
+  wallProductRacks.push({rack,product:assignedProduct,availableSign:sign,productSign,rotation});
+ }
  scene.add(rack);
  if(extension)extensionMeshes.push(rack);
  const alongX=Math.abs(Math.cos(rotation))>.5;
@@ -1006,8 +1016,8 @@ function addWallRack(x,z,rotation=0,extension=true){
 }
 for(const x of [-7,-3.5,3.5,7])addWallRack(x,-21.1,0,true);
 for(const z of [-13.5,-17,-20]){addWallRack(-9.15,z,Math.PI/2,true);addWallRack(9.15,z,-Math.PI/2,true);}
-addWallRack(-8.9,5.9,Math.PI/2,false);
-addWallRack(-5.2,7.8,0,false);
+addWallRack(-8.9,5.9,Math.PI/2,false,catalog.find(p=>p.id==="conserves"));
+addWallRack(-5.2,7.8,0,false,catalog.find(p=>p.id==="papier"));
 // Gondoles d'extension avec allées libres, uniquement visibles après achat.
 for(const x of [-5,0,5])for(const z of [-19]){
  const rack=new THREE.Group();rack.position.set(x,0,z);
@@ -1107,6 +1117,18 @@ function productModel(p){
   );
   curvedLabel.position.y=.02;
   g.add(curvedLabel);
+ }else if(p.id==="conserves"){
+  add(new THREE.CylinderGeometry(.15,.15,.32,16),base,0,0,0);
+  add(new THREE.CylinderGeometry(.152,.152,.022,16),white,0,.16,0);
+  add(new THREE.CylinderGeometry(.152,.152,.022,16),white,0,-.16,0);
+  add(new THREE.CylinderGeometry(.154,.154,.22,24,1,true),label,0,0,0);
+ }else if(p.id==="papier"){
+  for(const x of [-.12,.12]){
+   const roll=add(new THREE.CylinderGeometry(.12,.12,.27,14),base,x,0,0);
+   roll.rotation.x=Math.PI/2;
+   const core=add(new THREE.CylinderGeometry(.034,.034,.275,12),new THREE.MeshStandardMaterial({color:0xb8a38e}),x,0,0);
+   core.rotation.x=Math.PI/2;
+  }
  }else if(p.id==="pommes"){
   add(new THREE.SphereGeometry(.18,12,10),base);
   add(new THREE.CylinderGeometry(.018,.025,.09,6),new THREE.MeshStandardMaterial({color:0x365314}),0,.18,0);
@@ -1185,7 +1207,7 @@ let freezerLid=null,freezerOpen=false;
 let fridgeDoor=null,fridgeOpen=false;
 for(const p of catalog){
  displays[p.id]=[];
- if(p.kind==="extension")continue;
+ if(p.kind==="extension"||p.kind==="wall")continue;
  for(const z of (p.z!==undefined?[p.z]:[-4,1])){
   const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
   const mat=new THREE.MeshStandardMaterial({color:p.color});
@@ -1321,7 +1343,7 @@ function addShelfGuide(p,x,z){
  const group=new THREE.Group();group.position.set(x,0,z);
  const sign=shelfSign(p.name);sign.position.set(0,2.72,0);group.add(sign);
  // Balise lumineuse sur toute la hauteur et la largeur du meuble, visible à travers les murs.
- const isCompact=!!p.level&&p.kind!=="extension"&&p.kind!=="froid"&&p.kind!=="congelateur";
+ const isCompact=!!p.level&&p.kind!=="extension"&&p.kind!=="froid"&&p.kind!=="congelateur"&&p.kind!=="wall";
  const width=isCompact?1.3:p.kind==="froid"?1.35:p.kind==="congelateur"?1.55:2.9;
  const depth=isCompact?.95:p.kind==="congelateur"?3.6:p.kind==="froid"?1.8:1.2;
  const height=p.kind==="congelateur"?1.35:2.5;
@@ -1377,7 +1399,20 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
  colliders.push({minX:p.x-1.4,maxX:p.x+1.4,minZ:p.z-.55,maxZ:p.z+.55,requiresUpgrade:"store1"});
 }
 
-for(const p of catalog.filter(p=>p.kind!=="extension"))for(const z of (p.z!==undefined?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
+// Les nouveaux produits occupent les deux étagères murales déjà installées.
+for(const item of wallProductRacks){
+ const p=item.product;
+ for(const y of [.45,1.15,1.85])addPriceRail(item.rack,p,y+.025,2.55,.41);
+ for(let i=0;i<CAPACITY;i++){
+  const tier=Math.floor(i/10),slot=i%10;
+  const model=productModel(p);
+  model.position.set(-1.02+(slot%5)*.51,.69+tier*.70,slot<5?-.18:.18);
+  item.rack.add(model);displays[p.id].push(model);
+ }
+ addShelfGuide(p,p.x,p.z);
+ shelfGuides[p.id+"@"+p.z].group.rotation.y=item.rotation;
+}
+for(const p of catalog.filter(p=>p.kind!=="extension"&&p.kind!=="wall"))for(const z of (p.z!==undefined?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
 function refreshDisplays(){
  for(const p of catalog)displays[p.id].forEach((m,i)=>{
   const stock=state.inventory[p.id].shelf;
@@ -1386,6 +1421,10 @@ function refreshDisplays(){
   m.visible=productAvailable(p)&&visible;
  });
  for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
+ for(const item of wallProductRacks){
+  item.productSign.visible=productAvailable(item.product);
+  item.availableSign.visible=!productAvailable(item.product);
+ }
  for(const p of catalog.filter(p=>p.kind==="extension")){const g=extensionProductGroups[p.id];if(g)g.visible=!!state.upgrades.store1;}
  updateShelfGuides();
 }
@@ -1805,6 +1844,7 @@ function stockerShelfPosition(p){
  // La position du produit désigne le centre du meuble : rester côté allée.
  // Rayons centraux : accès depuis l'allée latérale, pas à travers la gondole.
  if(p.kind==="extension")return [p.x,p.z+2.1];
+ if(p.kind==="wall")return p.id==="conserves"?[-7.65,5.9]:[-5.2,6.55];
  if(p.kind==="froid"||p.kind==="congelateur")return [p.x,p.z+2.1];
  if(p.x<=-4)return [p.x+1.65,p.z??1];
  if(p.x>=4)return [p.x-1.65,p.z??1];
@@ -2347,6 +2387,11 @@ function makeCustomer(){
  const choices=[...unlockedProducts()].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*catalog.length));
  const route=[{x:0,z:8}];
  for(const p of choices){
+  if(p.kind==="wall"){
+   if(p.id==="conserves")route.push({x:-7.6,z:6.55},{x:-7.6,z:5.9,shop:p.id},{x:-7.6,z:6.55});
+   else route.push({x:-3.4,z:6.55},{x:-5.2,z:6.55,shop:p.id},{x:-3.4,z:6.55});
+   continue;
+  }
   const aisleX=p.level?(p.x<0?-7.2:7.2):(p.x===5?2.5:p.x-2.5);
   const targetZ=p.z??-1.5;
   route.push({x:aisleX,z:8},{x:aisleX,z:targetZ,shop:p.id},{x:aisleX,z:8});
@@ -2641,4 +2686,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.91 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.92 !");
