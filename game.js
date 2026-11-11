@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.30 — version synchronisée
+// Business Empire Simulator V0.9.31 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -484,7 +484,7 @@ function finishCheckout(c){
  if(c!==cashier)return;
  closeCheckoutUI();clearCheckoutVisual();cashier=null;c.phase="leaving";c.waypoint=0;
  // Sortie par le couloir central : ne jamais couper à travers le comptoir.
- c.route=[{x:4.4,z:4.65},{x:3.1,z:8.6},{x:0,z:8.6},{x:0,z:12.5}];
+ c.route=[{x:3.5,z:4.5},{x:3.1,z:8.6},{x:0,z:8.6},{x:0,z:12.5}];
  panel.style.display="none";
 }
 // Scène et éclairage léger
@@ -1030,7 +1030,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.30 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.31 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1342,7 +1342,7 @@ function makeCustomer(){
   route.push({x:aisleX,z:8},{x:aisleX,z:targetZ,shop:p.id},{x:aisleX,z:8});
  }
  // Accès caisse depuis l’allée centrale, sans diagonale à travers le meuble.
- route.push({x:6.5,z:4.65});
+ route.push({x:3.5,z:4.5});
  customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",stuckTime:0,lastNavX:0,lastNavZ:12.5});
 }
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
@@ -1401,28 +1401,35 @@ function navPath(from,to){
  }
  return [];
 }
+// Navigation réécrite : suivi de grille, arrivée réelle et récupération des impasses.
 function walk(c,t,dt){
- const p=c.group.position;
- const targetKey=t.x.toFixed(2)+","+t.z.toFixed(2);
- if(c.navTarget!==targetKey){
-  c.navTarget=targetKey;c.navRoute=navPath(p,t);c.navIndex=0;
+ if(!t)return false;
+ const p=c.group.position,goal=t.x.toFixed(2)+","+t.z.toFixed(2);
+ if(Math.hypot(p.x-t.x,p.z-t.z)<.22){c.navTarget=null;c.navRoute=null;c.stuckTime=0;return true;}
+ if(c.navTarget!==goal||!c.navRoute){
+  c.navTarget=goal;c.navRoute=navPath(p,t);c.navIndex=0;
  }
- if(!c.navRoute?.length){
-  // Ne jamais traverser un meuble si aucun chemin praticable n'existe.
-  c.l.rotation.x=0;c.r.rotation.x=0;return false;
- }
- const waypoint=c.navRoute[c.navIndex];
- if(!waypoint){c.navTarget=null;return true;}
- const dx=waypoint.x-p.x,dz=waypoint.z-p.z,dist=Math.hypot(dx,dz);
- if(dist<.12){c.navIndex++;if(c.navIndex>=c.navRoute.length){c.navTarget=null;return true;}return false;}
- const step=Math.min(c.speed*dt,dist),nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
- if(customerBlocked(nx,nz,.27)){
+ const route=c.navRoute;
+ if(!route?.length){
   c.stuckTime=(c.stuckTime||0)+dt;
-  c.navTarget=null;c.navRoute=null;
-  // Recalculer avec une grille plus fine au prochain déplacement.
+  c.l.rotation.x=c.r.rotation.x=0;
+  if(c.stuckTime>3){c.stuckTime=0;c.navTarget=null;c.navRoute=null;}
   return false;
  }
- p.x=nx;p.z=nz;c.stuckTime=0;c.group.rotation.y=Math.atan2(-dx,-dz);
+ while(c.navIndex<route.length&&Math.hypot(route[c.navIndex].x-p.x,route[c.navIndex].z-p.z)<.18)c.navIndex++;
+ if(c.navIndex>=route.length){
+  c.navTarget=null;c.navRoute=null;
+  return Math.hypot(p.x-t.x,p.z-t.z)<.4;
+ }
+ const w=route[c.navIndex],dx=w.x-p.x,dz=w.z-p.z,dist=Math.hypot(dx,dz);
+ const step=Math.min(c.speed*dt,dist),nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
+ if(customerBlocked(nx,nz,.25)){
+  c.stuckTime=(c.stuckTime||0)+dt;
+  if(c.stuckTime>.35){c.navTarget=null;c.navRoute=null;c.stuckTime=0;}
+  return false;
+ }
+ p.x=nx;p.z=nz;c.stuckTime=0;
+ c.group.rotation.y=Math.atan2(-dx,-dz);
  c.walkTime+=dt*9;c.l.rotation.x=Math.sin(c.walkTime)*.4;c.r.rotation.x=-Math.sin(c.walkTime)*.4;
  return false;
 }
@@ -1431,62 +1438,83 @@ function removeCustomer(c){
  c.group.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});
  const i=customers.indexOf(c);if(i!==-1)customers.splice(i,1);
 }
+// La file est un état indépendant : personne ne contourne la caisse côté personnel.
+const CHECKOUT_SPOT={x:6.5,z:4.55};
+function queueSpot(i){return {x:6.5,z:4.55-Math.min(i,4)*.85};}
+function sendToQueue(c){
+ if(c.phase==="queue"||c.phase==="checkout")return;
+ c.phase="queue";c.queueStall=0;c.navTarget=null;c.navRoute=null;
+ if(!queue.includes(c))queue.push(c);
+}
+function sendToExit(c){
+ const index=queue.indexOf(c);if(index>=0)queue.splice(index,1);
+ c.phase="leaving";c.waypoint=0;c.navTarget=null;c.navRoute=null;c.stuckTime=0;
+ c.route=[{x:3.5,z:4.5},{x:3.1,z:8.5},{x:0,z:8.5},{x:0,z:12.5}];
+}
 function updateCustomers(dt){
  for(const c of [...customers]){
   if(c.phase==="shopping"){
    const t=c.route[c.waypoint];
-   if(!t){c.phase="queue";queue.push(c);continue;}
-   if(walk(c,t,dt)){
-    c.waypoint++;
-    if(t.shop){c.phase="choosing";c.timer=1.5;c.productId=t.shop;}
-    else if(c.waypoint>=c.route.length){c.phase="queue";queue.push(c);}
+   if(!t){sendToQueue(c);continue;}
+   const beforeX=c.group.position.x,beforeZ=c.group.position.z;
+   const arrived=walk(c,t,dt);
+   const moved=Math.hypot(c.group.position.x-beforeX,c.group.position.z-beforeZ)>.003;
+   c.shoppingStall=moved?0:(c.shoppingStall||0)+dt;
+   if(arrived||c.shoppingStall>6){
+    c.shoppingStall=0;c.waypoint++;c.navTarget=null;c.navRoute=null;
+    if(arrived&&t.shop){c.phase="choosing";c.timer=1.5;c.productId=t.shop;}
+    else if(c.waypoint>=c.route.length)sendToQueue(c);
    }
   }else if(c.phase==="choosing"){
    c.timer-=dt;
    if(c.timer<=0){
     const a=state.inventory[c.productId];
-    const quantity=Math.min(a.shelf,1+Math.floor(Math.random()*3));
-    if(quantity>0){
-     a.shelf-=quantity;c.basket[c.productId]=(c.basket[c.productId]||0)+quantity;
-     c.prices[c.productId]=a.price;c.total+=quantity*a.price;sync();
+    if(a){
+     const quantity=Math.min(a.shelf,1+Math.floor(Math.random()*3));
+     if(quantity>0){
+      a.shelf-=quantity;c.basket[c.productId]=(c.basket[c.productId]||0)+quantity;
+      c.prices[c.productId]=a.price;c.total+=quantity*a.price;sync();
+     }
     }
     c.phase="shopping";
    }
   }else if(c.phase==="queue"){
    const i=queue.indexOf(c);
-   // File côté magasin, face au tapis, jamais derrière le comptoir.
-   const target={x:6.5,z:4.65-Math.max(0,i)*.8};
-   const previousX=c.group.position.x,previousZ=c.group.position.z;
+   if(i<0){sendToExit(c);continue;}
+   const target=queueSpot(i),p=c.group.position;
+   const beforeX=p.x,beforeZ=p.z;
    const arrived=walk(c,target,dt);
-   const progressed=Math.hypot(c.group.position.x-previousX,c.group.position.z-previousZ)>.005;
-   c.queueStall=progressed?0:(c.queueStall||0)+dt;
-   if(c.queueStall>5){
-    // Désengorgement de sécurité : une caisse inaccessible ne doit pas
-    // paralyser toute la journée de jeu.
-    c.queueStall=0;c.navTarget=null;c.navRoute=null;
-    if(i===0&&!cashier){
-     const safe={x:6.5,z:4.65};
-     if(!customerBlocked(safe.x,safe.z,.3)){
-      c.group.position.set(safe.x,0,safe.z);
-      queue.shift();cashier=c;c.phase="checkout";c.scanned=0;
-      toast("Client en caisse : utilise Interagir");
-     }else{
-      // Ne pas laisser un client coincé bloquer la file.
-      queue.shift();c.phase="leaving";c.waypoint=0;
-      c.route=[{x:2.5,z:8.5},{x:0,z:12.5}];
-     }
-    }
-   }else if(i===0&&!cashier&&arrived){
-    queue.shift();cashier=c;c.phase="checkout";c.scanned=0;
+   const moved=Math.hypot(p.x-beforeX,p.z-beforeZ)>.003;
+   c.queueStall=moved?0:(c.queueStall||0)+dt;
+   if(i===0&&!cashier&&(arrived||Math.hypot(p.x-target.x,p.z-target.z)<.45)){
+    queue.shift();cashier=c;c.phase="checkout";c.scanned=0;c.queueStall=0;
+    c.navTarget=null;c.navRoute=null;
     toast("Client en caisse : utilise Interagir");
+   }else if(c.queueStall>5){
+    c.queueStall=0;c.navTarget=null;c.navRoute=null;
+    // Déblocage local sans passage derrière le comptoir.
+    if(i===0&&!cashier&&!customerBlocked(CHECKOUT_SPOT.x,CHECKOUT_SPOT.z,.3)){
+     p.set(CHECKOUT_SPOT.x,0,CHECKOUT_SPOT.z);
+     queue.shift();cashier=c;c.phase="checkout";c.scanned=0;
+     toast("Client arrivé à la caisse");
+    }else if(i>0){
+     // Les suivants attendent leur tour sans tenter de traverser les obstacles.
+     c.l.rotation.x=c.r.rotation.x=0;
+    }else sendToExit(c);
    }
   }else if(c.phase==="checkout"){
-   // Le client reste à sa place pendant le scan et le paiement.
-   c.l.rotation.x=0;c.r.rotation.x=0;
+   c.l.rotation.x=c.r.rotation.x=0;
   }else if(c.phase==="leaving"){
-   if(walk(c,c.route[c.waypoint],dt)){
-    c.waypoint++;if(c.waypoint>=c.route.length)removeCustomer(c);
+   const t=c.route[c.waypoint];
+   if(!t){removeCustomer(c);continue;}
+   const x=c.group.position.x,z=c.group.position.z;
+   if(walk(c,t,dt)){c.waypoint++;c.exitStall=0;}
+   else{
+    const moved=Math.hypot(c.group.position.x-x,c.group.position.z-z)>.003;
+    c.exitStall=moved?0:(c.exitStall||0)+dt;
+    if(c.exitStall>7){c.waypoint++;c.exitStall=0;c.navTarget=null;c.navRoute=null;}
    }
+   if(c.waypoint>=c.route.length)removeCustomer(c);
   }
  }
 }
@@ -1547,4 +1575,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.30 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.31 !");
