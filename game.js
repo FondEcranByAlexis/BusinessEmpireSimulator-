@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.4 — version synchronisée
+// Business Empire Simulator V0.10.5 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -94,6 +94,11 @@ function hasProductLicense(p){
 function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p);}
 function unlockedProducts(){return catalog.filter(productAvailable);}
 function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=2?2:0);}
+const CONSTRUCTION_DURATION=90;
+function constructionStage(){
+ const p=state.construction?.progress??0;
+ return p<30?"Préparation du chantier":p<65?"Montage de la structure":"Finitions et contrôle";
+}
 function showUpgrades(){
  openPanel("Améliorations du magasin");
  paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
@@ -102,14 +107,22 @@ function showUpgrades(){
  paragraph("Licences commerciales : les produits concernés ne sont vendables qu’après achat de leur licence.");
  for(const u of upgradeCatalog){
   const owned=!!state.upgrades[u.id];
-  paragraph(u.name+" — "+(owned?"ACQUIS":euro(u.cost))+" | Niveau "+u.level+" requis");
+  const underway=u.id==="store1"&&!!state.construction&&!owned;
+  paragraph(u.name+" — "+(owned?"ACQUIS":underway?"CHANTIER EN COURS":euro(u.cost))+" | Niveau "+u.level+" requis");
   paragraph(u.description);
+  if(underway){paragraph("Ouvriers : "+Math.floor(state.construction.progress/CONSTRUCTION_DURATION*100)+" % — "+constructionStage());continue;}
   if(owned)continue;
   const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires]);
   const b=button(panel,eligible?"Acheter — "+euro(u.cost):"Verrouillé — niveau "+u.level,()=>{
    if(!eligible)return;
    if(state.money<u.cost){toast("Trésorerie insuffisante");return;}
-   state.money-=u.cost;state.upgrades[u.id]=true;sync();showUpgrades();toast("Amélioration débloquée : "+u.name);
+   state.money-=u.cost;
+   if(u.id==="store1"){
+    state.construction={progress:0};
+    sync();updateConstructionUI();showUpgrades();toast("Chantier lancé : les ouvriers arrivent !");
+   }else{
+    state.upgrades[u.id]=true;sync();showUpgrades();toast("Amélioration débloquée : "+u.name);
+   }
   });
   b.disabled=!eligible;b.style.opacity=eligible?"1":".5";
  }
@@ -117,7 +130,7 @@ function showUpgrades(){
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
- return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],stockerLeaveDays:[],stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,satisfaction:80,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
+ return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],stockerLeaveDays:[],construction:null,stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,satisfaction:80,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
  const s=initial();
@@ -128,6 +141,8 @@ function load(){
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
+   if(!current.upgrades?.store1&&current.construction&&Number.isFinite(current.construction.progress))
+    s.construction={progress:Math.max(0,Math.min(CONSTRUCTION_DURATION,current.construction.progress))};
    if(typeof current.workerName==="string")s.workerName=current.workerName.slice(0,24);
    if(typeof current.stockerName==="string")s.stockerName=current.stockerName.slice(0,24);
    for(const k of ["stockerHired","stockerEnabled"])if(typeof current[k]==="boolean")s[k]=current[k];
@@ -1218,6 +1233,67 @@ function refreshExtension(){
  oldReserveWallCollider.disabled=unlocked;
  for(const mesh of storageExtensionMeshes)mesh.visible=unlocked;
 }
+// Équipe de chantier niveau 4 : ouvriers visibles devant le passage de l'extension.
+const constructionCrew=[];
+function createBuilder(x,z,color){
+ const group=new THREE.Group();
+ const vest=new THREE.MeshStandardMaterial({color,roughness:.85});
+ const hardhat=new THREE.MeshStandardMaterial({color:0xfacc15});
+ const skin=new THREE.MeshStandardMaterial({color:0xd7a17c});
+ const dark=new THREE.MeshStandardMaterial({color:0x334155});
+ const steel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.45});
+ function part(w,h,d,mat,px,py,pz,parent=group){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(px,py,pz);parent.add(m);return m;
+ }
+ part(.52,.73,.30,vest,0,1.24,0);
+ part(.34,.34,.32,skin,0,1.81,0);
+ part(.43,.14,.4,hardhat,0,2.04,0);
+ part(.56,.045,.48,hardhat,0,1.99,.04);
+ for(const px of [-.16,.16])part(.2,.73,.22,dark,px,.45,0);
+ for(const px of [-.16,.16])part(.065,.58,.018,steel,px,1.23,.16);
+ part(.18,.63,.18,vest,-.35,1.23,0);
+ const arm=new THREE.Group();arm.position.set(.34,1.57,0);group.add(arm);
+ part(.18,.63,.18,vest,0,-.30,0,arm);
+ part(.07,.36,.07,dark,0,-.7,.06,arm);
+ part(.26,.12,.12,steel,0,-.89,.06,arm);
+ group.position.set(x,0,z);group.rotation.y=Math.PI;scene.add(group);
+ constructionCrew.push({group,arm,offset:constructionCrew.length*1.6});
+}
+createBuilder(-2.85,-8.75,0xf97316);
+createBuilder(2.85,-8.75,0xfacc15);
+let constructionAnimation=0,constructionAutosave=0;
+function updateConstructionUI(){
+ const active=!!state.construction&&!state.upgrades.store1;
+ const ui=$("constructionHud");
+ if(ui){
+  ui.style.display=active?"block":"none";
+  if(active){
+   const pct=Math.min(100,Math.floor(state.construction.progress/CONSTRUCTION_DURATION*100));
+   $("constructionProgress").textContent=pct+" %";
+   $("constructionBar").style.width=pct+"%";
+   $("constructionStage").textContent=constructionStage();
+  }
+ }
+ for(const w of constructionCrew)w.group.visible=active;
+}
+function updateConstruction(dt){
+ if(!state.construction||state.upgrades.store1)return;
+ state.construction.progress=Math.min(CONSTRUCTION_DURATION,state.construction.progress+dt);
+ constructionAnimation+=dt;constructionAutosave+=dt;
+ for(const w of constructionCrew){
+  w.arm.rotation.x=-.5+Math.sin(constructionAnimation*5+w.offset)*.8;
+  w.group.position.y=.015*Math.abs(Math.sin(constructionAnimation*2+w.offset));
+ }
+ if(constructionAutosave>=5){constructionAutosave=0;save();}
+ if(state.construction.progress>=CONSTRUCTION_DURATION){
+  state.construction=null;state.upgrades.store1=true;
+  updateConstructionUI();sync();
+  toast("Travaux terminés ! Extension et nouvelle réserve accessibles.");
+ }else updateConstructionUI();
+}
+updateConstructionUI();
+
 cube(-6,2.5,10,8,5,.3,0xe2e8f0,true);
 cube(6,2.5,10,8,5,.3,0xe2e8f0,true);
 cube(0,4.2,10,4,1.6,.3,0xe2e8f0);
@@ -2918,9 +2994,9 @@ function animate(){
  const dt=Math.min(clock.getDelta(),.05),smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
- if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);updateWorker(dt);updateStocker(dt);}
+ if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);updateWorker(dt);updateStocker(dt);updateConstruction(dt);}
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.10.4 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.10.5 !");
