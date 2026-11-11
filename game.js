@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.98 — version synchronisée
+// Business Empire Simulator V0.9.99 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -203,7 +203,46 @@ function pendingBoxes(id){return state.supplierOrders.reduce((n,o)=>n+o.items.re
 function pendingTotal(){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+it.qty,0),0)+state.deliveryDock.length;}
 function cartCount(){return Object.values(supplierCart).reduce((n,v)=>n+v,0);}
 function cartSubtotal(){return catalog.reduce((n,p)=>n+(supplierCart[p.id]||0)*p.cost*BOX_UNITS,0);}
-function cartCapacity(){return reserveLimit()-reserveBoxes()-pendingTotal();}
+function cartCapacity(){return Math.max(0,reserveLimit()-reserveBoxes()-pendingTotal());}
+function stockCapacityStatus(includeCart=true){
+ const limit=reserveLimit(),stored=reserveBoxes(),incoming=pendingTotal(),cart=includeCart?cartCount():0;
+ const used=stored+incoming+cart,free=Math.max(0,limit-used);
+ const full=free===0,nearFull=!full&&free<=Math.max(3,Math.ceil(limit*.15));
+ return {limit,stored,incoming,cart,used,free,
+  status:full?"STOCK COMPLET":nearFull?"PRESQUE PLEIN":"DISPONIBLE",
+  color:full?"#ef4444":nearFull?"#f59e0b":"#22c55e"};
+}
+function renderStockCapacity(parent,includeCart=true){
+ const data=stockCapacityStatus(includeCart);
+ const container=document.createElement("section");
+ Object.assign(container.style,{padding:"12px",borderRadius:"11px",background:"#142336",border:"1px solid "+data.color,margin:"12px 0",color:"#fff"});
+ const header=document.createElement("div");
+ Object.assign(header.style,{display:"flex",gap:"10px",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",fontWeight:"bold"});
+ const title=document.createElement("span");title.textContent="CAPACITÉ DE STOCKAGE";
+ const status=document.createElement("span");status.textContent=data.status;status.style.color=data.color;
+ header.append(title,status);container.appendChild(header);
+ const summary=document.createElement("p");
+ summary.textContent=data.used+" / "+data.limit+" cartons réservés — "+data.free+" place(s) restante(s)";
+ Object.assign(summary.style,{fontSize:"13px",margin:"10px 0 6px"});container.appendChild(summary);
+ const bar=document.createElement("div");
+ Object.assign(bar.style,{width:"100%",height:"12px",background:"#334155",borderRadius:"9px",overflow:"hidden"});
+ const filled=document.createElement("div");
+ Object.assign(filled.style,{height:"100%",width:Math.min(100,data.used/data.limit*100)+"%",background:data.color,transition:"width .2s ease"});
+ bar.appendChild(filled);container.appendChild(bar);
+ const details=document.createElement("p");
+ details.textContent="En réserve : "+data.stored+" · Livraisons et quai : "+data.incoming+(includeCart?" · Panier : "+data.cart:"");
+ Object.assign(details.style,{fontSize:"12px",margin:"8px 0 0",color:"#cbd5e1"});container.appendChild(details);
+ if(data.free===0){
+  const warning=document.createElement("p");
+  warning.textContent="Aucune nouvelle commande possible : retire un carton du panier ou libère de la place"+
+   (!state.upgrades.reserve1?" (ou agrandis la réserve).":".");
+  Object.assign(warning.style,{fontSize:"12px",fontWeight:"bold",color:"#fca5a5",margin:"8px 0 0"});
+  container.appendChild(warning);
+ }
+ parent.appendChild(container);
+ return data;
+}
+
 function addSupplierItem(p){
  const count=state.inventory[p.id].boxes+pendingBoxes(p.id)+(supplierCart[p.id]||0);
  if(count>=MAX_BOXES_PER_PRODUCT){toast("Maximum de 5 cartons, commandes en attente incluses");return;}
@@ -243,10 +282,14 @@ function checkoutSupplier(express){
 function showOrders(){
  processSupplierOrders();
  openPanel("FOURNISSEURS — Mon panier");
+ const capacity=renderStockCapacity(panel);
  paragraph("Ajoute tes cartons, puis choisis le mode de livraison au paiement. Limite : 5 cartons par produit, commandes en attente comprises.");
+ if(capacity.free===0)paragraph("Les cartons déjà commandés ou présents dans le panier occupent aussi des emplacements.");
  for(const p of unlockedProducts()){
   const a=state.inventory[p.id],qty=supplierCart[p.id]||0,pending=pendingBoxes(p.id);
-  paragraph(p.name+" | "+a.boxes+"/5 en réserve | "+pending+" en livraison | Panier : "+qty+" | "+euro(p.cost*BOX_UNITS)+"/carton");
+  const perProductRemaining=MAX_BOXES_PER_PRODUCT-a.boxes-pending-qty;
+  const productStatus=perProductRemaining<=0?"PLEIN":perProductRemaining===1?"DERNIÈRE PLACE":"Disponible";
+  paragraph(p.name+" — "+productStatus+" | "+a.boxes+"/5 en réserve | "+pending+" en livraison | Panier : "+qty+" | "+euro(p.cost*BOX_UNITS)+"/carton");
   const add=button(panel,"+ Ajouter 1 carton de "+p.name,()=>addSupplierItem(p));
   add.disabled=a.boxes+pending+qty>=MAX_BOXES_PER_PRODUCT||cartCapacity()<=cartCount();
   if(add.disabled)add.style.opacity=".45";
@@ -268,6 +311,7 @@ function showOrders(){
 }
 function showStocks(){
  openPanel("Stocks");
+ renderStockCapacity(panel,false);
  unlockedProducts().forEach(p=>{
   const a=state.inventory[p.id];
   paragraph(p.name+" — "+stockAlert(p)+" | Rayon "+a.shelf+"/"+shelfCapacity(p)+" | "+(p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits"?"Chambre froide":"Réserve sèche")+" : "+a.boxes+"/5 cartons + "+a.reserve+" en vrac | "+a.price+" €");
@@ -384,6 +428,7 @@ function showComputer(){
  paragraph("Terminal de caisse et gestion des fournisseurs");
  paragraph("Client à encaisser : "+(cashier?"Oui — "+euro(cashier.total):"Aucun"));
  paragraph("Trésorerie disponible : "+euro(state.money));
+ renderStockCapacity(panel);
  button(panel,"Caisse — paiements",showCheckout);
  button(panel,"Fournisseurs — commander des cartons",showComputerOrders);
  button(panel,"Stocks du magasin",showStocks);
@@ -2758,4 +2803,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.98 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.99 !");
