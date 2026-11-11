@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.89 — version synchronisée
+// Business Empire Simulator V0.9.90 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1391,7 +1391,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.89 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.90 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1896,7 +1896,7 @@ function updateWorker(dt){
     workerLeftLeg.rotation.x=stride;workerRightLeg.rotation.x=-stride;
     workerLeftArm.rotation.x=workerCargo?-.55:-stride*.6;
     workerRightArm.rotation.x=workerCargo?-.55:stride*.6;
-   },stop);
+   },stop,3.2);
    if(arrived)workerBreakJourney=null;
   }else stop();
   return;
@@ -1921,7 +1921,7 @@ function updateWorker(dt){
  const target=workerRoute[workerWaypoint];
  if(target){
   const dx=target[0]-workerGroup.position.x,dz=target[1]-workerGroup.position.z;
-  const dist=Math.hypot(dx,dz),step=dt*2.5;
+  const dist=Math.hypot(dx,dz),step=dt*3.0;
   if(dist<=step){workerGroup.position.x=target[0];workerGroup.position.z=target[1];workerWaypoint++;}
   else{workerGroup.position.x+=dx/dist*step;workerGroup.position.z+=dz/dist*step;}
   if(dist>.01)workerGroup.rotation.y=Math.atan2(-dx,-dz);
@@ -2236,7 +2236,7 @@ function endStaffBreak(journey){
    :journey.outward.slice(0,-1)).reverse();
  journey.index=0;journey.stage="returning";
 }
-function advanceStaffBreak(group,journey,dt,walk,stop){
+function advanceStaffBreak(group,journey,dt,walk,stop,speed=2.8){
  if(journey.stage==="blocked"||journey.stage==="atBreak"){stop();return false;}
  const point=journey.route[journey.index];
  if(!point){
@@ -2244,7 +2244,7 @@ function advanceStaffBreak(group,journey,dt,walk,stop){
   return journey.stage==="done";
  }
  const p=group.position,dx=point.x-p.x,dz=point.z-p.z,dist=Math.hypot(dx,dz);
- const step=Math.min(dist,dt*2.8);
+ const step=Math.min(dist,dt*speed);
  if(dist>.001){
   const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
   if(!blocked(nx,nz,.20)){p.x=nx;p.z=nz;}
@@ -2636,4 +2636,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.89 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.90 !");
