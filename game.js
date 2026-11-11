@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.36 — version synchronisée
+// Business Empire Simulator V0.9.37 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -494,7 +494,7 @@ $("game").appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xffffff,0x718096,2.2));
 const sun=new THREE.DirectionalLight(0xffffff,1.4);sun.position.set(5,12,4);scene.add(sun);
 const ambient=scene.children.find(o=>o.isHemisphereLight);
-let storeLightsOn=true,stockroomLightsOn=true;
+let storeLightsOn=true,stockroomLightsOn=true,coldRoomLightsOn=true;
 const ceilingLights=new THREE.Group();scene.add(ceilingLights);
 function ceilingLamp(x,z){
  const lamp=new THREE.PointLight(0xfff4db,0,9,1.8);lamp.position.set(x,4.45,z);ceilingLights.add(lamp);return lamp;
@@ -510,6 +510,8 @@ function updateLighting(){
  sun.intensity=.12+1.28*daylight;
  ambient.intensity=.25+1.95*daylight;
  for(const l of lamps)l.light.intensity=l.stockroom?(stockroomLightsOn?1.7:0):(storeLightsOn&&(!l.extension||state.upgrades.store1)?1.35:0);
+ if(typeof coldLightGlow!=="undefined")coldLightGlow.intensity=coldRoomLightsOn?1.8:0;
+ if(typeof coldLight!=="undefined")coldLight.material.color.setHex(coldRoomLightsOn?0xf8fafc:0x64748b);
 }
 const colliders=[];
 function cube(x,y,z,w,h,d,color,solid=false){
@@ -584,6 +586,9 @@ cube(21.15,.14,5.5,.08,.23,7.4,0x64748b);
 const coldLight=cube(18.35,4.88,5.5,3.4,.045,.55,0xf8fafc);
 const coldLightGlow=new THREE.PointLight(0xbceeff,1.3,11);
 coldLightGlow.position.set(18.35,4.5,5.5);scene.add(coldLightGlow);
+// Interrupteur extérieur, côté réserve, à droite de la porte froide.
+const coldSwitchPlate=cube(15.055,1.35,7.35,.06,.26,.23,0xf8fafc);
+const coldSwitch=cube(15.005,1.35,7.35,.065,.13,.12,0x22c55e);
 // Groupes froid, grilles et rayonnages inox.
 cube(18.35,4.25,1.83,2.5,.7,.45,0x64748b);
 for(let i=0;i<9;i++)cube(17.35+i*.25,4.25,1.57,.07,.4,.035,0x94a3b8);
@@ -718,6 +723,9 @@ function brandPanel(title,subtitle,width=5.6,height=1.0){
 const entranceBrand=brandPanel("FBA SUPERMARKET","BUSINESS EMPIRE SIMULATOR",5.6,1.25);
 // Face extérieure du mur d’entrée (z positif), texte orienté vers le visiteur.
 entranceBrand.position.set(0,4.24,10.20);scene.add(entranceBrand);
+// Enseigne au-dessus de l’entrée de la réserve, face au magasin.
+const reserveBrand=brandPanel("ZONE STOCKAGE","RÉSERVE — PRODUITS SECS",2.9,.67);
+reserveBrand.position.set(9.78,4.15,5.5);reserveBrand.rotation.y=-Math.PI/2;scene.add(reserveBrand);
 const corridorBrand=brandPanel("FBA SUPERMARKET","EXTENSION DU MAGASIN",3.75,.72);
 corridorBrand.position.set(0,4.18,-9.78);scene.add(corridorBrand);
 
@@ -1058,7 +1066,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.36 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.37 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1110,6 +1118,12 @@ const lightSwitch=cube(8.08,1.16,6.93,.10,.09,.035,0x22c55e);
 // Plaque et bouton fixés sur le mur du fond de la réserve, côté intérieur.
 const stockroomSwitchPlate=cube(11.3,1.35,9.165,.19,.22,.045,0xf8fafc);
 const stockroomSwitch=cube(11.3,1.35,9.13,.09,.11,.045,0x22c55e);
+function toggleColdRoomLights(){
+ coldRoomLightsOn=!coldRoomLightsOn;
+ coldSwitch.material.color.setHex(coldRoomLightsOn?0x22c55e:0xef4444);
+ updateLighting();
+ toast("Éclairage chambre froide : "+(coldRoomLightsOn?"allumé":"éteint"));
+}
 function toggleStockroomLights(){
  stockroomLightsOn=!stockroomLightsOn;
  stockroomSwitch.material.color.setHex(stockroomLightsOn?0x22c55e:0xef4444);
@@ -1258,6 +1272,7 @@ function interact(){
   toast("Suis le rayon "+p.name+" surligné en bleu puis appuie sur Interagir");
   return;
  }
+ if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
  if(near(11.3,9.13,1.45)&&camera.position.x>10.5){toggleStockroomLights();return;}
  if(atReserve()||atColdRoom()){showReserve();return;}
  if(fridgeDoor&&playerLevel()>=4&&near(-8.5,-3.5,2.4)){
@@ -1613,4 +1628,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.36 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.37 !");
