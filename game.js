@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.22 — version synchronisée
+// Business Empire Simulator V0.9.23 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -366,19 +366,61 @@ function showCheckout(){
  }
  checkoutButton("Fermer la fenêtre",closeCheckoutUI);
 }
+function completeCheckoutPayment(c,count){
+ if(c!==cashier)return;
+ state.money+=c.total;state.sales+=count;
+ finance.revenue+=c.total;finance.transactions++;
+ sync();finishCheckout(c);
+ toast("Paiement accepté : +"+euro(c.total));
+}
 function showPayment(c,count){
  if(c!==cashier)return;
  checkoutUI.replaceChildren();checkoutUI.style.display="block";
- checkoutText("TERMINAL DE PAIEMENT",true);
+ checkoutText("FBA — MODE DE PAIEMENT",true);
+ checkoutText("À régler : "+euro(c.total),true);
+ checkoutButton("Carte bancaire",()=>showCardPayment(c,count));
+ checkoutButton("Espèces — rendre la monnaie",()=>showCashPayment(c,count));
+ checkoutButton("Retour aux articles",showCheckout);
+}
+function showCardPayment(c,count){
+ if(c!==cashier)return;
+ checkoutUI.replaceChildren();checkoutUI.style.display="block";
+ checkoutText("TERMINAL BANCAIRE",true);
  checkoutText("Montant : "+euro(c.total),true);
- checkoutButton("Valider le paiement",()=>{
-  if(c!==cashier)return;
-  state.money+=c.total;state.sales+=count;
-  finance.revenue+=c.total;finance.transactions++;
-  sync();finishCheckout(c);
-  toast("Paiement accepté : +"+euro(c.total));
- });
- checkoutButton("Retour au scan",showCheckout);
+ checkoutButton("Valider la carte",()=>completeCheckoutPayment(c,count));
+ checkoutButton("Retour",()=>showPayment(c,count));
+}
+function showCashPayment(c,count){
+ if(c!==cashier)return;
+ // Le client remet un montant arrondi à un billet supérieur ou égal au total.
+ const cents=Math.round(c.total*100);
+ const receivedCents=[500,1000,2000,5000,10000,20000].find(v=>v>=cents)||Math.ceil(cents/5000)*5000;
+ const changeCents=receivedCents-cents;
+ let given=0;
+ const denominations=[5000,2000,1000,500,200,100,50,20,10,5,2,1];
+ const labels=["50 €","20 €","10 €","5 €","2 €","1 €","50 c","20 c","10 c","5 c","2 c","1 c"];
+ function draw(){
+  checkoutUI.replaceChildren();checkoutUI.style.display="block";
+  checkoutText("CAISSE — PAIEMENT ESPÈCES",true);
+  checkoutText("Total : "+euro(c.total));
+  checkoutText("Reçu : "+euro(receivedCents/100));
+  checkoutText("Monnaie à rendre : "+euro(changeCents/100),true);
+  checkoutText("Monnaie sélectionnée : "+euro(given/100));
+  const grid=document.createElement("div");
+  Object.assign(grid.style,{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"5px"});
+  checkoutUI.appendChild(grid);
+  denominations.forEach((v,i)=>{
+   const b=document.createElement("button");b.textContent=labels[i];
+   Object.assign(b.style,{padding:"9px 3px",borderRadius:"7px",border:"1px solid #64748b",background:"#334155",color:"white",fontSize:"12px"});
+   b.onclick=()=>{given+=v;draw();};grid.appendChild(b);
+  });
+  checkoutButton("Effacer la sélection",()=>{given=0;draw();});
+  const ok=checkoutButton("Confirmer la monnaie",()=>completeCheckoutPayment(c,count));
+  ok.disabled=given!==changeCents;
+  ok.style.opacity=given===changeCents?"1":".45";
+  checkoutButton("Retour",()=>showPayment(c,count));
+ }
+ draw();
 }
 function finishCheckout(c){
  if(c!==cashier)return;
@@ -930,7 +972,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.22 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.23 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1242,7 +1284,7 @@ function makeCustomer(){
   route.push({x:aisleX,z:8},{x:aisleX,z:targetZ,shop:p.id},{x:aisleX,z:8});
  }
  // Accès caisse depuis l’allée centrale, sans diagonale à travers le meuble.
- route.push({x:4.35,z:5.15});
+ route.push({x:3.4,z:4.5});
  customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0});
 }
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
@@ -1356,9 +1398,9 @@ function updateCustomers(dt){
    if(i===0&&!cashier){
     queue.shift();cashier=c;c.phase="checkout";c.scanned=0;
     toast("Client en caisse : utilise l’ordinateur");
-   }else walk(c,{x:4.35-Math.max(0,i)*.75,z:5.15},dt);
+   }else walk(c,{x:3.4-Math.max(0,i)*.7,z:4.5},dt);
   }else if(c.phase==="checkout"){
-   walk(c,{x:4.35,z:5.15},dt);
+   walk(c,{x:3.4,z:4.5},dt);
   }else if(c.phase==="leaving"){
    if(walk(c,c.route[c.waypoint],dt)){
     c.waypoint++;if(c.waypoint>=c.route.length)removeCustomer(c);
@@ -1423,4 +1465,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.22 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.23 !");
