@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.94 — version synchronisée
+// Business Empire Simulator V0.9.95 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1779,7 +1779,9 @@ const workerPants=new THREE.MeshStandardMaterial({color:0x334155});
 function workerBox(w,h,d,x,y,z,mat){
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);workerGroup.add(m);return m;
 }
-staffAppearance(workerGroup,true);
+// Le modele visuel regarde vers -Z, comme la direction de marche.
+const workerVisual=new THREE.Group();workerVisual.rotation.y=Math.PI;workerGroup.add(workerVisual);
+staffAppearance(workerVisual,true);
 const workerLeftLeg=workerBox(.22,.8,.23,-.18,.4,0,workerPants);workerLeftLeg.geometry=new THREE.CylinderGeometry(.115,.105,.8,12);
 const workerRightLeg=workerBox(.22,.8,.23,.18,.4,0,workerPants);workerRightLeg.geometry=new THREE.CylinderGeometry(.115,.105,.8,12);
 const workerLeftArm=workerBox(.18,.75,.2,-.44,1.15,0,workerSkin);workerLeftArm.geometry=new THREE.CapsuleGeometry(.095,.55,4,10);
@@ -1845,7 +1847,9 @@ const stockerPants=new THREE.MeshStandardMaterial({color:0x1e293b});
 function stockerPart(w,h,d,x,y,z,mat){
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);stockerGroup.add(m);return m;
 }
-staffAppearance(stockerGroup,false);
+// Meme orientation pour Camille : le visage reste devant pendant les trajets.
+const stockerVisual=new THREE.Group();stockerVisual.rotation.y=Math.PI;stockerGroup.add(stockerVisual);
+staffAppearance(stockerVisual,false);
 const stockerLegA=stockerPart(.2,.8,.23,-.17,.4,0,stockerPants);stockerLegA.geometry=new THREE.CylinderGeometry(.105,.10,.8,12);
 const stockerLegB=stockerPart(.2,.8,.23,.17,.4,0,stockerPants);stockerLegB.geometry=new THREE.CylinderGeometry(.105,.10,.8,12);
 const stockerArmA=stockerPart(.18,.7,.2,-.43,1.13,0,stockerSkin);stockerArmA.geometry=new THREE.CapsuleGeometry(.093,.50,4,10);
@@ -2725,4 +2729,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.94 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.95 !");
