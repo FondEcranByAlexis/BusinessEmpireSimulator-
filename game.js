@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.43 — version synchronisée
+// Business Empire Simulator V0.9.44 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -110,6 +110,7 @@ function load(){
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(current.upgrades&&typeof current.upgrades==="object")for(const u of upgradeCatalog)s.upgrades[u.id]=current.upgrades[u.id]===true;
    if(current.finance)for(const k of Object.keys(s.finance))if(Number.isFinite(current.finance[k])&&current.finance[k]>=0)s.finance[k]=current.finance[k];
+   if(Array.isArray(current.supplierOrders))s.supplierOrders=current.supplierOrders.filter(o=>o&&Array.isArray(o.items)&&Number.isFinite(o.due));
    // Une session rechargée démarre toujours en préparation à 08:00.
    s.hour=8;
    for(const p of catalog){
@@ -133,6 +134,7 @@ function load(){
  return s;
 }
 const state=load();
+state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
 if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
 state.hour=8;
 const finance=state.finance;
@@ -166,20 +168,72 @@ function openPanel(title){
 function paragraph(t){
  const p=document.createElement("p");p.textContent=t;p.style.marginTop="12px";p.style.fontSize="13px";panel.appendChild(p);
 }
+// Panier fournisseurs : paiement groupé, délai normal 30 s ou express 5 s.
+const supplierCart={};
+function pendingBoxes(id){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+(it.id===id?it.qty:0),0),0);}
+function pendingTotal(){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+it.qty,0),0);}
+function cartCount(){return Object.values(supplierCart).reduce((n,v)=>n+v,0);}
+function cartSubtotal(){return catalog.reduce((n,p)=>n+(supplierCart[p.id]||0)*p.cost*BOX_UNITS,0);}
+function cartCapacity(){return reserveLimit()-reserveBoxes()-pendingTotal();}
+function addSupplierItem(p){
+ const count=state.inventory[p.id].boxes+pendingBoxes(p.id)+(supplierCart[p.id]||0);
+ if(count>=MAX_BOXES_PER_PRODUCT){toast("Maximum de 5 cartons, commandes en attente incluses");return;}
+ if(cartCount()>=reserveLimit()-reserveBoxes()-pendingTotal()){toast("Capacité de réserve insuffisante");return;}
+ supplierCart[p.id]=(supplierCart[p.id]||0)+1;showOrders();
+}
+function processSupplierOrders(){
+ let changed=false;
+ for(const order of state.supplierOrders.slice()){
+  if(Date.now()<order.due)continue;
+  for(const it of order.items){
+   const p=catalog.find(p=>p.id===it.id);
+   if(!p)continue;
+   state.inventory[p.id].boxes+=it.qty;
+  }
+  state.supplierOrders.splice(state.supplierOrders.indexOf(order),1);
+  changed=true;
+ }
+ if(changed){sync();toast("Livraison fournisseur arrivée dans les réserves !");}
+}
+function checkoutSupplier(express){
+ const items=Object.entries(supplierCart).filter(([id,q])=>q>0&&catalog.some(p=>p.id===id)).map(([id,qty])=>({id,qty}));
+ if(!items.length){toast("Ton panier est vide");return;}
+ for(const it of items){
+  const p=catalog.find(p=>p.id===it.id);
+  if(state.inventory[it.id].boxes+pendingBoxes(it.id)+it.qty>MAX_BOXES_PER_PRODUCT){toast("Limite atteinte : "+p.name);return;}
+ }
+ if(items.reduce((n,it)=>n+it.qty,0)>cartCapacity()){toast("Capacité de réserve insuffisante");return;}
+ const subtotal=cartSubtotal(),fee=express?Math.round(subtotal*20)/100:0,totalCost=subtotal+fee;
+ if(state.money<totalCost){toast("Trésorerie insuffisante : "+euro(totalCost));return;}
+ state.money-=totalCost;finance.supplies+=totalCost;
+ state.supplierOrders.push({items,due:Date.now()+(express?5000:30000),express,paid:totalCost});
+ for(const k of Object.keys(supplierCart))delete supplierCart[k];
+ sync();showOrders();toast("Commande payée — livraison dans "+(express?5:30)+" secondes");
+}
 function showOrders(){
- openPanel("Fournisseurs — cartons de 10");
- paragraph("Maximum : 5 cartons fermés par produit. Livraisons dans la réserve correspondante.");
- unlockedProducts().forEach(p=>{
- const a=state.inventory[p.id];
- const b=button(panel,p.name+" — "+a.boxes+"/5 cartons | "+(p.cost*10)+" €",()=>{
-  const cost=p.cost*10;
-  if(!canOrderBox(p)){toast(orderBlockReason(p));return;}
-  if(state.money<cost){toast("Trésorerie insuffisante");return;}
-  state.money-=cost;finance.supplies+=cost;state.inventory[p.id].boxes++;
-  sync();showOrders();toast("Carton livré : "+p.name);
- });
- b.disabled=!canOrderBox(p);if(b.disabled)b.style.opacity=".45";
- });
+ processSupplierOrders();
+ openPanel("FOURNISSEURS — Mon panier");
+ paragraph("Ajoute tes cartons, puis choisis le mode de livraison au paiement. Limite : 5 cartons par produit, commandes en attente comprises.");
+ for(const p of unlockedProducts()){
+  const a=state.inventory[p.id],qty=supplierCart[p.id]||0,pending=pendingBoxes(p.id);
+  paragraph(p.name+" | "+a.boxes+"/5 en réserve | "+pending+" en livraison | Panier : "+qty+" | "+euro(p.cost*BOX_UNITS)+"/carton");
+  const add=button(panel,"+ Ajouter 1 carton de "+p.name,()=>addSupplierItem(p));
+  add.disabled=a.boxes+pending+qty>=MAX_BOXES_PER_PRODUCT||cartCapacity()<=cartCount();
+  if(add.disabled)add.style.opacity=".45";
+  if(qty)button(panel,"− Retirer 1 carton de "+p.name,()=>{supplierCart[p.id]--;if(!supplierCart[p.id])delete supplierCart[p.id];showOrders();});
+ }
+ paragraph("SOUS-TOTAL : "+euro(cartSubtotal())+" — "+cartCount()+" carton(s)");
+ if(cartCount()){
+  button(panel,"PAYER — Normale 30 s : "+euro(cartSubtotal()),()=>checkoutSupplier(false));
+  button(panel,"PAYER — Express 5 s (+20 %) : "+euro(Math.round(cartSubtotal()*120)/100),()=>checkoutSupplier(true));
+ }
+ if(state.supplierOrders.length){
+  paragraph("LIVRAISONS EN COURS");
+  for(const o of state.supplierOrders){
+   paragraph((o.express?"Express":"Normale")+" — "+o.items.reduce((n,it)=>n+it.qty,0)+" carton(s) — "+Math.max(0,Math.ceil((o.due-Date.now())/1000))+" s restantes");
+  }
+  button(panel,"Actualiser le suivi",showOrders);
+ }
 }
 function showStocks(){
  openPanel("Stocks");
@@ -306,20 +360,7 @@ function showComputer(){
 }
 function showComputerOrders(){
  if(!near(7.3,6.5,3.4)){toast("Approche-toi de l'ordinateur");return;}
- openPanel("ORDINATEUR — Fournisseurs");
- paragraph("Commandes livrées en réserve sèche ou en chambre froide. Chaque carton contient "+BOX_UNITS+" produits. Limite : 5 cartons fermés par produit.");
- for(const p of unlockedProducts()){
-  const a=state.inventory[p.id],cost=p.cost*BOX_UNITS;
-  paragraph(p.name+" | "+euro(cost)+"/carton | "+a.boxes+"/5 cartons | "+stockAlert(p));
-  const orderButton=button(panel,"Commander 1 carton — "+euro(cost),()=>{
-   if(!canOrderBox(p)){toast(orderBlockReason(p));return;}
-   if(state.money<cost){toast("Trésorerie insuffisante");return;}
-   state.money-=cost;finance.supplies+=cost;a.boxes++;
-   sync();showComputerOrders();toast("Commande livrée : "+p.name);
-  });
-  orderButton.disabled=!canOrderBox(p);if(orderButton.disabled)orderButton.style.opacity=".45";
- }
- button(panel,"← Bureau",showComputer);
+ showOrders();
 }
 // Interface de caisse autonome, compacte, distincte du bureau fournisseurs.
 const checkoutUI=document.createElement("div");
@@ -1085,7 +1126,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.43 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.44 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1663,4 +1704,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.43 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.44 !");
