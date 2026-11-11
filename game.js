@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.0 — version synchronisée
+// Business Empire Simulator V0.10.1 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2363,7 +2363,9 @@ window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);
 function blocked(x,z,r=.4){
  // Entrée clientèle au sud (z positif), quai logistique à l'arrière (z négatif).
  const shop=x>=-9.45+r&&x<=9.45-r&&z>=(state.upgrades.store1?-21.45:-9.45)+r&&z<=9.45-r;
- const reserve=x>10.35&&x<15.05&&z>1.8&&z<16.85;
+ // Le volume accessible suit les extensions physiques de la réserve.
+ const reserveDepth=state.upgrades.store1?30.45:23.45;
+ const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
  const cold=x>15.55&&x<23.75&&z>1.8&&z<16.8;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<13.45;
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
@@ -2846,4 +2848,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.10.0 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.10.1 !");
