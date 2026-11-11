@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.24 — version synchronisée
+// Business Empire Simulator V0.9.25 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -384,23 +384,14 @@ function showPayment(c,count){
 }
 function showCardPayment(c,count){
  if(c!==cashier)return;
- let swiped=false,entered="";
+ let entered="",amountConfirmed=false;
  const expected=Math.round(c.total*100);
  function draw(){
   checkoutUI.replaceChildren();checkoutUI.style.display="block";
   checkoutText("FBA — TERMINAL BANCAIRE",true);
-  checkoutText("Montant à saisir : "+euro(c.total),true);
-  const slot=document.createElement("div");
-  Object.assign(slot.style,{background:"#111827",border:"2px solid #64748b",borderRadius:"9px",padding:"12px",margin:"10px 0",textAlign:"center",touchAction:"pan-y"});
-  const card=document.createElement("div");card.textContent=swiped?"CARTE LUE ✓":"💳 GLISSER LA CARTE →";
-  Object.assign(card.style,{background:swiped?"#14532d":"#1d4ed8",color:"#fff",borderRadius:"7px",padding:"13px 4px",fontSize:"13px",fontWeight:"bold",touchAction:"none",userSelect:"none"});
-  slot.appendChild(card);checkoutUI.appendChild(slot);
-  if(!swiped){
-   let x=null;
-   card.addEventListener("pointerdown",e=>{x=e.clientX;card.setPointerCapture(e.pointerId);});
-   card.addEventListener("pointerup",e=>{if(x!==null&&e.clientX-x>55){swiped=true;draw();}x=null;});
-   checkoutText("Fais glisser la carte de gauche à droite.");
-  }else{
+  checkoutText("Total à encaisser : "+euro(c.total),true);
+  if(!amountConfirmed){
+   checkoutText("1. Saisis le montant sur le clavier.");
    checkoutText("Montant saisi : "+(entered?euro(Number(entered)/100):"0,00 €"),true);
    const grid=document.createElement("div");
    Object.assign(grid.style,{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"5px"});
@@ -411,9 +402,28 @@ function showCardPayment(c,count){
     b.onclick=()=>{entered=digit==="C"?"":digit==="⌫"?entered.slice(0,-1):(entered+digit).slice(0,9);draw();};
     grid.appendChild(b);
    }
-   const ok=checkoutButton("Confirmer le paiement",()=>completeCheckoutPayment(c,count));
+   const ok=checkoutButton("Valider le montant",()=>{amountConfirmed=true;draw();});
    ok.disabled=Number(entered)!==expected;
    ok.style.opacity=Number(entered)===expected?"1":".45";
+  }else{
+   checkoutText("Montant validé : "+euro(c.total),true);
+   checkoutText("2. Fais glisser la carte de gauche à droite pour payer.");
+   const slot=document.createElement("div");
+   Object.assign(slot.style,{background:"#111827",border:"2px solid #64748b",borderRadius:"9px",padding:"12px",margin:"10px 0",textAlign:"center"});
+   const card=document.createElement("div");card.textContent="💳 GLISSER LA CARTE →";
+   Object.assign(card.style,{background:"#1d4ed8",color:"#fff",borderRadius:"7px",padding:"13px 4px",fontSize:"13px",fontWeight:"bold",touchAction:"none",userSelect:"none"});
+   slot.appendChild(card);checkoutUI.appendChild(slot);
+   let x=null;
+   card.addEventListener("pointerdown",e=>{x=e.clientX;card.setPointerCapture(e.pointerId);});
+   card.addEventListener("pointerup",e=>{
+    if(x!==null&&e.clientX-x>55&&c===cashier){
+     card.textContent="CARTE ACCEPTÉE ✓";
+     card.style.background="#14532d";
+     completeCheckoutPayment(c,count);
+    }
+    x=null;
+   });
+   checkoutButton("Modifier le montant",()=>{amountConfirmed=false;draw();});
   }
   checkoutButton("Retour",()=>showPayment(c,count));
  }
@@ -1001,7 +1011,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.24 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.25 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1494,4 +1504,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.24 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.25 !");
