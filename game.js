@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.92 — version synchronisée
+// Business Empire Simulator V0.9.93 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1017,7 +1017,7 @@ function addWallRack(x,z,rotation=0,extension=true,assignedProduct=null){
 for(const x of [-7,-3.5,3.5,7])addWallRack(x,-21.1,0,true);
 for(const z of [-13.5,-17,-20]){addWallRack(-9.15,z,Math.PI/2,true);addWallRack(9.15,z,-Math.PI/2,true);}
 addWallRack(-8.9,5.9,Math.PI/2,false,catalog.find(p=>p.id==="conserves"));
-addWallRack(-5.2,7.8,0,false,catalog.find(p=>p.id==="papier"));
+addWallRack(-5.2,7.8,Math.PI,false,catalog.find(p=>p.id==="papier"));
 // Gondoles d'extension avec allées libres, uniquement visibles après achat.
 for(const x of [-5,0,5])for(const z of [-19]){
  const rack=new THREE.Group();rack.position.set(x,0,z);
@@ -2686,4 +2686,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.92 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.93 !");
