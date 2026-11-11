@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.6 — version synchronisée
+// Business Empire Simulator V0.10.7 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -95,6 +95,12 @@ function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicen
 function unlockedProducts(){return catalog.filter(productAvailable);}
 function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=2?2:0);}
 const CONSTRUCTION_DAYS=3;
+const CONSTRUCTION_START_HOUR=8,CONSTRUCTION_END_HOUR=17;
+const CONSTRUCTION_SHIFT_SECONDS=DAY_SECONDS*(CONSTRUCTION_END_HOUR-CONSTRUCTION_START_HOUR)/(CLOSE_HOUR-OPEN_HOUR);
+function constructionOnShift(){
+ return !!state.construction&&!state.upgrades.store1&&!closing&&
+  state.hour>=CONSTRUCTION_START_HOUR&&state.hour<CONSTRUCTION_END_HOUR;
+}
 function constructionStage(){
  const p=state.construction?.progress??0;
  return p<1?"Jour 1 : préparation":p<2?"Jour 2 : gros œuvre":"Jour 3 : finitions";
@@ -1278,21 +1284,29 @@ function updateConstructionUI(){
    const pct=constructionPercent();
    $("constructionProgress").textContent=pct+" %";
    $("constructionBar").style.width=pct+"%";
-   $("constructionStage").textContent=constructionStage();
+   $("constructionStage").textContent=constructionOnShift()?constructionStage()+" · Ouvriers 8 h–17 h":
+     state.hour<CONSTRUCTION_START_HOUR?"Reprise des travaux à 8 h":
+     "Travaux arrêtés à 17 h — reprise demain à 8 h";
   }
  }
- for(const w of constructionCrew)w.group.visible=active;
+ for(const w of constructionCrew){
+  w.group.visible=active&&constructionOnShift();
+  if(!constructionOnShift()){w.arm.rotation.x=0;w.group.position.y=0;}
+ }
 }
 function updateConstruction(dt){
  if(!state.construction||state.upgrades.store1)return;
- // Une extension exige trois journées de travail : 8 h-20 h, magasin ouvert ou non.
- if(state.hour>=OPEN_HOUR&&state.hour<CLOSE_HOUR&&!closing)
-  state.construction.progress=Math.min(CONSTRUCTION_DAYS,state.construction.progress+dt/DAY_SECONDS);
- constructionAnimation+=dt;constructionAutosave+=dt;
- for(const w of constructionCrew){
-  w.arm.rotation.x=-.5+Math.sin(constructionAnimation*5+w.offset)*.8;
-  w.group.position.y=.015*Math.abs(Math.sin(constructionAnimation*2+w.offset));
+ // Chantier actif uniquement de 08 h à 17 h : neuf heures de travail par journée.
+ // 450 secondes réelles = une journée complète d'ouvriers dans le temps du jeu.
+ if(constructionOnShift()){
+  state.construction.progress=Math.min(CONSTRUCTION_DAYS,state.construction.progress+dt/CONSTRUCTION_SHIFT_SECONDS);
+  constructionAnimation+=dt;
+  for(const w of constructionCrew){
+   w.arm.rotation.x=-.5+Math.sin(constructionAnimation*5+w.offset)*.8;
+   w.group.position.y=.015*Math.abs(Math.sin(constructionAnimation*2+w.offset));
+  }
  }
+ constructionAutosave+=dt;
  if(constructionAutosave>=5){constructionAutosave=0;save();}
  if(state.construction.progress>=CONSTRUCTION_DAYS){
   state.construction=null;state.upgrades.store1=true;
@@ -3006,4 +3020,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.10.6 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.10.7 !");
