@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.33 — version synchronisée
+// Business Empire Simulator V0.9.34 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -563,7 +563,33 @@ cube(10,2.5,8.5,.3,5,3,0xe2e8f0,true);
 cube(10,4.2,5.5,.3,1.6,3,0xe2e8f0);
 cube(12.65,-.15,5.5,5.3,.3,8,0xb9c1c8);
 cube(12.65,5.1,5.5,5.3,.2,8,0xf1f5f9);
-cube(15.3,2.5,5.5,.3,5,8,0xe2e8f0,true);
+// Chambre froide accolée à la réserve, accès par une porte libre de 2 m.
+cube(15.3,2.5,2.6,.3,5,2.2,0xdbeafe,true);
+cube(15.3,2.5,8.0,.3,5,2.7,0xdbeafe,true);
+cube(15.3,4.2,5.45,.3,1.6,2.7,0xdbeafe);
+cube(18.35,-.15,5.5,6.1,.3,8,0x9ccbdc);
+cube(18.35,5.1,5.5,6.1,.2,8,0xe0f2fe);
+cube(21.4,2.5,5.5,.3,5,8,0xcbd5e1,true);
+cube(18.35,2.5,1.5,6.1,5,.3,0xcbd5e1,true);
+cube(18.35,2.5,9.5,6.1,5,.3,0xcbd5e1,true);
+// Sol antidérapant et plinthes sanitaires.
+const coldFloor=cube(18.35,.016,5.5,5.8,.025,7.65,0xb7dce8);
+for(const z of [1.75,9.23])cube(18.35,.14,z,5.8,.23,.08,0x64748b);
+cube(21.15,.14,5.5,.08,.23,7.4,0x64748b);
+const coldLight=cube(18.35,4.88,5.5,3.4,.045,.55,0xf8fafc);
+const coldLightGlow=new THREE.PointLight(0xbceeff,1.3,11);
+coldLightGlow.position.set(18.35,4.5,5.5);scene.add(coldLightGlow);
+// Groupes froid, grilles et rayonnages inox.
+cube(18.35,4.25,1.83,2.5,.7,.45,0x64748b);
+for(let i=0;i<9;i++)cube(17.35+i*.25,4.25,1.57,.07,.4,.035,0x94a3b8);
+for(const x of [16.35,20.15]){
+ for(const z of [3.1,7.8]){
+  for(const y of [.65,1.7,2.75])cube(x,y,z,1.45,.09,1.5,0x94a3b8);
+  for(const dx of [-.65,.65])for(const dz of [-.65,.65])cube(x+dx,1.6,z+dz,.07,3.2,.07,0x64748b);
+ }
+}
+const coldSign=(()=>{const c=document.createElement("canvas");c.width=512;c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="#0c4a6e";ctx.fillRect(0,0,512,128);ctx.fillStyle="#e0f2fe";ctx.textAlign="center";ctx.font="bold 45px Arial";ctx.fillText("CHAMBRE FROIDE",256,80);const m=new THREE.Mesh(new THREE.PlaneGeometry(2.8,.7),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),side:THREE.DoubleSide}));m.position.set(15.08,4.1,5.45);m.rotation.y=Math.PI/2;scene.add(m);return m;})();
+
 cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Cloison de fond continue et opaque : l'interrupteur est fixé sur sa face intérieure.
 cube(12.65,2.5,9.35,5.3,5,.3,0xe2e8f0,true);
@@ -1026,7 +1052,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.33 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.34 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1093,15 +1119,17 @@ function toggleLights(){
 cube(12.8,.1,5.5,3.5,.2,5.8,0x8b5e3c);
 // Représentation 3D : jusqu'à 3 cartons par produit, plus un lot ouvert
 const boxes={},reserveModels={};
+const coldProduct=p=>p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits";
 for(const [i,p] of catalog.entries()){
  boxes[p.id]=[];
  for(let j=0;j<3;j++){
-  const mesh=cube(11.3+(i%4)*.85,.48+j*.68,3.3+Math.floor(i/4)*1.55,.7,.65,.7,0xb98246);
+  const cold=coldProduct(p);
+  const mesh=cube(cold?17.15+(i%2)*2.15:11.3+(i%4)*.85,.48+j*.68,cold?3.1+Math.floor(i/2)*1.2:3.3+Math.floor(i/4)*1.55,.7,.65,.7,0xb98246);
   const band=new THREE.Mesh(new THREE.BoxGeometry(.72,.13,.72),new THREE.MeshStandardMaterial({color:p.color}));
   band.position.y=.18;mesh.add(band);
   boxes[p.id].push(mesh);
  }
- reserveModels[p.id]=cube(11.3+(i%4)*.85,.25,4.1+Math.floor(i/4)*1.55,.55,.4,.45,p.color);
+ reserveModels[p.id]=cube(coldProduct(p)?17.15+(i%2)*2.15:11.3+(i%4)*.85,.25,coldProduct(p)?3.5+Math.floor(i/2)*1.2:4.1+Math.floor(i/4)*1.55,.55,.4,.45,p.color);
 }
 function refreshBoxes(){
  catalog.forEach(p=>{
@@ -1130,6 +1158,8 @@ function refreshCarry(){
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
 function atReserve(){return near(12.5,5.5,3.1);}
+function atColdRoom(){return camera.position.x>15.5&&camera.position.x<21.2&&camera.position.z>1.8&&camera.position.z<9.2;}
+function atStorageFor(p){return coldProduct(p)?atColdRoom():atReserve();}
 function putBack(){
  if(!held)return;
  state.inventory[held.id].reserve+=held.quantity;
@@ -1189,15 +1219,15 @@ function showDisposal(p){
  button(panel,"Annuler",showReserve);
 }
 function showReserve(){
- if(!atReserve()){toast("Approche-toi de la réserve");return;}
- openPanel("Réserve — cartons à transporter");
+ if(!atReserve()&&!atColdRoom()){toast("Approche-toi de la réserve ou de la chambre froide");return;}
+ openPanel(atColdRoom()?"Chambre froide — produits frais et surgelés":"Réserve — produits secs");
  if(held){
   const p=catalog.find(p=>p.id===held.id);
   paragraph("Tu portes "+held.quantity+" × "+p.name);
   button(panel,"Reposer le carton dans la réserve",putBack);
   return;
  }
- for(const p of unlockedProducts()){
+ for(const p of unlockedProducts().filter(p=>coldProduct(p)===atColdRoom())){
   const a=state.inventory[p.id];
   paragraph("● "+p.name+" — "+a.boxes+" carton(s) fermé(s) ("+(a.boxes*BOX_UNITS)+" unités) + "+a.reserve+" en vrac. Total : "+(a.reserve+a.boxes*BOX_UNITS));
   if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10));
@@ -1218,12 +1248,12 @@ function interact(){
    toast(placed+" × "+p.name+" placés"+(held?" — "+held.quantity+" restants":""));
    return;
   }
-  if(atReserve()){showReserve();return;}
+  if(atReserve()||atColdRoom()){if(!atStorageFor(p)){toast("Ce carton appartient à "+(coldProduct(p)?"la chambre froide":"la réserve sèche"));return;}showReserve();return;}
   toast("Suis le rayon "+p.name+" surligné en bleu puis appuie sur Interagir");
   return;
  }
  if(near(11.3,9.13,1.45)&&camera.position.x>10.5){toggleStockroomLights();return;}
- if(atReserve()){showReserve();return;}
+ if(atReserve()||atColdRoom()){showReserve();return;}
  if(fridgeDoor&&playerLevel()>=4&&near(-8.5,-3.5,2.4)){
   fridgeOpen=!fridgeOpen;fridgeDoor.rotation.y=fridgeOpen?-1.15:0;
   toast(fridgeOpen?"Réfrigérateur ouvert":"Réfrigérateur fermé");return;
@@ -1234,7 +1264,7 @@ function interact(){
  }
  if(near(8.08,6.93,1.15)){toggleLights();return;}
  if(near(7.3,6.5,3.4)){if(cashier)showCheckout();else showComputer();return;}
- toast("Approche-toi de la réserve, de la caisse ou de l’interrupteur lumineux");
+ toast("Approche-toi de la réserve, de la chambre froide ou de la caisse");
 }
 refreshCarry();
 // Commandes de déplacement et caméra lissée
@@ -1573,4 +1603,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.33 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.34 !");
