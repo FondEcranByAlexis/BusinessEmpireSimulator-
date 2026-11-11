@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.42 — version synchronisée
+// Business Empire Simulator V0.9.43 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1085,7 +1085,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.42 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.43 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1175,8 +1175,8 @@ for(const [i,p] of catalog.entries()){
    cold?[1.025,1.025,2.075,2.075,3.125][j]:.48+Math.floor(j/2)*.68,
    cold?slot.z:3.3+Math.floor(i/4)*1.55,
    cold?.56:.34,.65,.7,0xb98246);
-  const band=new THREE.Mesh(new THREE.BoxGeometry(cold?.48:.29,.055,.56),new THREE.MeshStandardMaterial({color:p.color}));
-  band.position.y=.18;mesh.add(band);
+  const band=new THREE.Mesh(new THREE.BoxGeometry(cold?.44:.26,.085,.025),new THREE.MeshStandardMaterial({color:p.color,roughness:.7}));
+  band.position.set(0,.16,.363);mesh.add(band);
   boxes[p.id].push(mesh);
  }
  // Le lot ouvert est posé sur le quatrième module, pas sur le sol.
@@ -1663,4 +1663,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.42 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.43 !");
