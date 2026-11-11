@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.16 — version synchronisée
+// Business Empire Simulator V0.9.17 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -372,7 +372,8 @@ function showCheckout(){
 function finishCheckout(c){
  if(c!==cashier)return;
  clearCheckoutVisual();cashier=null;c.phase="leaving";c.waypoint=0;
- c.route=[{x:5.2,z:8},{x:0,z:8},{x:0,z:12.5}];
+ // Sortie par le couloir central : ne jamais couper à travers le comptoir.
+ c.route=[{x:3.7,z:4.5},{x:3.7,z:8.3},{x:0,z:8.3},{x:0,z:12.5}];
  panel.style.display="none";
 }
 // Scène et éclairage léger
@@ -918,7 +919,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.16 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.17 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1219,7 +1220,8 @@ function makeCustomer(){
   const targetZ=p.level?p.z:-1.5;
   route.push({x:aisleX,z:8},{x:aisleX,z:targetZ,shop:p.id},{x:aisleX,z:8});
  }
- route.push({x:8.3,z:4.5},{x:5.2,z:4.5});
+ // Accès caisse depuis l’allée centrale, sans diagonale à travers le meuble.
+ route.push({x:3.7,z:8.3},{x:3.7,z:4.5},{x:5.2,z:4.5});
  customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0});
 }
 function walk(c,t,dt){
@@ -1328,4 +1330,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.16 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.17 !");
