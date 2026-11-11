@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.35 — version synchronisée
+// Business Empire Simulator V0.9.36 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1058,7 +1058,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.35 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.36 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1328,7 +1328,11 @@ document.addEventListener("keydown",e=>{if(keyMap[e.code]){keys[keyMap[e.code]]=
 document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=false;});
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;joystickPointer=null;joyX=0;joyY=0;stick.style.transform="translate(0px,0px)";});
 function blocked(x,z,r=.4){
- if(x< -9.45+r||x>15-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>13.8-r)return true;
+ // La chambre froide prolonge la réserve jusqu'à x=21.4.
+ // Limites adaptées à la géométrie réelle, avec porte libre z=4.25..6.65.
+ if(x< -9.45+r||x>21.25-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>13.8-r)return true;
+ if(x>15.0&&x<15.6&&!(z>4.25+r&&z<6.65-r))return true;
+ if(x>15.6&&(z<1.65+r||z>9.35-r))return true;
  if(x>9.45&&x<10.55&&!(z>4.05&&z<6.95))return true;
  if(x>10.5&&(z<1.85||z>9.15))return true;
  return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
@@ -1609,4 +1613,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.35 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.36 !");
