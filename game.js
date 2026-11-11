@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.77 — version synchronisée
+// Business Empire Simulator V0.9.78 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -100,7 +100,7 @@ function showUpgrades(){
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
- return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
+ return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],stockerLeaveDays:[],stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
  const s=initial();
@@ -111,6 +111,11 @@ function load(){
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
    if(typeof current.workerName==="string")s.workerName=current.workerName.slice(0,24);
+   if(typeof current.stockerName==="string")s.stockerName=current.stockerName.slice(0,24);
+   for(const k of ["stockerHired","stockerEnabled"])if(typeof current[k]==="boolean")s[k]=current[k];
+   for(const k of ["stockerSentHomeDay","stockerWageDue","stockerPaidTotal","stockerDaysWorked"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
+   if(Array.isArray(current.stockerSchedule)&&current.stockerSchedule.length===7)s.stockerSchedule=current.stockerSchedule.map(v=>Array.isArray(v)&&v.length===2&&Number.isInteger(v[0])&&Number.isInteger(v[1])&&v[0]>=8&&v[1]<=20&&v[1]>v[0]?v:null);
+   if(Array.isArray(current.stockerLeaveDays))s.stockerLeaveDays=current.stockerLeaveDays.filter(Number.isInteger).slice(-60);
    if(Number.isInteger(current.workerSentHomeDay))s.workerSentHomeDay=current.workerSentHomeDay;
    if(typeof current.workerEnabled==="boolean")s.workerEnabled=current.workerEnabled;
    s.workerHired=typeof current.workerHired==="boolean"?current.workerHired:current.workerEnabled===true;
@@ -356,10 +361,10 @@ function showFinance(){
  paragraph("Chiffre d'affaires cumulé : "+euro(finance.revenue));
  paragraph("Achats fournisseurs : "+euro(finance.supplies));
  paragraph("Charges cumulées : "+euro(finance.charges));
- paragraph("Bénéfice net simplifié : "+euro(finance.revenue-finance.supplies-finance.charges-state.workerPaidTotal));
+ paragraph("Bénéfice net simplifié : "+euro(finance.revenue-finance.supplies-finance.charges-state.workerPaidTotal-state.stockerPaidTotal));
  paragraph("Transactions : "+finance.transactions+" | Articles vendus : "+state.sales);
  paragraph("Charges journalières : loyer "+euro(RENTS)+", électricité "+euro(ELECTRICITY)+", autres "+euro(OTHER_CHARGES)+".");
- paragraph("Salaires versés : "+euro(state.workerPaidTotal)+" | Salaires dus : "+euro(state.workerWageDue));
+ paragraph("Salaires versés : "+euro(state.workerPaidTotal+state.stockerPaidTotal)+" | Salaires dus : "+euro(state.workerWageDue+state.stockerWageDue));
  paragraph("Le bilan est cumulatif et ne valorise pas le stock restant.");
 }
 function formatHour(hour){
@@ -380,6 +385,7 @@ function showComputer(){
  button(panel,"Calendrier et horaires",showCalendar);
  button(panel,"Personnaliser les prénoms",showNames);
  button(panel,"Personnel — manutentionnaire",showWorkerManagement);
+ button(panel,"Personnel — mise en rayon",showStockerManagement);
  button(panel,"Planning des employés",showWorkerPlanning);
 }
 function showNames(){
@@ -462,6 +468,48 @@ function showWorkerManagement(){
   paragraph("Historique des paies :");
   for(const p of state.workerPayrollHistory.slice(-4).reverse())paragraph(String(p.month).padStart(2,"0")+"/"+p.year+" — dû "+euro(p.due)+" / versé "+euro(p.paid));
  }
+}
+const STOCKER_DAILY_WAGE=60;
+function stockerShift(day=state.day){
+ const d=new Date(Date.UTC(2027,0,1));d.setUTCDate(d.getUTCDate()+day-1);
+ return state.stockerLeaveDays.includes(day)?null:state.stockerSchedule[d.getUTCDay()];
+}
+function showStockerManagement(){
+ openPanel("PERSONNEL — MISE EN RAYON");
+ paragraph("Prénom : "+state.stockerName);
+ const input=document.createElement("input");input.value=state.stockerName;input.maxLength=24;input.style.width="100%";panel.appendChild(input);
+ button(panel,"Enregistrer le prénom",()=>{state.stockerName=input.value.trim().slice(0,24)||"Camille";save();showStockerManagement();});
+ paragraph("Contrat : "+(state.stockerHired?"CDI":"Non recruté"));
+ paragraph("Salaire : "+euro(STOCKER_DAILY_WAGE)+"/journée | Dû : "+euro(state.stockerWageDue)+" | Versé : "+euro(state.stockerPaidTotal));
+ paragraph("Mission : transporter des produits depuis la réserve et remplir les rayons.");
+ button(panel,"Planning de mise en rayon",showStockerPlanning);
+ if(!state.stockerHired)button(panel,"Recruter "+state.stockerName,()=>{state.stockerHired=true;state.stockerEnabled=true;save();showStockerManagement();});
+ else{
+  button(panel,state.stockerEnabled?"Suspendre l’affectation":"Réactiver l’affectation",()=>{state.stockerEnabled=!state.stockerEnabled;save();showStockerManagement();});
+  button(panel,"Rompre le contrat",()=>{state.stockerHired=false;state.stockerEnabled=false;save();showStockerManagement();});
+ }
+}
+function showStockerPlanning(){
+ openPanel("PLANNING — "+state.stockerName);
+ const days=["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+ days.forEach((name,i)=>{
+  const shift=state.stockerSchedule[i];
+  paragraph(name+" : "+(shift?formatHour(shift[0])+"–"+formatHour(shift[1]):"Repos"));
+  button(panel,name+" — modifier",()=>{
+   openPanel("HORAIRES — "+name);
+   const start=document.createElement("select"),end=document.createElement("select");
+   for(let h=8;h<=20;h++)for(const el of [start,end]){const opt=document.createElement("option");opt.value=h;opt.textContent=formatHour(h);el.appendChild(opt);}
+   start.value=shift?shift[0]:8;end.value=shift?shift[1]:17;
+   paragraph("Début");panel.appendChild(start);paragraph("Fin");panel.appendChild(end);
+   button(panel,"Enregistrer",()=>{if(+end.value<=+start.value){toast("Horaires invalides");return;}state.stockerSchedule[i]=[+start.value,+end.value];save();showStockerPlanning();});
+   button(panel,"Jour de repos",()=>{state.stockerSchedule[i]=null;save();showStockerPlanning();});
+   button(panel,"Retour",showStockerPlanning);
+  });
+ });
+ button(panel,state.stockerLeaveDays.includes(state.day)?"Annuler le congé du jour":"Congé aujourd’hui",()=>{
+  state.stockerLeaveDays=state.stockerLeaveDays.includes(state.day)?state.stockerLeaveDays.filter(d=>d!==state.day):[...state.stockerLeaveDays,state.day];save();showStockerPlanning();
+ });
+ button(panel,"Retour au personnel",showStockerManagement);
 }
 const FBA_START_DATE=new Date(Date.UTC(2027,0,1));
 const FBA_DAYS=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
@@ -1298,7 +1346,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.77 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.78 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1612,6 +1660,73 @@ function showWorkerInteraction(){
  });
  button(panel,"Terminer la conversation",()=>{panel.style.display="none";workerTalking=false;});
 }
+// Second salarié : déplacements entre la réserve et les gondoles.
+const stockerGroup=new THREE.Group();
+const stockerMat=new THREE.MeshStandardMaterial({color:0x16a34a});
+const stockerSkin=new THREE.MeshStandardMaterial({color:0xd6a47e});
+const stockerPants=new THREE.MeshStandardMaterial({color:0x1e293b});
+function stockerPart(w,h,d,x,y,z,mat){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);stockerGroup.add(m);return m;
+}
+stockerPart(.65,.85,.35,0,1.15,0,stockerMat);
+stockerPart(.36,.36,.34,0,1.82,0,stockerSkin);
+const stockerLegA=stockerPart(.2,.8,.23,-.17,.4,0,stockerPants);
+const stockerLegB=stockerPart(.2,.8,.23,.17,.4,0,stockerPants);
+const stockerArmA=stockerPart(.18,.7,.2,-.43,1.13,0,stockerSkin);
+const stockerArmB=stockerPart(.18,.7,.2,.43,1.13,0,stockerSkin);
+const stockerCarton=stockerPart(.55,.42,.48,0,1.05,-.4,new THREE.MeshStandardMaterial({color:0xb98246}));
+scene.add(stockerGroup);
+stockerGroup.position.set(13,0,5);
+let stockerTarget=null,stockerPhase="idle",stockerCargo=null,stockerTimer=0,stockerWalk=0,stockerTalking=false;
+function stockerNeeds(){
+ return catalog.find(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
+ (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0));
+}
+function showStockerInteraction(){
+ stockerTalking=true;openPanel("DISCUSSION — "+state.stockerName);
+ paragraph(state.stockerName+" : Salut "+state.playerName+" ! Je m’occupe des rayons.");
+ button(panel,"Tu fais quoi ?",()=>{panel.style.display="none";toast(state.stockerName+" : "+(stockerCargo?"Je remplis les rayons.":"Je vérifie les stocks."));stockerTalking=false;});
+ button(panel,"Tu peux rentrer chez toi",()=>{state.stockerSentHomeDay=state.day;stockerTalking=false;panel.style.display="none";save();toast(state.stockerName+" : À demain !");});
+ button(panel,"Terminer",()=>{stockerTalking=false;panel.style.display="none";});
+}
+function updateStocker(dt){
+ const shift=stockerShift();
+ const onDuty=state.stockerHired&&state.stockerEnabled&&shift&&state.stockerSentHomeDay!==state.day&&state.hour>=shift[0]&&state.hour<shift[1]&&!(state.hour>=12&&state.hour<13);
+ stockerGroup.visible=!!onDuty;
+ if(!onDuty||stockerTalking)return;
+ if(stockerTimer>0){stockerTimer-=dt;return;}
+ if(!stockerTarget){
+  if(!stockerCargo){
+   const p=stockerNeeds();if(!p){stockerGroup.position.set(13,0,5);stockerPhase="idle";return;}
+   stockerCargo=p.id;stockerPhase="reserve";stockerTarget=[coldProduct(p)?19:13,5];
+  }else{
+   const p=catalog.find(x=>x.id===stockerCargo);
+   stockerPhase="shelf";stockerTarget=[p.x,p.z??1];
+  }
+ }
+ const dx=stockerTarget[0]-stockerGroup.position.x,dz=stockerTarget[1]-stockerGroup.position.z;
+ const dist=Math.hypot(dx,dz),step=dt*2.5;
+ if(dist>step){
+  stockerGroup.position.x+=dx/dist*step;stockerGroup.position.z+=dz/dist*step;
+  stockerGroup.rotation.y=Math.atan2(-dx,-dz);
+  stockerWalk+=dt*9;stockerLegA.rotation.x=Math.sin(stockerWalk)*.35;stockerLegB.rotation.x=-stockerLegA.rotation.x;
+  stockerArmA.rotation.x=-stockerLegA.rotation.x*.5;stockerArmB.rotation.x=-stockerLegB.rotation.x*.5;
+  return;
+ }
+ stockerGroup.position.x=stockerTarget[0];stockerGroup.position.z=stockerTarget[1];stockerTarget=null;
+ stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;
+ if(stockerPhase==="reserve"){
+  const a=state.inventory[stockerCargo];
+  if(a.boxes>0){a.boxes--;stockerCarton.visible=true;stockerPhase="shelf";stockerTarget=[catalog.find(p=>p.id===stockerCargo).x,catalog.find(p=>p.id===stockerCargo).z??1];stockerUnits=BOX_UNITS;}
+  else if(a.reserve>0){stockerUnits=Math.min(BOX_UNITS,a.reserve);a.reserve-=stockerUnits;stockerCarton.visible=true;stockerPhase="shelf";stockerTarget=[catalog.find(p=>p.id===stockerCargo).x,catalog.find(p=>p.id===stockerCargo).z??1];}
+  else{stockerCargo=null;stockerPhase="idle";}
+ }else if(stockerPhase==="shelf"){
+  const p=catalog.find(x=>x.id===stockerCargo),a=state.inventory[p.id];
+  const qty=Math.min(stockerUnits,shelfCapacity(p)-a.shelf);a.shelf+=qty;a.reserve+=stockerUnits-qty;
+  stockerCargo=null;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;sync();
+ }
+}
+let stockerUnits=0;
 function updateWorker(dt){
  const shift=workerShift();
  const onDuty=state.workerHired&&state.workerEnabled&&shift&&state.workerSentHomeDay!==state.day&&state.hour>=shift[0]&&state.hour<shift[1]&&!(state.hour>=12&&state.hour<13);
@@ -1753,6 +1868,7 @@ function interact(){
   toast("Suis le rayon "+p.name+" surligné en bleu puis appuie sur Interagir");
   return;
  }
+ if(stockerGroup.visible&&near(stockerGroup.position.x,stockerGroup.position.z,2.25)){showStockerInteraction();return;}
  if(state.workerEnabled&&workerGroup.visible&&near(workerGroup.position.x,workerGroup.position.z,2.25)){showWorkerInteraction();return;}
  if(near(25.65,-24.3,3.2)){showDeliveryDock();return;}
  if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
@@ -2112,7 +2228,8 @@ function business(dt){
   if(state.workerHired&&state.workerEnabled&&workerShift()&&state.workerSentHomeDay!==state.day){
    state.workerWageDue+=WORKER_DAILY_WAGE;state.workerDaysWorked++;
   }
-  if(finishedDate.getUTCDate()===new Date(Date.UTC(finishedDate.getUTCFullYear(),finishedDate.getUTCMonth()+1,0)).getUTCDate())settleWorkerPayroll();
+  if(state.stockerHired&&state.stockerEnabled&&stockerShift()&&state.stockerSentHomeDay!==state.day){state.stockerWageDue+=STOCKER_DAILY_WAGE;state.stockerDaysWorked++;}
+  if(finishedDate.getUTCDate()===new Date(Date.UTC(finishedDate.getUTCFullYear(),finishedDate.getUTCMonth()+1,0)).getUTCDate()){settleWorkerPayroll();const paid=Math.min(Math.max(0,state.money),state.stockerWageDue);state.money-=paid;state.stockerWageDue-=paid;state.stockerPaidTotal+=paid;}
   dayTimer=0;preopenTimer=0;state.hour=PREOPEN_SECONDS===0?OPEN_HOUR:PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
   dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
@@ -2130,8 +2247,8 @@ function animate(){
  const dt=Math.min(clock.getDelta(),.05),smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
- if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);updateWorker(dt);}
+ if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);updateWorker(dt);updateStocker(dt);}
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.77 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.78 !");
