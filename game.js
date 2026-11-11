@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.69 — version synchronisée
+// Business Empire Simulator V0.9.70 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -100,7 +100,7 @@ function showUpgrades(){
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
- return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
+ return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
  const s=initial();
@@ -109,6 +109,7 @@ function load(){
   if(current?.inventory){
    if(Number.isFinite(current.devLevel))s.devLevel=current.devLevel;
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
+   if(typeof current.workerEnabled==="boolean")s.workerEnabled=current.workerEnabled;
    if(Array.isArray(current.trolleyCargo))s.trolleyCargo=current.trolleyCargo.filter(it=>it&&catalog.some(p=>p.id===it.id)).slice(0,3).map(it=>({id:it.id}));
    if(["closed","morning"].includes(current.sundayMode))s.sundayMode=current.sundayMode;
    if(current.upgrades&&typeof current.upgrades==="object")for(const u of upgradeCatalog)s.upgrades[u.id]=current.upgrades[u.id]===true;
@@ -365,6 +366,18 @@ function showComputer(){
  button(panel,"Bilan financier",showFinance);
  button(panel,"Améliorations",showUpgrades);
  button(panel,"Calendrier et horaires",showCalendar);
+ button(panel,"Personnel — manutentionnaire",showWorkerManagement);
+}
+function showWorkerManagement(){
+ openPanel("PERSONNEL — Manutentionnaire");
+ paragraph("Prototype du premier employé 3D : manutention au quai et rangement des cartons en réserve.");
+ paragraph("État : "+(state.workerEnabled?"En service":"Non affecté")+".");
+ paragraph("Il travaille de 08:00 à 17:00 et respecte une pause de 12:00 à 13:00.");
+ paragraph("Il déplace un carton à la fois, dans la limite des capacités de stockage.");
+ paragraph("Version expérimentale : recrutement, contrats et salaires mensuels seront intégrés ultérieurement.");
+ button(panel,state.workerEnabled?"Désactiver le manutentionnaire":"Affecter un manutentionnaire (test)",()=>{
+  state.workerEnabled=!state.workerEnabled;save();showWorkerManagement();toast(state.workerEnabled?"Manutentionnaire affecté":"Manutentionnaire désactivé");
+ });
 }
 const FBA_START_DATE=new Date(Date.UTC(2027,0,1));
 const FBA_DAYS=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
@@ -1201,7 +1214,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.69 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.70 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1458,6 +1471,69 @@ function updateHandtruck(){
   if(box.visible){const p=catalog.find(p=>p.id===state.trolleyCargo[i].id);box.material.color.setHex(p?p.color:0xb98246);}
  });
  trolleyBoxes.forEach(b=>b.visible=false);
+}
+// Premier manutentionnaire : modèle 3D autonome, itinéraire quai → réserve.
+const workerGroup=new THREE.Group();
+const workerSkin=new THREE.MeshStandardMaterial({color:0xe5ac83});
+const workerVest=new THREE.MeshStandardMaterial({color:0xf59e0b});
+const workerPants=new THREE.MeshStandardMaterial({color:0x334155});
+function workerBox(w,h,d,x,y,z,mat){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);workerGroup.add(m);return m;
+}
+workerBox(.65,.85,.35,0,1.15,0,workerVest);
+workerBox(.37,.37,.35,0,1.82,0,workerSkin);
+workerBox(.22,.8,.23,-.18,.4,0,workerPants);
+workerBox(.22,.8,.23,.18,.4,0,workerPants);
+workerBox(.18,.75,.2,-.44,1.15,0,workerSkin);
+workerBox(.18,.75,.2,.44,1.15,0,workerSkin);
+const workerCarton=workerBox(.6,.45,.5,0,1.05,-.45,new THREE.MeshStandardMaterial({color:0xb98246}));
+scene.add(workerGroup);
+const workerRouteDock=[[25.65,-23.8],[25.65,-18],[25.65,-10],[25.65,0],[25.65,5.5]];
+const workerRouteDry=[[25.65,5.5],[24.7,5.5],[22,5.5],[19,5.5],[16.2,5.5],[14.2,5.5]];
+const workerRouteCold=[[25.65,5.5],[24.7,5.5],[22,5.5],[19.5,5.5]];
+let workerRoute=[],workerWaypoint=0,workerPhase="dock",workerCargo=null,workerWait=0;
+workerGroup.position.set(25.65,0,-23.8);
+function workerGo(route,phase){workerRoute=route.map(p=>p.slice());workerWaypoint=0;workerPhase=phase;}
+function updateWorker(dt){
+ const onDuty=state.workerEnabled&&state.hour>=8&&state.hour<17&&!(state.hour>=12&&state.hour<13);
+ workerGroup.visible=!!onDuty;
+ if(!onDuty)return;
+ if(workerWait>0){workerWait-=dt;return;}
+ if(!workerRoute.length){
+  if(workerCargo){
+   const p=catalog.find(p=>p.id===workerCargo.id);
+   workerGo((p&&coldProduct(p)?workerRouteCold:workerRouteDry).slice().reverse(),"storage");
+  }else if(state.deliveryDock.length){
+   workerGo(workerRouteDock.slice().reverse(),"pickup");
+  }else{workerGroup.position.set(25.65,0,-23.8);workerPhase="dock";return;}
+ }
+ const target=workerRoute[workerWaypoint];
+ if(target){
+  const dx=target[0]-workerGroup.position.x,dz=target[1]-workerGroup.position.z;
+  const dist=Math.hypot(dx,dz),step=dt*2.5;
+  if(dist<=step){workerGroup.position.x=target[0];workerGroup.position.z=target[1];workerWaypoint++;}
+  else{workerGroup.position.x+=dx/dist*step;workerGroup.position.z+=dz/dist*step;}
+  if(dist>.01)workerGroup.rotation.y=Math.atan2(-dx,-dz);
+ }
+ workerCarton.visible=!!workerCargo;
+ if(workerWaypoint<workerRoute.length)return;
+ workerRoute=[];workerWait=.7;
+ if(workerPhase==="pickup"){
+  const idx=state.deliveryDock.findIndex(it=>{
+   const p=catalog.find(p=>p.id===it.id);
+   return p&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&reserveBoxes()<reserveLimit();
+  });
+  if(idx>=0){workerCargo=state.deliveryDock.splice(idx,1)[0];refreshDeliveryDock();sync();
+   const p=catalog.find(p=>p.id===workerCargo.id);
+   workerGo(p&&coldProduct(p)?workerRouteCold:workerRouteDry,"storage");
+  }else workerGo(workerRouteDock,"dock");
+ }else if(workerPhase==="storage"&&workerCargo){
+  const p=catalog.find(p=>p.id===workerCargo.id);
+  if(p&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&reserveBoxes()<reserveLimit()){
+   state.inventory[p.id].boxes++;toast("Manutentionnaire : carton de "+p.name+" rangé");
+  }else state.deliveryDock.push(workerCargo);
+  workerCargo=null;sync();refreshDeliveryDock();workerGo((p&&coldProduct(p)?workerRouteCold:workerRouteDry).slice().reverse(),"dock");
+ }else if(workerPhase==="dock")workerRoute=[];
 }
 function refreshDeliveryDock(){
  const n=state.deliveryDock.length;
@@ -1919,8 +1995,8 @@ function animate(){
  const dt=Math.min(clock.getDelta(),.05),smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
- if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
+ if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);updateWorker(dt);}
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.69 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.70 !");
