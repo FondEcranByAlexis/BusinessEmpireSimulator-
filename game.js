@@ -644,6 +644,7 @@ cube(24,2.5,9.25,.3,5,15.5,0xcbd5e1,true);
 cube(19.65,2.5,1.5,8.7,5,.3,0xcbd5e1,true);
 cube(19.65,2.5,17,8.7,5,.3,0xcbd5e1,true);
 // Extension de la chambre froide vers l'arrière et l'est.
+cube(15.3,2.5,13.25,.3,5,7.5,0xdbeafe,true);
 cube(19.65,-.15,13.25,8.7,.3,7.5,0x9ccbdc);
 cube(19.65,5.1,13.25,8.7,.2,7.5,0xe0f2fe);
 cube(22.7,-.15,5.5,2.6,.3,8,0x9ccbdc);
@@ -680,7 +681,7 @@ cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 cube(12.65,-.15,12.8,5.3,.3,7.0,0xb9c1c8);
 cube(12.65,5.1,12.8,5.3,.2,7.0,0xf1f5f9);
 cube(10,2.5,12.8,.3,5,7,0xe2e8f0,true);
-cube(12.65,2.5,16.3,5.3,5,.3,0xe2e8f0,true);
+// Fond ouvert vers le sas de livraison.
 cube(11,2.5,17.05,2.0,5,.3,0xe2e8f0,true);
 cube(14.55,2.5,17.05,1.5,5,.3,0xe2e8f0,true);
 cube(12.75,4.2,17.05,2.1,1.6,.3,0xe2e8f0);
