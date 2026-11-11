@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.72 — version synchronisée
+// Business Empire Simulator V0.9.73 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -109,6 +109,8 @@ function load(){
   if(current?.inventory){
    if(Number.isFinite(current.devLevel))s.devLevel=current.devLevel;
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
+   if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
+   if(typeof current.workerName==="string")s.workerName=current.workerName.slice(0,24);
    if(typeof current.workerEnabled==="boolean")s.workerEnabled=current.workerEnabled;
    if(Array.isArray(current.trolleyCargo))s.trolleyCargo=current.trolleyCargo.filter(it=>it&&catalog.some(p=>p.id===it.id)).slice(0,3).map(it=>({id:it.id}));
    if(["closed","morning"].includes(current.sundayMode))s.sundayMode=current.sundayMode;
@@ -143,6 +145,8 @@ state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[]
 state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
 if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
 state.hour=8;
+state.playerName=state.playerName||"Joueur";
+state.workerName=state.workerName||"George";
 const finance=state.finance;
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
 function total(){return catalog.reduce((n,p)=>{const a=state.inventory[p.id];return n+a.shelf+a.reserve+a.boxes*BOX_UNITS;},0);}
@@ -366,10 +370,30 @@ function showComputer(){
  button(panel,"Bilan financier",showFinance);
  button(panel,"Améliorations",showUpgrades);
  button(panel,"Calendrier et horaires",showCalendar);
+ button(panel,"Personnaliser les prénoms",showNames);
  button(panel,"Personnel — manutentionnaire",showWorkerManagement);
 }
+function showNames(){
+ openPanel("PERSONNALISATION — Prénoms");
+ paragraph("Chaque partie possède ses propres prénoms. Ils sont enregistrés dans ta sauvegarde.");
+ const makeNameInput=(title,value)=>{
+  const label=document.createElement("label");label.textContent=title;label.style.display="block";label.style.marginTop="12px";panel.appendChild(label);
+  const field=document.createElement("input");field.type="text";field.maxLength=24;field.value=value;
+  Object.assign(field.style,{display:"block",width:"100%",padding:"10px",color:"#111",background:"#fff",borderRadius:"8px",marginTop:"5px"});
+  panel.appendChild(field);return field;
+ };
+ const player=makeNameInput("Ton prénom",state.playerName);
+ const worker=makeNameInput("Prénom du manutentionnaire",state.workerName);
+ button(panel,"Enregistrer les prénoms",()=>{
+  const a=player.value.trim(),b=worker.value.trim();
+  if(!a||!b){toast("Renseigne les deux prénoms");return;}
+  state.playerName=a;state.workerName=b;save();toast("Prénoms enregistrés");showNames();
+ });
+ button(panel,"Retour au personnel",showWorkerManagement);
+}
 function showWorkerManagement(){
- openPanel("PERSONNEL — Manutentionnaire");
+ openPanel("PERSONNEL — "+state.workerName);
+ button(panel,"Modifier les prénoms",showNames);
  paragraph("Prototype du premier employé 3D : manutention au quai et rangement des cartons en réserve.");
  paragraph("État : "+(state.workerEnabled?"En service":"Non affecté")+".");
  paragraph("Il travaille de 08:00 à 17:00 et respecte une pause de 12:00 à 13:00.");
@@ -1215,7 +1239,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.72 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.73 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1497,10 +1521,15 @@ workerGroup.position.set(25.65,0,-23.8);
 function workerGo(route,phase){workerRoute=route.map(p=>p.slice());workerWaypoint=0;workerPhase=phase;}
 function showWorkerInteraction(){
  if(!state.workerEnabled||!workerGroup.visible){toast("Le manutentionnaire n’est pas en service");return;}
- openPanel("DISCUSSION — Manutentionnaire");
+ openPanel("DISCUSSION — "+state.workerName);
+ paragraph(state.workerName+" : Salut "+state.playerName+" ! Tu as besoin de quelque chose ?");
  const p=workerCargo&&catalog.find(p=>p.id===workerCargo.id);
  paragraph("Statut : "+(workerTalking?"En discussion":p?"Transport d’un carton de "+p.name:workerPhase==="pickup"?"En route vers le quai":workerPhase==="storage"?"Rangement en réserve":"Disponible au quai")+".");
  paragraph("Cartons à décharger : "+state.deliveryDock.length+".");
+ button(panel,"Comment ça va ?",()=>{toast(state.workerName+" : Ça va bien, merci "+state.playerName+" !");});
+ button(panel,"Tu fais quoi ?",()=>{toast(state.workerName+" : "+(workerCargo?"Je range un carton.":state.deliveryDock.length?"Je m’occupe des livraisons.":"J’attends une livraison.") );});
+ button(panel,"Va décharger le camion",()=>{workerTalking=false;toast(state.workerName+" : "+(state.deliveryDock.length?"Pas de souci, j’y vais !":"Il n’y a aucun camion à décharger."));});
+ button(panel,"Combien de cartons restent ?",()=>{toast(state.workerName+" : Il reste "+state.deliveryDock.length+" carton(s) au quai.");});
  button(panel,workerTalking?"Reprendre le travail":"Lui parler — arrêter temporairement",()=>{
   workerTalking=!workerTalking;showWorkerInteraction();toast(workerTalking?"Le manutentionnaire t’écoute":"Le manutentionnaire reprend son travail");
  });
@@ -2022,4 +2051,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.72 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.73 !");
