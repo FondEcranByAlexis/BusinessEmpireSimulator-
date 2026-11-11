@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.84 — version synchronisée
+// Business Empire Simulator V0.9.85 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -551,25 +551,35 @@ function clearCheckoutVisual(){
  for(const m of checkoutVisual.models){scene.remove(m);m.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
  checkoutVisual=null;
 }
+// Les articles non scannés restent individualisés : le clic doit retirer le produit réellement touché.
+function checkoutRemaining(c){
+ if(!Array.isArray(c.checkoutRemaining)){
+  c.checkoutRemaining=Object.entries(c.basket).flatMap(([id,q])=>Array(Math.max(0,q)).fill(id));
+ }
+ return c.checkoutRemaining;
+}
 function renderCheckoutVisual(c){
  if(checkoutVisual?.customer===c&&checkoutVisual.scanned===c.scanned)return;
  clearCheckoutVisual();
- const ids=Object.entries(c.basket).flatMap(([id,q])=>Array(Math.max(0,q)).fill(id));
  const models=[];
- ids.slice(c.scanned,c.scanned+5).forEach((id,i)=>{
+ checkoutRemaining(c).slice(0,5).forEach((id,i)=>{
   const p=catalog.find(x=>x.id===id);if(!p)return;
   const m=productModel(p);m.scale.setScalar(.7);
   m.position.set(6.16-i*.23,1.28,6.44);
-  m.userData.checkoutArticle=true;
-  m.traverse(o=>{o.userData.checkoutArticle=true;});
+  // L'index correspond à la position dans la file, pas au type de produit.
+  m.traverse(o=>{o.userData.checkoutArticle=true;o.userData.checkoutSlot=i;});
   scene.add(m);models.push(m);
  });
  checkoutVisual={customer:c,scanned:c.scanned,models};
 }
-function scanCheckoutArticle(){
+function scanCheckoutArticle(slot){
  const c=cashier;if(!c||c.phase!=="checkout")return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(c.scanned>=count)return;
+ const remaining=checkoutRemaining(c);
+ // Seuls les cinq articles présents sur le tapis peuvent être scannés.
+ if(!Number.isInteger(slot)||slot<0||slot>=Math.min(remaining.length,5))return;
+ remaining.splice(slot,1);
  c.scanned++;
  renderCheckoutVisual(c);
  toast(c.scanned===count?"Tous les articles sont scannés":"Bip ! Article scanné");
@@ -1337,7 +1347,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.84 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.85 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1953,7 +1963,9 @@ canvas.addEventListener("pointerup",e=>{
  const pointer=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);
  checkoutRaycaster.setFromCamera(pointer,camera);
  const hits=checkoutRaycaster.intersectObjects(checkoutVisual.models,true);
- if(hits.length&&hits[0].object.userData.checkoutArticle)scanCheckoutArticle();
+ // Le premier objet touché détermine l'article retiré, même au milieu du tapis.
+ const hit=hits.find(h=>h.object.userData.checkoutArticle);
+ if(hit)scanCheckoutArticle(hit.object.userData.checkoutSlot);
 });
 canvas.addEventListener("pointerdown",e=>{
  if(lookPointer!==null)return;
@@ -2307,4 +2319,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.84 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.85 !");
