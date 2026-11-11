@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.26 — version synchronisée
+// Business Empire Simulator V0.9.27 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -478,7 +478,7 @@ function finishCheckout(c){
  if(c!==cashier)return;
  closeCheckoutUI();clearCheckoutVisual();cashier=null;c.phase="leaving";c.waypoint=0;
  // Sortie par le couloir central : ne jamais couper à travers le comptoir.
- c.route=[{x:3.15,z:5.15},{x:2.8,z:8.6},{x:0,z:8.6},{x:0,z:12.5}];
+ c.route=[{x:2.6,z:5.4},{x:2.6,z:8.6},{x:0,z:8.6},{x:0,z:12.5}];
  panel.style.display="none";
 }
 // Scène et éclairage léger
@@ -1024,7 +1024,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.26 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.27 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1336,7 +1336,7 @@ function makeCustomer(){
   route.push({x:aisleX,z:8},{x:aisleX,z:targetZ,shop:p.id},{x:aisleX,z:8});
  }
  // Accès caisse depuis l’allée centrale, sans diagonale à travers le meuble.
- route.push({x:3.4,z:4.5});
+ route.push({x:3.2,z:4.3});
  customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",stuckTime:0,lastNavX:0,lastNavZ:12.5});
 }
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
@@ -1408,7 +1408,7 @@ function walk(c,t,dt){
  const waypoint=c.navRoute[c.navIndex];
  if(!waypoint){c.navTarget=null;return true;}
  const dx=waypoint.x-p.x,dz=waypoint.z-p.z,dist=Math.hypot(dx,dz);
- if(dist<.08){c.navIndex++;if(c.navIndex>=c.navRoute.length){c.navTarget=null;return true;}return false;}
+ if(dist<.12){c.navIndex++;if(c.navIndex>=c.navRoute.length){c.navTarget=null;return true;}return false;}
  const step=Math.min(c.speed*dt,dist),nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
  if(customerBlocked(nx,nz,.27)){
   c.navTarget=null;c.navRoute=null;
@@ -1447,12 +1447,15 @@ function updateCustomers(dt){
    }
   }else if(c.phase==="queue"){
    const i=queue.indexOf(c);
-   if(i===0&&!cashier){
+   const target={x:3.2-Math.max(0,i)*.75,z:4.3};
+   const arrived=walk(c,target,dt);
+   if(i===0&&!cashier&&arrived){
     queue.shift();cashier=c;c.phase="checkout";c.scanned=0;
-    toast("Client en caisse : utilise l’ordinateur");
-   }else walk(c,{x:3.4-Math.max(0,i)*.7,z:4.5},dt);
+    toast("Client à la caisse : utilise Interagir");
+   }
   }else if(c.phase==="checkout"){
-   walk(c,{x:3.4,z:4.5},dt);
+   // Le client reste à sa place pendant le scan et le paiement.
+   c.l.rotation.x=0;c.r.rotation.x=0;
   }else if(c.phase==="leaving"){
    if(walk(c,c.route[c.waypoint],dt)){
     c.waypoint++;if(c.waypoint>=c.route.length)removeCustomer(c);
@@ -1517,4 +1520,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.26 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.27 !");
