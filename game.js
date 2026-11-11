@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.5 — version synchronisée
+// Business Empire Simulator V0.10.6 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -94,10 +94,13 @@ function hasProductLicense(p){
 function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p);}
 function unlockedProducts(){return catalog.filter(productAvailable);}
 function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=2?2:0);}
-const CONSTRUCTION_DURATION=90;
+const CONSTRUCTION_DAYS=3;
 function constructionStage(){
  const p=state.construction?.progress??0;
- return p<30?"Préparation du chantier":p<65?"Montage de la structure":"Finitions et contrôle";
+ return p<1?"Jour 1 : préparation":p<2?"Jour 2 : gros œuvre":"Jour 3 : finitions";
+}
+function constructionPercent(){
+ return Math.min(100,Math.floor((state.construction?.progress??0)/CONSTRUCTION_DAYS*100));
 }
 function showUpgrades(){
  openPanel("Améliorations du magasin");
@@ -110,7 +113,7 @@ function showUpgrades(){
   const underway=u.id==="store1"&&!!state.construction&&!owned;
   paragraph(u.name+" — "+(owned?"ACQUIS":underway?"CHANTIER EN COURS":euro(u.cost))+" | Niveau "+u.level+" requis");
   paragraph(u.description);
-  if(underway){paragraph("Ouvriers : "+Math.floor(state.construction.progress/CONSTRUCTION_DURATION*100)+" % — "+constructionStage());continue;}
+  if(underway){paragraph("Ouvriers : "+constructionPercent()+" % — "+constructionStage()+" (3 jours de travail)");continue;}
   if(owned)continue;
   const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires]);
   const b=button(panel,eligible?"Acheter — "+euro(u.cost):"Verrouillé — niveau "+u.level,()=>{
@@ -118,7 +121,7 @@ function showUpgrades(){
    if(state.money<u.cost){toast("Trésorerie insuffisante");return;}
    state.money-=u.cost;
    if(u.id==="store1"){
-    state.construction={progress:0};
+    state.construction={progress:0,units:"days"};
     sync();updateConstructionUI();showUpgrades();toast("Chantier lancé : les ouvriers arrivent !");
    }else{
     state.upgrades[u.id]=true;sync();showUpgrades();toast("Amélioration débloquée : "+u.name);
@@ -141,8 +144,11 @@ function load(){
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
-   if(!current.upgrades?.store1&&current.construction&&Number.isFinite(current.construction.progress))
-    s.construction={progress:Math.max(0,Math.min(CONSTRUCTION_DURATION,current.construction.progress))};
+   if(!current.upgrades?.store1&&current.construction&&Number.isFinite(current.construction.progress)){
+    // Anciennes sauvegardes V0.10.5 : l'avancement 0-90 s est migré.
+    const progress=current.construction.units==="days"?current.construction.progress:current.construction.progress/90*CONSTRUCTION_DAYS;
+    s.construction={progress:Math.max(0,Math.min(CONSTRUCTION_DAYS,progress)),units:"days"};
+   }
    if(typeof current.workerName==="string")s.workerName=current.workerName.slice(0,24);
    if(typeof current.stockerName==="string")s.stockerName=current.stockerName.slice(0,24);
    for(const k of ["stockerHired","stockerEnabled"])if(typeof current[k]==="boolean")s[k]=current[k];
@@ -190,7 +196,7 @@ const state=load();
 state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
 state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
 if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
-state.hour=8;
+state.hour=7;
 state.playerName=state.playerName||"Joueur";
 state.workerName=state.workerName||"George";
 state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSentHomeDay:0;
@@ -1269,7 +1275,7 @@ function updateConstructionUI(){
  if(ui){
   ui.style.display=active?"block":"none";
   if(active){
-   const pct=Math.min(100,Math.floor(state.construction.progress/CONSTRUCTION_DURATION*100));
+   const pct=constructionPercent();
    $("constructionProgress").textContent=pct+" %";
    $("constructionBar").style.width=pct+"%";
    $("constructionStage").textContent=constructionStage();
@@ -1279,14 +1285,16 @@ function updateConstructionUI(){
 }
 function updateConstruction(dt){
  if(!state.construction||state.upgrades.store1)return;
- state.construction.progress=Math.min(CONSTRUCTION_DURATION,state.construction.progress+dt);
+ // Une extension exige trois journées de travail : 8 h-20 h, magasin ouvert ou non.
+ if(state.hour>=OPEN_HOUR&&state.hour<CLOSE_HOUR&&!closing)
+  state.construction.progress=Math.min(CONSTRUCTION_DAYS,state.construction.progress+dt/DAY_SECONDS);
  constructionAnimation+=dt;constructionAutosave+=dt;
  for(const w of constructionCrew){
   w.arm.rotation.x=-.5+Math.sin(constructionAnimation*5+w.offset)*.8;
   w.group.position.y=.015*Math.abs(Math.sin(constructionAnimation*2+w.offset));
  }
  if(constructionAutosave>=5){constructionAutosave=0;save();}
- if(state.construction.progress>=CONSTRUCTION_DURATION){
+ if(state.construction.progress>=CONSTRUCTION_DAYS){
   state.construction=null;state.upgrades.store1=true;
   updateConstructionUI();sync();
   toast("Travaux terminés ! Extension et nouvelle réserve accessibles.");
@@ -2629,7 +2637,7 @@ function movePlayer(dt){
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
 const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
-const PREOPEN_HOUR=7,PREOPEN_SECONDS=0; // Mode test : préparation matinale désactivée
+const PREOPEN_HOUR=7,PREOPEN_SECONDS=45; // Préparation matinale de 7 h à 8 h
 let preopenTimer=0;
 function updateTime(){
  updateLighting();
@@ -2943,8 +2951,7 @@ openButton.addEventListener("click",()=>{
  dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert — affluence "+customerTraffic().label.toLowerCase());
 });
 function business(dt){
- // Mode test : passer immédiatement à 08:00 sans attente matinale.
- if(!dayStarted&&PREOPEN_SECONDS===0){state.hour=OPEN_HOUR;dayStarted=true;}
+ // Le joueur prépare son magasin entre 7 h et 8 h.
  if(!dayStarted){
   if(preopenTimer<PREOPEN_SECONDS){
    preopenTimer=Math.min(PREOPEN_SECONDS,preopenTimer+dt);
@@ -2977,7 +2984,7 @@ function business(dt){
   }
   if(state.stockerHired&&state.stockerEnabled&&stockerShift()&&state.stockerSentHomeDay!==state.day){state.stockerWageDue+=STOCKER_DAILY_WAGE;state.stockerDaysWorked++;}
   if(finishedDate.getUTCDate()===new Date(Date.UTC(finishedDate.getUTCFullYear(),finishedDate.getUTCMonth()+1,0)).getUTCDate()){settleWorkerPayroll();const paid=Math.min(Math.max(0,state.money),state.stockerWageDue);state.money-=paid;state.stockerWageDue-=paid;state.stockerPaidTotal+=paid;}
-  dayTimer=0;preopenTimer=0;state.hour=PREOPEN_SECONDS===0?OPEN_HOUR:PREOPEN_HOUR;state.day++;
+  dayTimer=0;preopenTimer=0;state.hour=PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
   dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
   updateOpen();sync();
@@ -2999,4 +3006,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.10.5 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.10.6 !");
