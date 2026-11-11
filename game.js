@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.68 — version synchronisée
+// Business Empire Simulator V0.9.69 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1201,7 +1201,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.68 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.69 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1436,15 +1436,28 @@ for(const x of [-.42,.42]){
 const trolleyBoxes=[];
 for(let i=0;i<3;i++){const b=trolleyPart(.67,.33,.49,0,.39+i*.35,.02,new THREE.MeshStandardMaterial({color:0xb98246}));trolleyBoxes.push(b);}
 scene.add(handtruckVisual);
+const handtruckHeldVisual=handtruckVisual.clone(true);
+handtruckHeldVisual.traverse(o=>{if(o.isMesh)o.material=o.material.clone();});
+camera.add(handtruckHeldVisual);
+scene.add(camera);
 function updateHandtruck(){
- handtruckVisual.visible=!!state.upgrades.handtruck;
- if(!handtruckVisual.visible)return;
- const carrying=state.trolleyCargo.length>0;
- if(carrying){
-  handtruckVisual.position.set(camera.position.x+Math.sin(yaw)*1.15,camera.position.y-1.55,camera.position.z+Math.cos(yaw)*1.15);
-  handtruckVisual.rotation.y=yaw;
- }else{handtruckVisual.position.set(25.3,0,-24.0);handtruckVisual.rotation.y=0;}
- trolleyBoxes.forEach((b,i)=>{b.visible=i<state.trolleyCargo.length;if(b.visible){const p=catalog.find(p=>p.id===state.trolleyCargo[i].id);b.material.color.setHex(p?p.color:0xb98246);}});
+ const purchased=!!state.upgrades.handtruck;
+ const carrying=purchased&&state.trolleyCargo.length>0;
+ handtruckVisual.visible=purchased&&!carrying;
+ handtruckHeldVisual.visible=carrying;
+ if(!purchased)return;
+ handtruckVisual.position.set(25.3,0,-24.0);
+ handtruckVisual.rotation.y=0;
+ // First-person attachment: in front of the camera, not behind the player's view.
+ handtruckHeldVisual.position.set(0,-1.02,-1.95);
+ handtruckHeldVisual.rotation.set(-.10,0,0);
+ handtruckHeldVisual.scale.set(.95,.95,.95);
+ const boxes=handtruckHeldVisual.children.filter(o=>o.isMesh&&o.geometry?.parameters?.width===.67);
+ boxes.forEach((box,i)=>{
+  box.visible=i<state.trolleyCargo.length;
+  if(box.visible){const p=catalog.find(p=>p.id===state.trolleyCargo[i].id);box.material.color.setHex(p?p.color:0xb98246);}
+ });
+ trolleyBoxes.forEach(b=>b.visible=false);
 }
 function refreshDeliveryDock(){
  const n=state.deliveryDock.length;
@@ -1625,7 +1638,7 @@ function movePlayer(dt){
  if(panel.style.display!=="none")return;
  const f=Number(keys.forward)-Number(keys.backward)-joyY,s=Number(keys.right)-Number(keys.left)+joyX;
  if(!f&&!s)return;
- const len=Math.max(1,Math.hypot(f,s)),speed=5.5*dt;
+ const len=Math.max(1,Math.hypot(f,s)),speed=(state.upgrades.handtruck&&state.trolleyCargo.length?3.7:5.5)*dt;
  const dx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)/len*speed;
  const dz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)/len*speed;
  if(!blocked(camera.position.x+dx,camera.position.z))camera.position.x+=dx;
@@ -1910,4 +1923,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.68 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.69 !");
