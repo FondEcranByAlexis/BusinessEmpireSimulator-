@@ -7,10 +7,10 @@
         content="width=device-width, initial-scale=1,
         maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#101820">
-  <title>Business Empire Simulator V0.10.4</title>
+  <title>Business Empire Simulator V0.10.5</title>
 
-  <link rel="stylesheet" href="style.css?v=0.10.4">
-<!-- FBA Games: retry GitHub Pages publication for V0.10.4 -->
+  <link rel="stylesheet" href="style.css?v=0.10.5">
+<!-- FBA Games: retry GitHub Pages publication for V0.10.5 -->
 </head>
 
 <body>
@@ -46,6 +46,12 @@
     <div id="trafficStatus" style="margin-top:3px;font-size:10px;color:#cbd5e1;text-align:right">Affluence : Élevée</div>
   </div>
 
+  <div id="constructionHud" style="display:none;position:fixed;top:100px;left:50%;transform:translateX(-50%);width:min(230px,32vw);min-width:165px;z-index:12;pointer-events:none;background:#0f172ae8;border:1px solid #eab308;border-radius:10px;padding:7px 10px;font-size:11px;color:white;box-shadow:0 3px 10px #0006">
+    <div style="display:flex;justify-content:space-between;gap:8px;font-weight:bold"><span>CHANTIER — EXTENSION</span><span id="constructionProgress">0 %</span></div>
+    <div style="height:7px;border-radius:8px;overflow:hidden;background:#334155;margin:5px 0"><div id="constructionBar" style="height:100%;background:#f59e0b;width:0%;transition:width .3s"></div></div>
+    <div id="constructionStage" style="color:#cbd5e1;font-size:10px">Préparation du chantier</div>
+  </div>
+
   <div id="crosshair">+</div>
 
   <div id="actions">
@@ -74,7 +80,7 @@
     document.getElementById("startLandscape").addEventListener("click",requestLandscape);
     document.getElementById("fullscreenLandscape").addEventListener("click",requestLandscape);
   </script>
-  <script type="module" src="game.js?v=0.10.4"></script>
+  <script type="module" src="game.js?v=0.10.5"></script>
 
 </body>
 </html>
