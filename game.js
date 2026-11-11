@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.57 — version synchronisée
+// Business Empire Simulator V0.9.58 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -669,7 +669,9 @@ cube(19.65,.14,16.82,8.4,.23,.08,0x64748b);
 // Plinthes sanitaires le long de la cloison, de part et d’autre de la porte froide.
 cube(15.48,.14,2.9,.08,.23,2.6,0x64748b);
 cube(15.48,.14,11.75,.08,.23,10.0,0x64748b);
-cube(23.82,.14,9.25,.08,.23,15.0,0x64748b);
+// Plinthe interrompue à la porte technique (z=4.25 à 6.65).
+cube(23.82,.14,2.875,.08,.23,2.75,0x64748b);
+cube(23.82,.14,11.825,.08,.23,10.35,0x64748b);
 const coldLight=cube(18.35,4.88,5.5,3.4,.045,.55,0xf8fafc);
 const coldLightGlow=new THREE.PointLight(0xbceeff,1.3,11);
 coldLightGlow.position.set(18.35,4.5,5.5);scene.add(coldLightGlow);
@@ -1179,7 +1181,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.57 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.58 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1378,7 +1380,7 @@ cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 cube(25.65,5.1,-8.3,3.1,.2,31.4,0xf1f5f9);
 // Fermeture de l'extrémité côté chambre froide : plus de vue sur l'extérieur.
 // L'accès latéral depuis la chambre froide (x=24, z=4.25..6.65) reste ouvert.
-cube(25.65,2.5,8.5,3.1,5,.25,0xe2e8f0,true);
+cube(25.65,2.5,7.9,3.1,5,.25,0xe2e8f0,true);
 // Sortie sur le quai : passage sur toute la largeur, sans mini-porte ni collision.
 // Le quai extérieur commence directement au bout du couloir.
 // Liaison depuis la porte technique de la chambre froide (z 4.25 à 6.65).
@@ -1817,4 +1819,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.57 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.58 !");
