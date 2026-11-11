@@ -940,7 +940,7 @@ function storageRack(x,z,face){
  colliders.push({minX:x-.44,maxX:x+.44,minZ:z-.82,maxZ:z+.82});
 }
 // Mur gauche : interruption sur 2,45 m au niveau de l'interrupteur.
-for(const z of [3.2,5.25,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
+for(const z of [3.1,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
  storageRack(10.75,z,1);
 // Mur droit : interruption devant l'accès de la chambre froide z=4.25 à 6.65.
 for(const z of [3.2,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
