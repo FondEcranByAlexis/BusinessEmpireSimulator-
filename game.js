@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.46 — version synchronisée
+// Business Empire Simulator V0.9.47 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -640,9 +640,18 @@ cube(15.13,1.7,6.65,.10,3.4,.10,0x64748b);
 cube(15.13,3.42,5.45,.10,.09,2.48,0x64748b);
 cube(18.35,-.15,5.5,6.1,.3,8,0x9ccbdc);
 cube(18.35,5.1,5.5,6.1,.2,8,0xe0f2fe);
-cube(21.4,2.5,5.5,.3,5,8,0xcbd5e1,true);
-cube(18.35,2.5,1.5,6.1,5,.3,0xcbd5e1,true);
-cube(18.35,2.5,9.5,6.1,5,.3,0xcbd5e1,true);
+cube(24,2.5,9.25,.3,5,15.5,0xcbd5e1,true);
+cube(19.65,2.5,1.5,8.7,5,.3,0xcbd5e1,true);
+cube(19.65,2.5,17,8.7,5,.3,0xcbd5e1,true);
+// Extension de la chambre froide vers l'arrière et l'est.
+cube(19.65,-.15,13.25,8.7,.3,7.5,0x9ccbdc);
+cube(19.65,5.1,13.25,8.7,.2,7.5,0xe0f2fe);
+cube(22.7,-.15,5.5,2.6,.3,8,0x9ccbdc);
+cube(22.7,5.1,5.5,2.6,.2,8,0xe0f2fe);
+for(const x of [16.6,22.5])for(const z of [11,14.8]){
+ for(const y of [.65,1.7,2.75])cube(x,y,z,1.45,.09,1.5,0x94a3b8);
+ for(const dx of [-.65,.65])for(const dz of [-.65,.65])cube(x+dx,1.6,z+dz,.07,3.2,.07,0x64748b);
+}
 // Sol antidérapant et plinthes sanitaires.
 const coldFloor=cube(18.35,.016,5.5,5.8,.025,7.65,0xb7dce8);
 for(const z of [1.75,9.23])cube(18.35,.14,z,5.8,.23,.08,0x64748b);
@@ -665,8 +674,21 @@ for(const x of [16.35,20.15]){
 const coldSign=(()=>{const c=document.createElement("canvas");c.width=512;c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="#0c4a6e";ctx.fillRect(0,0,512,128);ctx.fillStyle="#e0f2fe";ctx.textAlign="center";ctx.font="bold 45px Arial";ctx.fillText("CHAMBRE FROIDE",256,80);const m=new THREE.Mesh(new THREE.PlaneGeometry(2.8,.7),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),side:THREE.DoubleSide}));m.position.set(15.08,4.1,5.45);m.rotation.y=-Math.PI/2;scene.add(m);return m;})();
 
 cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
+// Passage libre entre ancienne réserve et agrandissement (ancien mur du fond supprimé).
 // Cloison de fond continue et opaque : l'interrupteur est fixé sur sa face intérieure.
-cube(12.65,2.5,9.35,5.3,5,.3,0xe2e8f0,true);
+// Réserve prolongée vers l'arrière, avec porte logistique vers le quai.
+cube(12.65,-.15,12.8,5.3,.3,7.0,0xb9c1c8);
+cube(12.65,5.1,12.8,5.3,.2,7.0,0xf1f5f9);
+cube(10,2.5,12.8,.3,5,7,0xe2e8f0,true);
+cube(12.65,2.5,16.3,5.3,5,.3,0xe2e8f0,true);
+cube(11,2.5,17.05,2.0,5,.3,0xe2e8f0,true);
+cube(14.55,2.5,17.05,1.5,5,.3,0xe2e8f0,true);
+cube(12.75,4.2,17.05,2.1,1.6,.3,0xe2e8f0);
+// Rayonnages de réserve agrandie, de type magasin : 3 plateaux.
+for(const x of [11.0,14.3])for(const z of [11.0,14.3]){
+ for(const y of [.7,1.75,2.8])cube(x,y,z,.85,.09,1.4,0x94a3b8);
+ for(const dx of [-.37,.37])for(const dz of [-.62,.62])cube(x+dx,1.65,z+dz,.06,3.3,.06,0x64748b);
+}
 // Ouverture rectangulaire de 3 m, du sol jusqu’à 3,4 m, sans panneau suspendu.
 // Mur arrière avec passage central réservé à la première extension.
 cube(-6,2.5,-10,8,5,.3,0xe2e8f0,true);
@@ -1130,7 +1152,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.46 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.47 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1257,8 +1279,8 @@ function refreshCarry(){
  updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
-function atReserve(){return near(12.5,5.5,3.1);}
-function atColdRoom(){return camera.position.x>15.5&&camera.position.x<21.2&&camera.position.z>1.8&&camera.position.z<9.2;}
+function atReserve(){return camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<16.85;}
+function atColdRoom(){return camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
 function atStorageFor(p){return coldProduct(p)?atColdRoom():atReserve();}
 function putBack(){
  if(!held)return;
@@ -1320,15 +1342,15 @@ function showDisposal(p){
  button(panel,"Annuler",showReserve);
 }
 // Quai logistique : zone de réception et camion visibles côté arrière de la réserve.
-const dockFloor=cube(0,.045,11.45,4.4,.09,3.5,0x64748b);
-const dockMark=cube(0,.105,10.0,4.0,.018,.09,0xfacc15);
+const dockFloor=cube(12.65,.045,19.0,4.4,.09,3.5,0x64748b);
+const dockMark=cube(12.65,.105,17.4,4.0,.018,.09,0xfacc15);
 const deliveryTruck=new THREE.Group();scene.add(deliveryTruck);
-const truckBody=cube(0,1.65,16.3,3.5,2.8,4.2,0xe2e8f0);
-const truckCab=cube(0,1.15,18.9,3.2,2,1.3,0x2563eb);
-const truckStripe=cube(0,2.45,18.41,2.5,.3,.05,0xfacc15);
+const truckBody=cube(12.65,1.65,23.5,3.5,2.8,4.2,0xe2e8f0);
+const truckCab=cube(12.65,1.15,26.1,3.2,2,1.3,0x2563eb);
+const truckStripe=cube(12.65,2.45,25.61,2.5,.3,.05,0xfacc15);
 const dockCartons=[];
 for(let i=0;i<8;i++){
- const m=cube(-1.1+(i%3)*1.05,.4+Math.floor(i/3)*.7,11.1,.72,.65,.72,0xb98246);
+ const m=cube(11.55+(i%3)*1.05,.4+Math.floor(i/3)*.7,18.5,.72,.65,.72,0xb98246);
  dockCartons.push(m);
 }
 function refreshDeliveryDock(){
@@ -1340,7 +1362,7 @@ function refreshDeliveryDock(){
  });
 }
 function showDeliveryDock(){
- if(!near(0,11.45,2.6)){toast("Approche-toi de la zone livraison");return;}
+ if(!near(12.65,18.5,2.6)){toast("Approche-toi de la zone livraison");return;}
  openPanel("ZONE LIVRAISON — Déchargement");
  if(held){paragraph("Rends-toi dans la réserve correspondante pour ranger ton carton.");return;}
  if(!state.deliveryDock.length){paragraph("Aucun camion à décharger pour le moment.");return;}
@@ -1464,13 +1486,17 @@ document.addEventListener("keydown",e=>{if(keyMap[e.code]){keys[keyMap[e.code]]=
 document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=false;});
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;joystickPointer=null;joyX=0;joyY=0;stick.style.transform="translate(0px,0px)";});
 function blocked(x,z,r=.4){
- // La chambre froide prolonge la réserve jusqu'à x=21.4.
- // Limites adaptées à la géométrie réelle, avec porte libre z=4.25..6.65.
- if(x< -9.45+r||x>21.25-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>(Math.abs(x)<2.15?13.45:9.45)-r)return true;
- if(x>15.0&&x<15.6&&!(z>4.25+r&&z<6.65-r))return true;
- if(x>15.6&&(z<1.65+r||z>9.35-r))return true;
- if(x>9.45&&x<10.55&&!(z>4.05&&z<6.95))return true;
- if(x>10.5&&(z<1.85||z>9.15))return true;
+ // Plan : vente, réserve sèche agrandie, chambre froide et quai arrière.
+ if(x< -9.45+r||z<(state.upgrades.store1?-21.45:-9.45)+r)return true;
+ const shop=x<=9.45&&z<=9.45;
+ const reserve=x>10.35&&x<15.05&&z>1.8&&z<16.85;
+ const cold=x>15.55&&x<23.75&&z>1.8&&z<16.8;
+ const dock=x>10.45&&x<14.85&&z>=16.65&&z<20.75;
+ const entrance=Math.abs(x)<2.15&&z>9.0&&z<13.45;
+ const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
+ const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
+ const dockDoor=x>11.8&&x<13.7&&z>16.6&&z<17.4;
+ if(!(shop||reserve||cold||dock||entrance||reserveDoor||coldDoor||dockDoor))return true;
  return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 function movePlayer(dt){
@@ -1749,4 +1775,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.46 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.47 !");
