@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.87 — version synchronisée
+// Business Empire Simulator V0.9.88 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -459,7 +459,7 @@ function showWorkerManagement(){
  button(panel,"Modifier les prénoms",showNames);
  button(panel,"Voir / modifier le planning",showWorkerPlanning);
  paragraph("Contrat : "+(state.workerHired?"CDI — manutentionnaire":"Aucun contrat")+".");
- paragraph("Statut actuel : "+employeeStatus(state.workerHired,state.workerEnabled,state.workerSentHomeDay,workerShift())+".");
+ paragraph("Statut actuel : "+(employeeBreakLabel(workerBreakJourney)||employeeStatus(state.workerHired,state.workerEnabled,state.workerSentHomeDay,workerShift()))+".");
  paragraph("Tâche : "+workerTaskLabel()+".");
  paragraph("Horaires : selon le planning enregistré, pause déjeuner 12:00–13:00.");
  paragraph("Salaire de simulation : "+euro(WORKER_DAILY_WAGE)+" par journée travaillée, versé en fin de mois.");
@@ -507,7 +507,7 @@ function showStockerManagement(){
  const input=document.createElement("input");input.value=state.stockerName;input.maxLength=24;input.style.width="100%";panel.appendChild(input);
  button(panel,"Enregistrer le prénom",()=>{state.stockerName=input.value.trim().slice(0,24)||"Camille";save();showStockerManagement();});
  paragraph("Contrat : "+(state.stockerHired?"CDI":"Non recruté"));
- paragraph("Statut actuel : "+employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift())+".");
+ paragraph("Statut actuel : "+(employeeBreakLabel(stockerBreakJourney)||employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift()))+".");
  paragraph("Tâche : "+stockerTaskLabel()+".");
  paragraph("Salaire : "+euro(STOCKER_DAILY_WAGE)+"/journée | Dû : "+euro(state.stockerWageDue)+" | Versé : "+euro(state.stockerPaidTotal));
  paragraph("Mission : transporter des produits depuis la réserve et remplir les rayons.");
@@ -544,10 +544,10 @@ function showEmployeeOverview(){
  openPanel("ÉQUIPE — PRÉSENCE ET MISSIONS");
  paragraph("Heure du magasin : "+formatHour(state.hour)+". Pause déjeuner automatique de 12:00 à 13:00.");
  paragraph(state.workerName+" — Manutentionnaire");
- paragraph("Présence : "+employeeStatus(state.workerHired,state.workerEnabled,state.workerSentHomeDay,workerShift()));
+ paragraph("Présence : "+(employeeBreakLabel(workerBreakJourney)||employeeStatus(state.workerHired,state.workerEnabled,state.workerSentHomeDay,workerShift())));
  paragraph("Mission : "+workerTaskLabel());
  paragraph(state.stockerName+" — Mise en rayon");
- paragraph("Présence : "+employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift()));
+ paragraph("Présence : "+(employeeBreakLabel(stockerBreakJourney)||employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift())));
  paragraph("Mission : "+stockerTaskLabel());
  button(panel,"Actualiser les statuts",showEmployeeOverview);
  button(panel,"Gérer le manutentionnaire",showWorkerManagement);
@@ -783,7 +783,7 @@ function updateLighting(){
  scene.background.setRGB(.055+.55*daylight,.09+.69*daylight,.17+.74*daylight);
  sun.intensity=.12+1.28*daylight;
  ambient.intensity=.25+1.95*daylight;
- for(const l of lamps)l.light.intensity=l.stockroom?(stockroomLightsOn?1.7:0):l.coldroom?(coldRoomLightsOn?1.8:0):(storeLightsOn&&(!l.extension||state.upgrades.store1)?1.35:0);
+ for(const l of lamps)l.light.intensity=l.breakroom?1.8:l.stockroom?(stockroomLightsOn?1.7:0):l.coldroom?(coldRoomLightsOn?1.8:0):(storeLightsOn&&(!l.extension||state.upgrades.store1)?1.35:0);
  if(typeof coldLightGlow!=="undefined")coldLightGlow.intensity=coldRoomLightsOn?1.8:0;
  if(typeof coldLight!=="undefined")coldLight.material.color.setHex(coldRoomLightsOn?0xf8fafc:0x64748b);
  if(typeof extendedColdLights!=="undefined")extendedColdLights.forEach(m=>m.material.color.setHex(coldRoomLightsOn?0xf8fafc:0x64748b));
@@ -1390,7 +1390,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.87 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.88 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1584,9 +1584,46 @@ function showDisposal(p){
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
 // Deux parois continues : côté chambre froide la paroi existante sert de mur,
 // puis un prolongement prend le relais jusqu'à l'arrière du magasin.
-cube(24.1,2.5,-11.25,.25,5,25.5,0xe2e8f0,true);
+// Porte de 2,6 m découpée dans la paroi ouest du couloir : accès à la salle de repos.
+cube(24.1,2.5,-15.65,.25,5,16.7,0xe2e8f0,true);
+cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
+cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 cube(25.65,5.1,-8.3,3.1,.2,31.4,0xf1f5f9);
+// Annexe du personnel à l'ouest du couloir logistique, hors des axes des livraisons.
+cube(20.95,-.15,-6,6.3,.3,6,0xa8b5c6);
+tileFloor(5.95,5.65,20.95,-6);
+cube(20.95,5.1,-6,6.3,.2,6,0xe2e8f0);
+cube(17.8,2.5,-6,.25,5,6,0xe2e8f0,true);
+cube(20.95,2.5,-9,6.3,5,.25,0xe2e8f0,true);
+cube(20.95,2.5,-3,6.3,5,.25,0xe2e8f0,true);
+// Huisserie et panneau d'accueil vus depuis le couloir.
+for(const z of [-7.3,-4.7])cube(24.16,1.65,z,.09,3.3,.09,0x64748b);
+cube(24.16,3.32,-6,.10,.12,2.62,0x64748b);
+const breakSignCanvas=document.createElement("canvas");breakSignCanvas.width=512;breakSignCanvas.height=160;
+const breakSignCtx=breakSignCanvas.getContext("2d");
+breakSignCtx.fillStyle="#0f172a";breakSignCtx.fillRect(0,0,512,160);
+breakSignCtx.fillStyle="#38bdf8";breakSignCtx.fillRect(0,0,512,12);
+breakSignCtx.fillStyle="#fff";breakSignCtx.textAlign="center";breakSignCtx.font="bold 48px Arial";
+breakSignCtx.fillText("SALLE DE REPOS",256,95);
+const breakSign=new THREE.Mesh(new THREE.PlaneGeometry(2.3,.7),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(breakSignCanvas),side:THREE.DoubleSide}));
+breakSign.position.set(24.29,3.85,-6);breakSign.rotation.y=Math.PI/2;scene.add(breakSign);
+// Mobilier : table, deux chaises, cafetière, micro-ondes et casiers.
+cube(19.8,.78,-6,1.35,.13,1.65,0x92400e,true);
+for(const x of [19.26,20.34])for(const z of [-6.64,-5.36])cube(x,.39,z,.09,.78,.09,0x475569);
+for(const z of [-4.9,-7.1]){
+ cube(21.05,.45,z,.72,.13,.68,0x334155,true);
+ cube(20.78,.87,z,.13,.85,.68,0x475569);
+ for(const zz of [z-.23,z+.23])cube(21.32,.23,zz,.07,.46,.07,0x475569);
+}
+cube(18.55,1.07,-4.15,1.02,2.12,.72,0xd1d5db,true);
+cube(18.93,1.45,-4.15,.04,.10,.08,0x475569);
+cube(18.55,1.22,-7.84,.95,.9,.73,0x64748b,true);
+cube(18.55,1.72,-7.84,.65,.38,.56,0x1f2937);
+cube(18.56,1.74,-7.47,.37,.07,.025,0x38bdf8);
+for(const x of [19.3,20.1])cube(x,1.1,-8.48,.65,2.2,.4,0x94a3b8,true);
+cube(20.95,4.92,-6,2.35,.08,.5,0xfff7db);
+lamps.push({light:ceilingLamp(20.95,-6),breakroom:true});
 // Fermeture de l'extrémité côté chambre froide : plus de vue sur l'extérieur.
 // L'accès latéral depuis la chambre froide (x=24, z=4.25..6.65) reste ouvert.
 cube(25.65,2.5,7.45,3.1,5,.25,0xe2e8f0,true);
@@ -1668,8 +1705,11 @@ const workerRouteDock=[[25.65,-23.8],[25.65,-18],[25.65,-10],[25.65,0],[25.65,5.
 const workerRouteDry=[[25.65,5.5],[24.7,5.5],[22,5.5],[19,5.5],[16.2,5.5],[14.2,5.5]];
 const workerRouteCold=[[25.65,5.5],[24.7,5.5],[22,5.5],[19.5,5.5]];
 let workerRoute=[],workerWaypoint=0,workerPhase="dock",workerCargo=null,workerWait=0,workerTalking=false,workerTalkTimer=0,workerWalkClock=0;
+let workerBreakJourney=null,stockerBreakJourney=null;
+const WORKER_BREAK_SEAT={x:22.2,z:-5.25},STOCKER_BREAK_SEAT={x:22.2,z:-6.75};
 workerGroup.position.set(25.65,0,-23.8);
 function workerTaskLabel(){
+ if(employeeBreakLabel(workerBreakJourney))return employeeBreakLabel(workerBreakJourney);
  if(workerCargo){const p=catalog.find(p=>p.id===workerCargo.id);return "Transport d’un carton"+(p?" de "+p.name:"");}
  if(workerRoute.length&&workerPhase==="pickup")return "En route pour décharger le quai";
  if(workerRoute.length&&workerPhase==="dock")return "Retour au quai";
@@ -1735,6 +1775,7 @@ function stockerNeeds(){
  (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0));
 }
 function stockerTaskLabel(){
+ if(employeeBreakLabel(stockerBreakJourney))return employeeBreakLabel(stockerBreakJourney);
  if(stockerCargo){const p=catalog.find(p=>p.id===stockerCargo);return "Réassort"+(p?" du rayon "+p.name:"");}
  if(stockerPhase==="idle-return")return "Retour vers la réserve";
  const waiting=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&(state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)).length;
@@ -1781,12 +1822,23 @@ function updateStocker(dt){
  const shift=stockerShift();
  const assigned=state.stockerHired&&state.stockerEnabled&&state.stockerSentHomeDay!==state.day;
  const onDuty=assigned&&employeeWorking(shift),onBreak=assigned&&employeeOnLunch(shift);
- // Pendant la pause, l'employé reste visible à sa position.
- stockerGroup.visible=!!(onDuty||onBreak);
- if(!onDuty){
-  stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;
+ if(!assigned)stockerBreakJourney=null;
+ if(onBreak&&!stockerBreakJourney)stockerBreakJourney=beginStaffBreak(stockerGroup,STOCKER_BREAK_SEAT);
+ stockerGroup.visible=!!(assigned&&(onDuty||onBreak||stockerBreakJourney));
+ const stop=()=>{stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;};
+ if(stockerBreakJourney){
+  if(!stockerTalking){
+   if(!onBreak)endStaffBreak(stockerBreakJourney);
+   const arrived=advanceStaffBreak(stockerGroup,stockerBreakJourney,dt,()=>{
+    stockerWalk+=dt*9;
+    stockerLegA.rotation.x=Math.sin(stockerWalk)*.35;stockerLegB.rotation.x=-stockerLegA.rotation.x;
+    stockerArmA.rotation.x=-stockerLegA.rotation.x*.5;stockerArmB.rotation.x=-stockerLegB.rotation.x*.5;
+   },stop);
+   if(arrived)stockerBreakJourney=null;
+  }else stop();
   return;
  }
+ if(!onDuty){stop();return;}
  if(stockerTalking)return;
  if(stockerTimer>0){stockerTimer-=dt;return;}
  if(!stockerTarget){
@@ -1830,13 +1882,26 @@ function updateWorker(dt){
  const shift=workerShift();
  const assigned=state.workerHired&&state.workerEnabled&&state.workerSentHomeDay!==state.day;
  const onDuty=assigned&&employeeWorking(shift),onBreak=assigned&&employeeOnLunch(shift);
- // Pause sur place : ne pas masquer le personnage ni le téléporter.
- workerGroup.visible=!!(onDuty||onBreak);
- if(!onDuty){
-  workerLeftLeg.rotation.x=workerRightLeg.rotation.x=workerLeftArm.rotation.x=workerRightArm.rotation.x=0;
+ if(!assigned)workerBreakJourney=null;
+ if(onBreak&&!workerBreakJourney)workerBreakJourney=beginStaffBreak(workerGroup,WORKER_BREAK_SEAT);
+ workerGroup.visible=!!(assigned&&(onDuty||onBreak||workerBreakJourney));
+ const stop=()=>{workerLeftLeg.rotation.x=workerRightLeg.rotation.x=workerLeftArm.rotation.x=workerRightArm.rotation.x=0;};
+ if(workerBreakJourney){
+  if(!workerTalking){
+   if(!onBreak)endStaffBreak(workerBreakJourney);
+   const arrived=advanceStaffBreak(workerGroup,workerBreakJourney,dt,()=>{
+    workerWalkClock+=dt*9;
+    const stride=Math.sin(workerWalkClock)*.34;
+    workerLeftLeg.rotation.x=stride;workerRightLeg.rotation.x=-stride;
+    workerLeftArm.rotation.x=workerCargo?-.55:-stride*.6;
+    workerRightArm.rotation.x=workerCargo?-.55:stride*.6;
+   },stop);
+   if(arrived)workerBreakJourney=null;
+  }else stop();
   return;
  }
- if(workerTalking){workerLeftLeg.rotation.x=workerRightLeg.rotation.x=0;workerLeftArm.rotation.x=workerRightArm.rotation.x=0;return;}
+ if(!onDuty){stop();return;}
+ if(workerTalking){stop();return;}
  if(workerWait>0){workerWait-=dt;return;}
  if(!workerRoute.length){
   if(workerCargo){
@@ -2100,8 +2165,102 @@ function blocked(x,z,r=.4){
  const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
  const serviceCorridor=x>24.3&&x<27.0&&z>-24.0&&z<6.6;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
- if(!(shop||reserve||cold||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock))return true;
+ const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
+ const breakDoor=x>23.5&&x<24.65&&z>-7.25+r&&z<-4.75-r;
+ if(!(shop||reserve||cold||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor))return true;
  return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
+}
+// Trajets employés sur la carte du bâtiment, sans traverser murs, rayons ni meubles.
+// Les chemins parcourus sont inversés après la pause : reprise au point de travail exact.
+function staffBreakPath(from,to){
+ const STEP=.5,MIN_X=-10,MIN_Z=-28,W=80,H=99;
+ const at=(i,j)=>({x:MIN_X+i*STEP,z:MIN_Z+j*STEP});
+ const node=p=>({i:Math.max(0,Math.min(W-1,Math.round((p.x-MIN_X)/STEP))),
+                 j:Math.max(0,Math.min(H-1,Math.round((p.z-MIN_Z)/STEP)))});
+ const free=(i,j)=>i>=0&&j>=0&&i<W&&j<H&&!blocked(MIN_X+i*STEP,MIN_Z+j*STEP,.22);
+ const nearest=p=>{
+  if(free(p.i,p.j))return p;
+  for(let radius=1;radius<=10;radius++){
+   for(let di=-radius;di<=radius;di++)for(let dj=-radius;dj<=radius;dj++){
+    if(Math.max(Math.abs(di),Math.abs(dj))===radius&&free(p.i+di,p.j+dj))return {i:p.i+di,j:p.j+dj};
+   }
+  }
+  return null;
+ };
+ const start=nearest(node(from)),goal=nearest(node(to));
+ if(!start||!goal)return [];
+ const key=(i,j)=>i+","+j,startKey=key(start.i,start.j),endKey=key(goal.i,goal.j);
+ const frontier=[{i:start.i,j:start.j,g:0,f:Math.hypot(start.i-goal.i,start.j-goal.j)}];
+ const costs=new Map([[startKey,0]]),parents=new Map(),visited=new Set();
+ while(frontier.length){
+  let index=0;
+  for(let k=1;k<frontier.length;k++)if(frontier[k].f<frontier[index].f)index=k;
+  const current=frontier.splice(index,1)[0],id=key(current.i,current.j);
+  if(visited.has(id))continue;
+  if(id===endKey){
+   const grid=[];let cursor=id;
+   while(cursor!==startKey){
+    const [i,j]=cursor.split(",").map(Number);grid.push(at(i,j));
+    cursor=parents.get(cursor);if(!cursor)return [];
+   }
+   grid.reverse();
+   return [{x:from.x,z:from.z},at(start.i,start.j),...grid,{x:to.x,z:to.z}];
+  }
+  visited.add(id);
+  for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){
+   const i=current.i+di,j=current.j+dj,nk=key(i,j);
+   if(!free(i,j)||visited.has(nk))continue;
+   const g=current.g+1;if(g>=(costs.get(nk)??Infinity))continue;
+   costs.set(nk,g);parents.set(nk,id);
+   frontier.push({i,j,g,f:g+Math.hypot(goal.i-i,goal.j-j)});
+  }
+ }
+ return [];
+}
+function beginStaffBreak(group,seat){
+ const from={x:group.position.x,z:group.position.z};
+ const outward=staffBreakPath(from,seat);
+ if(!outward.length){
+  console.warn("Trajet salle de repos inaccessible depuis",from);
+  return {stage:"blocked",outward:[from],route:[],index:0};
+ }
+ return {stage:"toRoom",outward,route:outward.slice(1),index:0};
+}
+function endStaffBreak(journey){
+ if(journey.stage==="returning"||journey.stage==="done")return;
+ if(journey.stage==="blocked"){journey.stage="done";return;}
+ // Si l'heure est déjà 13h avant l'arrivée, retourner depuis la dernière étape parcourue.
+ journey.route=(journey.stage==="toRoom"
+   ?journey.outward.slice(0,journey.index+1)
+   :journey.outward.slice(0,-1)).reverse();
+ journey.index=0;journey.stage="returning";
+}
+function advanceStaffBreak(group,journey,dt,walk,stop){
+ if(journey.stage==="blocked"||journey.stage==="atBreak"){stop();return false;}
+ const point=journey.route[journey.index];
+ if(!point){
+  journey.stage=journey.stage==="toRoom"?"atBreak":"done";stop();
+  return journey.stage==="done";
+ }
+ const p=group.position,dx=point.x-p.x,dz=point.z-p.z,dist=Math.hypot(dx,dz);
+ const step=Math.min(dist,dt*2.8);
+ if(dist>.001){
+  const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
+  if(!blocked(nx,nz,.20)){p.x=nx;p.z=nz;}
+  group.rotation.y=Math.atan2(-dx,-dz);walk();
+ }else stop();
+ if(Math.hypot(p.x-point.x,p.z-point.z)<.09)journey.index++;
+ if(journey.index>=journey.route.length){
+  journey.stage=journey.stage==="toRoom"?"atBreak":"done";stop();
+ }
+ return journey.stage==="done";
+}
+function employeeBreakLabel(journey){
+ if(!journey)return null;
+ if(journey.stage==="toRoom")return "En route vers la salle de repos";
+ if(journey.stage==="atBreak")return "En pause dans la salle de repos";
+ if(journey.stage==="returning")return "Retour vers son poste";
+ return null;
 }
 function movePlayer(dt){
  if(seatedAtCheckout||panel.style.display!=="none")return;
@@ -2400,4 +2559,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.87 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.88 !");
