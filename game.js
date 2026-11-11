@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.53 — version synchronisée
+// Business Empire Simulator V0.9.54 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -702,10 +702,8 @@ cube(15.3,2.5,16.6,.36,5,.9,0xe2e8f0,true);
 cube(10.18,2.5,17.0,.16,5,.65,0xe2e8f0);
 cube(15.12,2.5,17.0,.16,5,.65,0xe2e8f0);
 cube(12.65,5.04,16.7,5.3,.18,1.1,0xf1f5f9);
-// Fond ouvert vers le sas de livraison.
-cube(11,2.5,17.05,2.0,5,.3,0xe2e8f0,true);
-cube(14.55,2.5,17.05,1.5,5,.3,0xe2e8f0,true);
-cube(12.75,4.2,17.05,2.1,1.6,.3,0xe2e8f0);
+// Ancien accès au quai côté entrée définitivement condamné.
+cube(12.65,2.5,17.05,5.3,5,.3,0xe2e8f0,true);
 // Rayonnages de réserve agrandie, de type magasin : 3 plateaux.
 for(const x of [11.0,14.3])for(const z of [11.0,14.3]){
  for(const y of [.7,1.75,2.8])cube(x,y,z,.85,.09,1.4,0x94a3b8);
@@ -1179,7 +1177,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.53 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.54 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1371,8 +1369,17 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-9.0,3.1,.3,30.0,0xb9c1c8);
+// Deux parois continues : côté chambre froide la paroi existante sert de mur,
+// puis un prolongement prend le relais jusqu'à l'arrière du magasin.
+cube(24.1,2.5,-11.25,.25,5,25.5,0xe2e8f0,true);
 cube(27.2,2.5,-9.0,.25,5,30.0,0xe2e8f0,true);
 cube(25.65,5.1,-9.0,3.1,.2,30.0,0xf1f5f9);
+// Mur de fond du couloir avec porte centrale de 2 m vers le quai.
+cube(24.7,2.5,-23.95,1.2,5,.25,0xe2e8f0,true);
+cube(26.6,2.5,-23.95,1.2,5,.25,0xe2e8f0,true);
+cube(25.65,4.2,-23.95,1.0,1.6,.25,0xe2e8f0);
+// Seuil de sortie, passage conservé pour les cartons.
+cube(25.65,.06,-23.95,1.1,.06,.3,0x94a3b8);
 // Liaison depuis la porte technique de la chambre froide (z 4.25 à 6.65).
 cube(25.65,-.15,5.45,3.1,.3,2.6,0xb9c1c8);
 // Quai arrière extérieur, sans murs qui dépassent du bâtiment.
@@ -1528,7 +1535,7 @@ function blocked(x,z,r=.4){
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
  const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
- const serviceCorridor=x>24.2&&x<27.0&&z>-24.0&&z<6.6;
+ const serviceCorridor=x>24.3&&x<27.0&&z>-24.0&&z<6.6;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  if(!(shop||reserve||cold||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock))return true;
  return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
@@ -1809,4 +1816,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.53 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.54 !");
