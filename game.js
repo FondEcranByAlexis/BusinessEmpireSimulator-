@@ -96,9 +96,9 @@ function unlockedProducts(){return catalog.filter(productAvailable);}
 function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=2?2:0);}
 const CONSTRUCTION_DAYS=3;
 const CONSTRUCTION_START_HOUR=8,CONSTRUCTION_END_HOUR=17;
-const CONSTRUCTION_SHIFT_SECONDS=DAY_SECONDS*(CONSTRUCTION_END_HOUR-CONSTRUCTION_START_HOUR)/(CLOSE_HOUR-OPEN_HOUR);
+const CONSTRUCTION_SHIFT_SECONDS=450; // 600 s pour 12 heures : 9 heures = 450 s
 function constructionOnShift(){
- return !!state.construction&&!state.upgrades.store1&&!closing&&
+ return !!state.construction&&!state.upgrades.store1&&
   state.hour>=CONSTRUCTION_START_HOUR&&state.hour<CONSTRUCTION_END_HOUR;
 }
 function constructionStage(){
