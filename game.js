@@ -2249,7 +2249,9 @@ function advanceStaffBreak(group,journey,dt,walk,stop){
   if(!blocked(nx,nz,.20)){p.x=nx;p.z=nz;}
   group.rotation.y=Math.atan2(-dx,-dz);walk();
  }else stop();
- if(Math.hypot(p.x-point.x,p.z-point.z)<.09)journey.index++;
+ if(Math.hypot(p.x-point.x,p.z-point.z)<.09){
+  p.x=point.x;p.z=point.z;journey.index++;
+ }
  if(journey.index>=journey.route.length){
   journey.stage=journey.stage==="toRoom"?"atBreak":"done";stop();
  }
