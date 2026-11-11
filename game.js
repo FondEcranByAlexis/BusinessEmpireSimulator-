@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.18 — version synchronisée
+// Business Empire Simulator V0.9.19 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -930,7 +930,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.18 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.19 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1245,13 +1245,75 @@ function makeCustomer(){
  route.push({x:3.7,z:8.3},{x:3.7,z:4.5},{x:5.2,z:4.5});
  customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0});
 }
+// Navigation A* sur grille invisible : évite les collisions avec les rayons et la caisse.
+const NAV_STEP=.65,NAV_MIN_X=-9.1,NAV_MIN_Z=-21.1,NAV_W=37,NAV_H=54;
+function navNode(x,z){
+ return {i:Math.max(0,Math.min(NAV_W-1,Math.round((x-NAV_MIN_X)/NAV_STEP))),
+ j:Math.max(0,Math.min(NAV_H-1,Math.round((z-NAV_MIN_Z)/NAV_STEP)))};
+}
+function navPoint(i,j){return {x:NAV_MIN_X+i*NAV_STEP,z:NAV_MIN_Z+j*NAV_STEP};}
+function navPath(from,to){
+ const start=navNode(from.x,from.z),goal=navNode(to.x,to.z);
+ const free=(i,j)=>i>=0&&j>=0&&i<NAV_W&&j<NAV_H&&!blocked(NAV_MIN_X+i*NAV_STEP,NAV_MIN_Z+j*NAV_STEP,.28);
+ const nearest=n=>{
+  if(free(n.i,n.j))return n;
+  for(let radius=1;radius<=7;radius++){
+   let best=null,dist=Infinity;
+   for(let di=-radius;di<=radius;di++)for(let dj=-radius;dj<=radius;dj++){
+    if(Math.max(Math.abs(di),Math.abs(dj))!==radius||!free(n.i+di,n.j+dj))continue;
+    const d=di*di+dj*dj;if(d<dist){dist=d;best={i:n.i+di,j:n.j+dj};}
+   }
+   if(best)return best;
+  }
+  return null;
+ };
+ const a=nearest(start),b=nearest(goal);if(!a||!b)return [];
+ const key=(i,j)=>i+","+j,goalKey=key(b.i,b.j);
+ const open=[{i:a.i,j:a.j,g:0,f:Math.hypot(b.i-a.i,b.j-a.j)}];
+ const best=new Map([[key(a.i,a.j),0]]),parents=new Map(),closed=new Set();
+ while(open.length){
+  let index=0;for(let k=1;k<open.length;k++)if(open[k].f<open[index].f)index=k;
+  const n=open.splice(index,1)[0],nk=key(n.i,n.j);
+  if(closed.has(nk))continue;
+  if(nk===goalKey){
+   const path=[];let cursor=nk;
+   while(cursor&&cursor!==key(a.i,a.j)){
+    const [i,j]=cursor.split(",").map(Number);path.push(navPoint(i,j));cursor=parents.get(cursor);
+   }
+   path.reverse();
+   if(!blocked(to.x,to.z,.28))path.push({x:to.x,z:to.z});
+   return path;
+  }
+  closed.add(nk);
+  for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){
+   const i=n.i+di,j=n.j+dj,k=key(i,j);
+   if(!free(i,j)||closed.has(k))continue;
+   const g=n.g+1;if(g>=(best.get(k)??Infinity))continue;
+   best.set(k,g);parents.set(k,nk);
+   open.push({i,j,g,f:g+Math.hypot(b.i-i,b.j-j)});
+  }
+ }
+ return [];
+}
 function walk(c,t,dt){
- const p=c.group.position,dx=t.x-p.x,dz=t.z-p.z,dist=Math.hypot(dx,dz);
- if(dist<.05){c.l.rotation.x=0;c.r.rotation.x=0;return true;}
- const step=Math.min(c.speed*dt,dist);p.x+=dx/dist*step;p.z+=dz/dist*step;
- c.group.rotation.y=Math.atan2(-dx,-dz);
+ const p=c.group.position;
+ const targetKey=t.x.toFixed(2)+","+t.z.toFixed(2);
+ if(c.navTarget!==targetKey){
+  c.navTarget=targetKey;c.navRoute=navPath(p,t);c.navIndex=0;
+ }
+ if(!c.navRoute?.length){
+  // Ne jamais traverser un meuble si aucun chemin praticable n'existe.
+  c.l.rotation.x=0;c.r.rotation.x=0;return false;
+ }
+ const waypoint=c.navRoute[c.navIndex];
+ if(!waypoint){c.navTarget=null;return true;}
+ const dx=waypoint.x-p.x,dz=waypoint.z-p.z,dist=Math.hypot(dx,dz);
+ if(dist<.08){c.navIndex++;if(c.navIndex>=c.navRoute.length){c.navTarget=null;return true;}return false;}
+ const step=Math.min(c.speed*dt,dist),nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
+ if(blocked(nx,nz,.27)){c.navTarget=null;return false;}
+ p.x=nx;p.z=nz;c.group.rotation.y=Math.atan2(-dx,-dz);
  c.walkTime+=dt*9;c.l.rotation.x=Math.sin(c.walkTime)*.4;c.r.rotation.x=-Math.sin(c.walkTime)*.4;
- return step>=dist;
+ return false;
 }
 function removeCustomer(c){
  scene.remove(c.group);
@@ -1351,4 +1413,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.18 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.19 !");
