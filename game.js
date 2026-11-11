@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.2 — version synchronisée
+// Business Empire Simulator V0.10.3 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -117,7 +117,7 @@ function showUpgrades(){
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
- return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],stockerLeaveDays:[],stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
+ return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],stockerLeaveDays:[],stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,satisfaction:80,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
  const s=initial();
@@ -126,6 +126,7 @@ function load(){
   if(current?.inventory){
    if(Number.isFinite(current.devLevel))s.devLevel=current.devLevel;
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
+   if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
    if(typeof current.workerName==="string")s.workerName=current.workerName.slice(0,24);
    if(typeof current.stockerName==="string")s.stockerName=current.stockerName.slice(0,24);
@@ -181,7 +182,22 @@ state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSe
 const finance=state.finance;
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
 function total(){return catalog.reduce((n,p)=>{const a=state.inventory[p.id];return n+a.shelf+a.reserve+a.boxes*BOX_UNITS;},0);}
+function updateSatisfactionDisplay(){
+ const rating=Math.max(0,Math.min(100,Math.round(state.satisfaction??80)));
+ const fill=$("satisfactionFill"),value=$("satisfactionValue"),status=$("satisfactionStatus");
+ if(!fill||!value||!status)return;
+ const color=rating>=70?"#22c55e":rating>=40?"#f59e0b":"#ef4444";
+ fill.style.width=rating+"%";fill.style.background=color;
+ value.textContent=rating+" %";value.style.color=color;
+ status.textContent=rating>=85?"Excellente":rating>=70?"Bonne":rating>=40?"À améliorer":"Insatisfaits";
+}
+function changeSatisfaction(amount){
+ const old=state.satisfaction??80;
+ state.satisfaction=Math.max(0,Math.min(100,Math.round(old+amount)));
+ if(state.satisfaction!==old){updateSatisfactionDisplay();save();}
+}
 function hud(){
+ updateSatisfactionDisplay();
  $("money").textContent=Math.round(state.money).toLocaleString("fr-FR")+" €";
  $("day").textContent=state.day;
  $("stock").textContent=total();
@@ -727,6 +743,7 @@ function completeCheckoutPayment(c,count){
  state.money+=c.total;state.sales+=count;
  finance.revenue+=c.total;finance.transactions++;
  c.paid=true;
+ if(count>0)changeSatisfaction(c.waitPenalty?1:3);
  sync();finishCheckout(c);
  toast("Paiement accepté : +"+euro(c.total));
 }
@@ -2603,7 +2620,7 @@ function makeCustomer(){
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
   speed:1.2+Math.random()*.35,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,
   visualClock:Math.random()*6,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
-  stuckTime:0,shoppingTime:0,lastNavX:0,lastNavZ:12.5
+  stuckTime:0,shoppingTime:0,queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:0,lastNavZ:12.5
  });
 }
 function updateCustomerVisual(c,dt){
@@ -2766,11 +2783,16 @@ function updateCustomers(dt){
      if(quantity>0){
       a.shelf-=quantity;c.basket[c.productId]=(c.basket[c.productId]||0)+quantity;
       c.prices[c.productId]=a.price;c.total+=quantity*a.price;sync();
+     }else{
+      c.missingProducts++;
+      changeSatisfaction(-2);
      }
     }
     c.phase="shopping";
    }
   }else if(c.phase==="queue"){
+   c.queueElapsed+=dt;
+   if(c.queueElapsed>25&&!c.waitPenalty){c.waitPenalty=true;changeSatisfaction(-3);}
    const i=queue.indexOf(c);
    if(i<0){sendToExit(c);continue;}
    const target=queueSpot(i),p=c.group.position;
@@ -2792,9 +2814,11 @@ function updateCustomers(dt){
     }else if(i>0){
      // Les suivants attendent leur tour sans tenter de traverser les obstacles.
      c.l.rotation.x=c.r.rotation.x=0;
-    }else sendToExit(c);
+    }else{changeSatisfaction(-2);sendToExit(c);}
    }
   }else if(c.phase==="checkout"){
+   c.checkoutElapsed+=dt;
+   if(c.checkoutElapsed>45&&!c.waitPenalty){c.waitPenalty=true;changeSatisfaction(-3);}
    c.l.rotation.x=c.r.rotation.x=0;
   }else if(c.phase==="leaving"){
    const t=c.route[c.waypoint];
@@ -2886,4 +2910,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.10.2 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.10.3 !");
