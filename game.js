@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.32 — version synchronisée
+// Business Empire Simulator V0.9.33 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -391,7 +391,7 @@ function showCardPayment(c,count){
   checkoutText("FBA — TERMINAL BANCAIRE",true);
   checkoutText("Total à encaisser : "+euro(c.total),true);
   if(!amountConfirmed){
-   checkoutText("1. Saisis le montant en centimes (ex. 1250 = 12,50 €).");
+   checkoutText("1. Saisis le montant en euros (ex. 30 = 30 €).");
    const amountDisplay=document.createElement("div");
    Object.assign(amountDisplay.style,{fontSize:"18px",fontWeight:"bold",margin:"9px 0"});
    checkoutUI.appendChild(amountDisplay);
@@ -402,25 +402,21 @@ function showCardPayment(c,count){
     const b=document.createElement("button");b.textContent=digit;
     Object.assign(b.style,{minHeight:"40px",padding:"7px",fontSize:"19px",fontWeight:"bold",touchAction:"manipulation",background:"#334155",color:"#fff",border:"1px solid #64748b",borderRadius:"7px"});
     b.type="button";
-    const pressDigit=e=>{
+    // Uniquement click : le navigateur déduplique les interactions tactiles.
+    // Ne pas mélanger pointerup et click (double frappe sur certains Android).
+    b.addEventListener("click",e=>{
      e.preventDefault();e.stopPropagation();
-     entered=digit==="C"?"":digit==="⌫"?entered.slice(0,-1):(entered+digit).slice(0,9);
+     entered=digit==="C"?"":digit==="⌫"?entered.slice(0,-1):(entered+digit).slice(0,7);
      updateAmount();
-    };
-    // Un seul événement par appui : évite les clics fantômes sur Android.
-    if(window.PointerEvent){
-     b.addEventListener("pointerdown",e=>{e.stopPropagation();});
-     b.addEventListener("pointerup",pressDigit);
-     b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(e.detail===0)pressDigit(e);});
-    }else b.addEventListener("click",pressDigit);
+    });
     grid.appendChild(b);
    }
-   const ok=checkoutButton("Valider le montant",()=>{if(Number(entered)!==expected){toast("Saisis le montant exact");return;}amountConfirmed=true;draw();});
-   ok.disabled=Number(entered)!==expected;
-   ok.style.opacity=Number(entered)===expected?"1":".45";
+   const ok=checkoutButton("Valider le montant",()=>{if(Math.round(Number(entered)*100)!==expected){toast("Saisis le montant exact");return;}amountConfirmed=true;draw();});
+   ok.disabled=Math.round(Number(entered)*100)!==expected;
+   ok.style.opacity=Math.round(Number(entered)*100)===expected?"1":".45";
    function updateAmount(){
-    amountDisplay.textContent="Montant saisi : "+(entered?euro(Number(entered)/100):"0,00 €");
-    ok.disabled=Number(entered)!==expected;
+    amountDisplay.textContent="Montant saisi : "+(entered?euro(Number(entered)):"0,00 €");
+    ok.disabled=Math.round(Number(entered)*100)!==expected;
     ok.style.opacity=ok.disabled?".45":"1";
    }
    updateAmount();
@@ -1030,7 +1026,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.32 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.33 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1577,4 +1573,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.32 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.33 !");
