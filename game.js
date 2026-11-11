@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.19 — version synchronisée
+// Business Empire Simulator V0.9.20 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -930,7 +930,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.19 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.20 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1245,6 +1245,12 @@ function makeCustomer(){
  route.push({x:3.7,z:8.3},{x:3.7,z:4.5},{x:5.2,z:4.5});
  customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0});
 }
+// Zone réservée au personnel derrière la caisse : interdite aux clients.
+// Le joueur conserve son accès à l'ordinateur et au poste de travail.
+function customerBlocked(x,z,r=.28){
+ if(blocked(x,z,r))return true;
+ return x+r>4.35&&x-r<9.45&&z+r>7.15&&z-r<9.95;
+}
 // Navigation A* sur grille invisible : évite les collisions avec les rayons et la caisse.
 const NAV_STEP=.65,NAV_MIN_X=-9.1,NAV_MIN_Z=-21.1,NAV_W=37,NAV_H=54;
 function navNode(x,z){
@@ -1254,7 +1260,7 @@ function navNode(x,z){
 function navPoint(i,j){return {x:NAV_MIN_X+i*NAV_STEP,z:NAV_MIN_Z+j*NAV_STEP};}
 function navPath(from,to){
  const start=navNode(from.x,from.z),goal=navNode(to.x,to.z);
- const free=(i,j)=>i>=0&&j>=0&&i<NAV_W&&j<NAV_H&&!blocked(NAV_MIN_X+i*NAV_STEP,NAV_MIN_Z+j*NAV_STEP,.28);
+ const free=(i,j)=>i>=0&&j>=0&&i<NAV_W&&j<NAV_H&&!customerBlocked(NAV_MIN_X+i*NAV_STEP,NAV_MIN_Z+j*NAV_STEP,.28);
  const nearest=n=>{
   if(free(n.i,n.j))return n;
   for(let radius=1;radius<=7;radius++){
@@ -1281,7 +1287,7 @@ function navPath(from,to){
     const [i,j]=cursor.split(",").map(Number);path.push(navPoint(i,j));cursor=parents.get(cursor);
    }
    path.reverse();
-   if(!blocked(to.x,to.z,.28))path.push({x:to.x,z:to.z});
+   if(!customerBlocked(to.x,to.z,.28))path.push({x:to.x,z:to.z});
    return path;
   }
   closed.add(nk);
@@ -1310,7 +1316,7 @@ function walk(c,t,dt){
  const dx=waypoint.x-p.x,dz=waypoint.z-p.z,dist=Math.hypot(dx,dz);
  if(dist<.08){c.navIndex++;if(c.navIndex>=c.navRoute.length){c.navTarget=null;return true;}return false;}
  const step=Math.min(c.speed*dt,dist),nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
- if(blocked(nx,nz,.27)){c.navTarget=null;return false;}
+ if(customerBlocked(nx,nz,.27)){c.navTarget=null;return false;}
  p.x=nx;p.z=nz;c.group.rotation.y=Math.atan2(-dx,-dz);
  c.walkTime+=dt*9;c.l.rotation.x=Math.sin(c.walkTime)*.4;c.r.rotation.x=-Math.sin(c.walkTime)*.4;
  return false;
@@ -1413,4 +1419,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.19 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.20 !");
