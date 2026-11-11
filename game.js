@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.85 — version synchronisée
+// Business Empire Simulator V0.9.86 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -458,6 +458,18 @@ function showWorkerManagement(){
   button(panel,state.workerEnabled?"Suspendre l’affectation":"Réactiver l’affectation",()=>{
    state.workerEnabled=!state.workerEnabled;if(!state.workerEnabled)workerTalking=false;save();showWorkerManagement();
   });
+  if(state.workerSentHomeDay===state.day){
+   paragraph("Le départ anticipé est sauvegardé pour cette journée. Tu peux rappeler le salarié sans rompre son contrat.");
+   button(panel,"Rappeler "+state.workerName+" au travail",()=>{
+    state.workerSentHomeDay=0;
+    state.workerEnabled=true;
+    workerTalking=false;workerWait=0;
+    save();showWorkerManagement();
+    const shift=workerShift();
+    const available=shift&&state.hour>=shift[0]&&state.hour<shift[1]&&!(state.hour>=12&&state.hour<13);
+    toast(available?state.workerName+" est de retour au travail !":"Rappel confirmé : retour au prochain créneau de travail");
+   });
+  }
   if(state.workerWageDue>0)button(panel,"Verser les salaires dus",()=>{settleWorkerPayroll();sync();showWorkerManagement();});
   button(panel,"Rompre le contrat",()=>{
    if(workerCargo){toast("Attends qu’il dépose son carton");return;}
@@ -1347,7 +1359,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.85 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.86 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -2319,4 +2331,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.85 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.86 !");
