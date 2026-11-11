@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.90 — version synchronisée
+// Business Empire Simulator V0.9.91 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -10,9 +10,12 @@ const DEV_MODE=DEV_AUTHORIZED&&localStorage.getItem("fba-dev-enabled")==="true";
 if(DEV_ACTIVATION==="activer")history.replaceState(null,"",location.pathname);
 const SAVE=DEV_MODE?DEV_SAVE:NORMAL_SAVE;
 const catalog=[
- {id:"eau",name:"Eau",cost:2,price:4,color:0x38bdf8,x:-5},
- {id:"pates",name:"Pâtes",cost:3,price:6,color:0xfacc15,x:0},
- {id:"savon",name:"Savon",cost:5,price:10,color:0x4ade80,x:5},
+ {id:"eau",name:"Eau",cost:2,price:4,color:0x38bdf8,x:-5,z:-4,starter:true},
+ {id:"pates",name:"Pâtes",cost:3,price:6,color:0xfacc15,x:0,z:-4,starter:true},
+ {id:"savon",name:"Savon",cost:5,price:10,color:0x4ade80,x:5,z:-4,starter:true},
+ {id:"lait",name:"Lait",cost:4,price:8,color:0xf8fafc,x:-5,z:1,starter:true},
+ {id:"sucre",name:"Sucre",cost:3,price:7,color:0x93c5fd,x:0,z:1,starter:true},
+ {id:"farine",name:"Farine",cost:3,price:7,color:0xfde68a,x:5,z:1,starter:true},
  {id:"riz",name:"Riz",cost:4,price:8,color:0xfde68a,x:-8.5,z:-7,level:2,kind:"sec"},
  {id:"biscuits",name:"Biscuits",cost:5,price:11,color:0xf59e0b,x:8.5,z:-7,level:3,kind:"sec"},
  {id:"fromage",name:"Fromage",cost:8,price:17,color:0xfef08a,x:-8.5,z:-3.5,level:4,kind:"froid"},
@@ -24,8 +27,8 @@ const catalog=[
  {id:"chocolat",name:"Chocolat",cost:5,price:12,color:0x78350f,x:5,z:-15,level:4,kind:"extension",license:"extensionLicense"}
 ];
 const CAPACITY=30, BOX_UNITS=10;
-// Deux gondoles de 30 emplacements pour chaque produit de départ.
-function shelfCapacity(p){return !p.level&&p.kind!=="extension"?CAPACITY*2:CAPACITY;}
+// Six gondoles : une par produit de départ, 30 emplacements chacune.
+function shelfCapacity(p){return CAPACITY;}
 const upgradeCatalog=[
  {id:"handtruck",name:"Diable de manutention",level:1,cost:125,description:"Transporte jusqu’à 3 cartons du quai vers la réserve sèche et la chambre froide."},
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
@@ -134,6 +137,8 @@ function load(){
    for(const p of catalog){
     const src=current.inventory[p.id]||{},dst=s.inventory[p.id];
     for(const k of ["shelf","reserve","boxes"])if(Number.isFinite(src[k]))dst[k]=Math.max(0,Math.floor(src[k]));
+    // Le surplus d'une ancienne gondole double reste acquis et va en réserve.
+    if(p.starter&&dst.shelf>CAPACITY){dst.reserve+=dst.shelf-CAPACITY;dst.shelf=CAPACITY;}
     if(Number.isFinite(src.price))dst.price=Math.max(1,Math.round(src.price));
    }
   }else{
@@ -1181,7 +1186,7 @@ let fridgeDoor=null,fridgeOpen=false;
 for(const p of catalog){
  displays[p.id]=[];
  if(p.kind==="extension")continue;
- for(const z of (p.level?[p.z]:[-4,1])){
+ for(const z of (p.z!==undefined?[p.z]:[-4,1])){
   const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
   const mat=new THREE.MeshStandardMaterial({color:p.color});
   const group=new THREE.Group();group.position.set(p.x,0,z);
@@ -1372,11 +1377,11 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
  colliders.push({minX:p.x-1.4,maxX:p.x+1.4,minZ:p.z-.55,maxZ:p.z+.55,requiresUpgrade:"store1"});
 }
 
-for(const p of catalog.filter(p=>p.kind!=="extension"))for(const z of (p.level?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
+for(const p of catalog.filter(p=>p.kind!=="extension"))for(const z of (p.z!==undefined?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
 function refreshDisplays(){
  for(const p of catalog)displays[p.id].forEach((m,i)=>{
   const stock=state.inventory[p.id].shelf;
-  // Les 30 articles du stock commun sont répartis entre les deux meubles de départ.
+  // Chaque produit de départ occupe désormais une gondole.
   const visible=p.level||p.kind==="extension"?i<stock:i<stock;
   m.visible=productAvailable(p)&&visible;
  });
@@ -2065,7 +2070,7 @@ function showCheckoutSeatPrompt(){
 function interact(){
  if(held){
   const p=catalog.find(p=>p.id===held.id);
-  if(productAvailable(p)&&(p.level?near(p.x,p.z,2.2):(near(p.x,1,3.2)||near(p.x,-4,3.2)))){
+  if(productAvailable(p)&&near(p.x,p.z,2.75)){
    const a=state.inventory[p.id],space=Math.max(0,shelfCapacity(p)-a.shelf);
    if(!space){toast("Rayons "+p.name+" pleins");return;}
    const placed=Math.min(space,held.quantity);
@@ -2343,7 +2348,7 @@ function makeCustomer(){
  const route=[{x:0,z:8}];
  for(const p of choices){
   const aisleX=p.level?(p.x<0?-7.2:7.2):(p.x===5?2.5:p.x-2.5);
-  const targetZ=p.level?p.z:-1.5;
+  const targetZ=p.z??-1.5;
   route.push({x:aisleX,z:8},{x:aisleX,z:targetZ,shop:p.id},{x:aisleX,z:8});
  }
  route.push({x:3.65,z:6.25});
@@ -2636,4 +2641,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.90 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.91 !");
