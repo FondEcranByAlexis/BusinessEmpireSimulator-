@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.93 — version synchronisée
+// Business Empire Simulator V0.9.94 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1730,6 +1730,47 @@ function updateHandtruck(){
  });
  trolleyBoxes.forEach(b=>b.visible=false);
 }
+// Personnel : morphologies arrondies, visages expressifs et coiffures distinctes.
+function staffAppearance(group,isGeorge){
+ const skin=new THREE.MeshStandardMaterial({color:isGeorge?0xe5ac83:0xc98b68,roughness:.9});
+ const hair=new THREE.MeshStandardMaterial({color:isGeorge?0x493126:0x241d22,roughness:.95});
+ const cloth=new THREE.MeshStandardMaterial({color:isGeorge?0xf59e0b:0x16a34a});
+ const details=new THREE.MeshStandardMaterial({color:isGeorge?0xffd166:0x86efac});
+ const eyes=new THREE.MeshStandardMaterial({color:0x231b1b});
+ const boots=new THREE.MeshStandardMaterial({color:0x202a36});
+ const add=(geometry,material,x,y,z,sx=1,sy=1,sz=1)=>{
+  const m=new THREE.Mesh(geometry,material);m.position.set(x,y,z);m.scale.set(sx,sy,sz);group.add(m);return m;
+ };
+ add(new THREE.SphereGeometry(1,20,14),cloth,0,1.22,0,isGeorge?.36:.32,.47,.24);
+ add(new THREE.CylinderGeometry(.115,.12,.15,12),skin,0,1.65,0);
+ add(new THREE.SphereGeometry(.20,20,16),skin,0,1.84,.018,isGeorge?1.06:.99,1.12,.97);
+ for(const sign of [-1,1]){
+  add(new THREE.SphereGeometry(.055,10,8),skin,sign*.202,1.84,.01,.62,1,.6);
+  add(new THREE.SphereGeometry(.022,10,8),eyes,sign*.077,1.865,.205,1,.85,.45);
+  add(new THREE.SphereGeometry(.037,10,8),hair,sign*.077,1.924,.195,1,.19,.4);
+  add(new THREE.SphereGeometry(.13,12,10),boots,sign*.18,.1,.095,1,.47,1.42);
+ }
+ add(new THREE.SphereGeometry(.05,10,8),skin,0,1.805,.211,.75,.7,1);
+ add(new THREE.SphereGeometry(.045,10,8),eyes,0,1.731,.206,.8,.14,.13);
+ add(new THREE.SphereGeometry(.215,20,14),hair,0,2.008,-.018,1,.46,.94);
+ if(isGeorge){
+  // George : cheveux bruns courts coiffés sur le côté, barbe, veste orange.
+  add(new THREE.SphereGeometry(.155,14,10),hair,-.065,1.976,.11,1.08,.36,.65);
+  for(const side of [-1,1]){
+   add(new THREE.SphereGeometry(.08,12,8),hair,side*.17,1.955,-.02,.65,1.08,.95);
+   add(new THREE.BoxGeometry(.045,.67,.04),details,side*.20,1.19,.225);
+  }
+  add(new THREE.SphereGeometry(.15,14,10),hair,0,1.745,.07,.95,.31,.8);
+  add(new THREE.SphereGeometry(.11,12,8),skin,0,1.756,.153,1,.36,.6);
+ }else{
+  // Camille : cheveux noirs mi-longs, queue-de-cheval, tenue verte zippée.
+  for(const side of [-1,1])add(new THREE.SphereGeometry(.077,12,9),hair,side*.148,1.855,-.045,.84,2.0,1);
+  add(new THREE.SphereGeometry(.125,14,10),hair,0,1.81,-.22,.94,1.86,.85);
+  add(new THREE.SphereGeometry(.11,12,9),hair,.102,1.988,.105,1.3,.33,.58);
+  add(new THREE.BoxGeometry(.02,.56,.029),details,0,1.21,.236);
+  for(const side of [-1,1])add(new THREE.BoxGeometry(.10,.04,.03),details,side*.16,.96,.21);
+ }
+}
 // Premier manutentionnaire : modèle 3D autonome, itinéraire quai → réserve.
 const workerGroup=new THREE.Group();
 const workerSkin=new THREE.MeshStandardMaterial({color:0xe5ac83});
@@ -1738,12 +1779,11 @@ const workerPants=new THREE.MeshStandardMaterial({color:0x334155});
 function workerBox(w,h,d,x,y,z,mat){
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);workerGroup.add(m);return m;
 }
-workerBox(.65,.85,.35,0,1.15,0,workerVest);
-workerBox(.37,.37,.35,0,1.82,0,workerSkin);
-const workerLeftLeg=workerBox(.22,.8,.23,-.18,.4,0,workerPants);
-const workerRightLeg=workerBox(.22,.8,.23,.18,.4,0,workerPants);
-const workerLeftArm=workerBox(.18,.75,.2,-.44,1.15,0,workerSkin);
-const workerRightArm=workerBox(.18,.75,.2,.44,1.15,0,workerSkin);
+staffAppearance(workerGroup,true);
+const workerLeftLeg=workerBox(.22,.8,.23,-.18,.4,0,workerPants);workerLeftLeg.geometry=new THREE.CylinderGeometry(.115,.105,.8,12);
+const workerRightLeg=workerBox(.22,.8,.23,.18,.4,0,workerPants);workerRightLeg.geometry=new THREE.CylinderGeometry(.115,.105,.8,12);
+const workerLeftArm=workerBox(.18,.75,.2,-.44,1.15,0,workerSkin);workerLeftArm.geometry=new THREE.CapsuleGeometry(.095,.55,4,10);
+const workerRightArm=workerBox(.18,.75,.2,.44,1.15,0,workerSkin);workerRightArm.geometry=new THREE.CapsuleGeometry(.095,.55,4,10);
 const workerCarton=workerBox(.6,.45,.5,0,1.05,-.45,new THREE.MeshStandardMaterial({color:0xb98246}));
 scene.add(workerGroup);
 const workerRouteDock=[[25.65,-23.8],[25.65,-18],[25.65,-10],[25.65,0],[25.65,5.5]];
@@ -1805,12 +1845,11 @@ const stockerPants=new THREE.MeshStandardMaterial({color:0x1e293b});
 function stockerPart(w,h,d,x,y,z,mat){
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);stockerGroup.add(m);return m;
 }
-stockerPart(.65,.85,.35,0,1.15,0,stockerMat);
-stockerPart(.36,.36,.34,0,1.82,0,stockerSkin);
-const stockerLegA=stockerPart(.2,.8,.23,-.17,.4,0,stockerPants);
-const stockerLegB=stockerPart(.2,.8,.23,.17,.4,0,stockerPants);
-const stockerArmA=stockerPart(.18,.7,.2,-.43,1.13,0,stockerSkin);
-const stockerArmB=stockerPart(.18,.7,.2,.43,1.13,0,stockerSkin);
+staffAppearance(stockerGroup,false);
+const stockerLegA=stockerPart(.2,.8,.23,-.17,.4,0,stockerPants);stockerLegA.geometry=new THREE.CylinderGeometry(.105,.10,.8,12);
+const stockerLegB=stockerPart(.2,.8,.23,.17,.4,0,stockerPants);stockerLegB.geometry=new THREE.CylinderGeometry(.105,.10,.8,12);
+const stockerArmA=stockerPart(.18,.7,.2,-.43,1.13,0,stockerSkin);stockerArmA.geometry=new THREE.CapsuleGeometry(.093,.50,4,10);
+const stockerArmB=stockerPart(.18,.7,.2,.43,1.13,0,stockerSkin);stockerArmB.geometry=new THREE.CapsuleGeometry(.093,.50,4,10);
 const stockerCarton=stockerPart(.55,.42,.48,0,1.05,-.4,new THREE.MeshStandardMaterial({color:0xb98246}));
 scene.add(stockerGroup);
 stockerGroup.position.set(13,0,5);
@@ -2686,4 +2725,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.93 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.94 !");
