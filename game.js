@@ -195,6 +195,7 @@ function processSupplierOrders(){
  }
  if(changed){sync();toast("Livraison fournisseur arrivée dans les réserves !");}
 }
+setInterval(processSupplierOrders,1000);
 function checkoutSupplier(express){
  const items=Object.entries(supplierCart).filter(([id,q])=>q>0&&catalog.some(p=>p.id===id)).map(([id,qty])=>({id,qty}));
  if(!items.length){toast("Ton panier est vide");return;}
