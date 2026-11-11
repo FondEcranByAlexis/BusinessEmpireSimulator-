@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.44 — version synchronisée
+// Business Empire Simulator V0.9.45 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -111,6 +111,7 @@ function load(){
    if(current.upgrades&&typeof current.upgrades==="object")for(const u of upgradeCatalog)s.upgrades[u.id]=current.upgrades[u.id]===true;
    if(current.finance)for(const k of Object.keys(s.finance))if(Number.isFinite(current.finance[k])&&current.finance[k]>=0)s.finance[k]=current.finance[k];
    if(Array.isArray(current.supplierOrders))s.supplierOrders=current.supplierOrders.filter(o=>o&&Array.isArray(o.items)&&Number.isFinite(o.due));
+   if(Array.isArray(current.deliveryDock))s.deliveryDock=current.deliveryDock.filter(it=>it&&typeof it.id==="string"&&Number.isFinite(it.qty));
    // Une session rechargée démarre toujours en préparation à 08:00.
    s.hour=8;
    for(const p of catalog){
@@ -135,6 +136,7 @@ function load(){
 }
 const state=load();
 state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
+state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
 if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
 state.hour=8;
 const finance=state.finance;
@@ -170,8 +172,8 @@ function paragraph(t){
 }
 // Panier fournisseurs : paiement groupé, délai normal 30 s ou express 5 s.
 const supplierCart={};
-function pendingBoxes(id){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+(it.id===id?it.qty:0),0),0);}
-function pendingTotal(){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+it.qty,0),0);}
+function pendingBoxes(id){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+(it.id===id?it.qty:0),0),0)+state.deliveryDock.filter(it=>it.id===id).length;}
+function pendingTotal(){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+it.qty,0),0)+state.deliveryDock.length;}
 function cartCount(){return Object.values(supplierCart).reduce((n,v)=>n+v,0);}
 function cartSubtotal(){return catalog.reduce((n,p)=>n+(supplierCart[p.id]||0)*p.cost*BOX_UNITS,0);}
 function cartCapacity(){return reserveLimit()-reserveBoxes()-pendingTotal();}
@@ -188,12 +190,12 @@ function processSupplierOrders(){
   for(const it of order.items){
    const p=catalog.find(p=>p.id===it.id);
    if(!p)continue;
-   state.inventory[p.id].boxes+=it.qty;
+   for(let n=0;n<it.qty;n++)state.deliveryDock.push({id:it.id,qty:BOX_UNITS});
   }
   state.supplierOrders.splice(state.supplierOrders.indexOf(order),1);
   changed=true;
  }
- if(changed){sync();toast("Livraison fournisseur arrivée dans les réserves !");}
+ if(changed){sync();refreshDeliveryDock();toast("Camion arrivé ! Récupère les cartons à la zone livraison.");}
 }
 setInterval(processSupplierOrders,1000);
 function checkoutSupplier(express){
@@ -228,6 +230,7 @@ function showOrders(){
   button(panel,"PAYER — Normale 30 s : "+euro(cartSubtotal()),()=>checkoutSupplier(false));
   button(panel,"PAYER — Express 5 s (+20 %) : "+euro(Math.round(cartSubtotal()*120)/100),()=>checkoutSupplier(true));
  }
+ if(state.deliveryDock.length)paragraph("CAMION À DÉCHARGER : "+state.deliveryDock.length+" carton(s) — zone livraison près de la réserve.");
  if(state.supplierOrders.length){
   paragraph("LIVRAISONS EN COURS");
   for(const o of state.supplierOrders){
@@ -1127,7 +1130,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.44 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.45 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1250,7 +1253,7 @@ document.body.appendChild(carryLabel);
 function refreshCarry(){
  const p=held&&catalog.find(p=>p.id===held.id);
  carryLabel.style.display=p?"block":"none";
- carryLabel.textContent=p?(held.source==="loose"?"Produits en vrac : ":"Carton : ")+p.name+" — "+held.quantity+" produit(s)":"";
+ carryLabel.textContent=p?(held.source==="loose"?"Produits en vrac : ":held.source==="delivery"?"Livraison : ":"Carton : ")+p.name+" — "+held.quantity+" produit(s)":"";
  updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
@@ -1259,7 +1262,8 @@ function atColdRoom(){return camera.position.x>15.5&&camera.position.x<21.2&&cam
 function atStorageFor(p){return coldProduct(p)?atColdRoom():atReserve();}
 function putBack(){
  if(!held)return;
- state.inventory[held.id].reserve+=held.quantity;
+ if(held.source==="delivery"&&held.quantity===BOX_UNITS){state.inventory[held.id].boxes++;}
+ else state.inventory[held.id].reserve+=held.quantity;
  held=null;sync();refreshCarry();showReserve();
 }
 function takeCarton(p,amount,source="box"){
@@ -1315,13 +1319,52 @@ function showDisposal(p){
  });
  button(panel,"Annuler",showReserve);
 }
+// Quai logistique : zone de réception et camion visibles côté arrière de la réserve.
+const dockFloor=cube(12.5,.045,11.45,4.4,.09,3.5,0x64748b);
+const dockMark=cube(12.5,.105,10.0,4.0,.018,.09,0xfacc15);
+const deliveryTruck=new THREE.Group();scene.add(deliveryTruck);
+const truckBody=cube(13.3,1.65,15.65,3.5,2.8,4.2,0xe2e8f0);
+const truckCab=cube(13.3,1.15,18.25,3.2,2,1.3,0x2563eb);
+const truckStripe=cube(13.3,2.45,17.76,2.5,.3,.05,0xfacc15);
+const dockCartons=[];
+for(let i=0;i<8;i++){
+ const m=cube(11.25+(i%3)*1.05,.4+Math.floor(i/3)*.7,11.1,.72,.65,.72,0xb98246);
+ dockCartons.push(m);
+}
+function refreshDeliveryDock(){
+ const n=state.deliveryDock.length;
+ truckBody.visible=truckCab.visible=truckStripe.visible=n>0;
+ dockCartons.forEach((m,i)=>{
+  m.visible=i<Math.min(n,dockCartons.length);
+  if(m.visible){const p=catalog.find(p=>p.id===state.deliveryDock[i].id);m.material.color.setHex(p?p.color:0xb98246);}
+ });
+}
+function showDeliveryDock(){
+ if(!near(12.5,11.45,2.4)){toast("Approche-toi de la zone livraison");return;}
+ openPanel("ZONE LIVRAISON — Déchargement");
+ if(held){paragraph("Rends-toi dans la réserve correspondante pour ranger ton carton.");return;}
+ if(!state.deliveryDock.length){paragraph("Aucun camion à décharger pour le moment.");return;}
+ paragraph(state.deliveryDock.length+" carton(s) à ranger. Chaque carton contient 10 produits.");
+ for(const p of catalog){
+  const qty=state.deliveryDock.filter(it=>it.id===p.id).length;
+  if(!qty)continue;
+  button(panel,"Prendre 1 carton — "+p.name+" ("+qty+" restant(s))",()=>{
+   const i=state.deliveryDock.findIndex(it=>it.id===p.id);
+   if(i<0||held)return;
+   state.deliveryDock.splice(i,1);held={id:p.id,quantity:BOX_UNITS,source:"delivery"};
+   sync();refreshDeliveryDock();refreshCarry();panel.style.display="none";
+   toast("Carton de "+p.name+" : range-le dans "+(coldProduct(p)?"la chambre froide":"la réserve sèche"));
+  });
+ }
+}
+refreshDeliveryDock();
 function showReserve(){
  if(!atReserve()&&!atColdRoom()){toast("Approche-toi de la réserve ou de la chambre froide");return;}
  openPanel(atColdRoom()?"Chambre froide — produits frais et surgelés":"Réserve — produits secs");
  if(held){
   const p=catalog.find(p=>p.id===held.id);
   paragraph("Tu portes "+held.quantity+" × "+p.name+(held.source==="loose"?" (en vrac)":" (carton)"));
-  button(panel,held.source==="loose"?"Reposer les produits en vrac":"Reposer le carton",putBack);
+  button(panel,held.source==="loose"?"Reposer les produits en vrac":held.source==="delivery"?"Ranger le carton livré":"Reposer le carton",putBack);
   return;
  }
  for(const p of unlockedProducts().filter(p=>coldProduct(p)===atColdRoom())){
@@ -1349,6 +1392,7 @@ function interact(){
   toast("Suis le rayon "+p.name+" surligné en bleu puis appuie sur Interagir");
   return;
  }
+ if(near(12.5,11.45,2.4)){showDeliveryDock();return;}
  if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
  if(near(11.3,9.13,1.45)&&camera.position.x>10.5){toggleStockroomLights();return;}
  if(atReserve()||atColdRoom()){showReserve();return;}
@@ -1705,4 +1749,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.44 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.45 !");
