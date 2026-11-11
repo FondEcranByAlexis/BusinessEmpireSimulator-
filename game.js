@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.96 — version synchronisée
+// Business Empire Simulator V0.9.97 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -913,34 +913,38 @@ cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 cube(12.65,-.15,12.8,5.3,.3,7.0,0xb9c1c8);
 cube(12.65,5.1,12.8,5.3,.2,7.0,0xf1f5f9);
 cube(10,2.5,12.8,.3,5,7,0xe2e8f0,true);
-// Raccord intérieur des cloisons : fermeture des jours avant le seuil du quai.
-// Les parois existantes s'arrêtent à z=16.3 et reprennent à z=16.9.
-// Ces retours sont placés côté intérieur de la réserve, sans empiéter sur le passage.
-cube(10.0,2.5,16.6,.36,5,.9,0xe2e8f0,true);
-cube(15.3,2.5,16.6,.36,5,.9,0xe2e8f0,true);
-cube(10.18,2.5,17.0,.16,5,.65,0xe2e8f0);
-cube(15.12,2.5,17.0,.16,5,.65,0xe2e8f0);
-cube(12.65,5.04,16.7,5.3,.18,1.1,0xf1f5f9);
-// Ancien accès au quai côté entrée définitivement condamné.
-cube(12.65,2.5,17.05,5.3,5,.3,0xe2e8f0,true);
-// Plinthe continue au pied du mur de condamnation, côté réserve.
-cube(12.65,.14,16.85,5.15,.23,.09,0x64748b);
-// Réserve V2 : étagères métalliques murales et courte rangée centrale.
+// Réserve V3 : extension vers z=23,5 au-delà de l'ancien mur de fermeture.
+// L'ancien mur z=17 est supprimé pour créer une seule pièce continue.
+// Le quai logistique conserve son couloir indépendant x=25,65.
+cube(12.65,-.15,20.2,5.3,.3,7.1,0xb9c1c8);
+cube(12.65,5.1,20.2,5.3,.2,7.1,0xf1f5f9);
+cube(10.0,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
+cube(15.3,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
+cube(12.65,2.5,23.7,5.3,5,.3,0xe2e8f0,true);
+wallBaseboard(12.65,23.52,5.0,.07);
+for(const x of [10.2,15.08])wallBaseboard(x,20.05,.07,7.0);
+for(const z of [18.2,21.7])for(const x of [11.6,13.8])ceilingPanel(x,z);
+// Réserve V3 : deux rangées murales uniquement. Aucun meuble au milieu de
+// l'allée, de l'accès magasin (x=10,z=5.5) ou devant l'interrupteur (z=7.8).
 const dryStorageSlots=[];
-function storageRack(x,z){
+function storageRack(x,z,face){
  for(const y of [.62,1.62,2.62]){
   cube(x,y,z,.84,.075,1.65,0x94a3b8);
   cube(x,y+.062,z+.80,.84,.07,.035,0x64748b);
-  for(const dz of [-.37,.37])dryStorageSlots.push({x,y:y+.367,z:z+dz});
+  for(const dz of [-.37,.37])dryStorageSlots.push({x,y:y+.367,z:z+dz,face});
  }
  for(const dx of [-.38,.38])for(const dz of [-.78,.78])
   cube(x+dx,1.66,z+dz,.055,3.32,.055,0x64748b);
  cube(x,3.3,z,.82,.07,1.58,0x64748b);
+ // Les rayonnages bloquent la traversée des meubles, pas l'allée de service.
+ colliders.push({minX:x-.44,maxX:x+.44,minZ:z-.82,maxZ:z+.82});
 }
-// Porte froide dégagée à droite ; circulation centrale maintenue à x=12.65.
-for(const z of [3.3,5.5,7.7,9.9,12.1,14.3,15.8])storageRack(10.76,z);
-for(const z of [3.3,8.35,10.55,12.75,14.95,16.0])storageRack(14.52,z);
-for(const z of [10.3,12.6,14.9])storageRack(11.72,z);
+// Mur gauche : interruption sur 2,45 m au niveau de l'interrupteur.
+for(const z of [3.2,5.25,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
+ storageRack(10.75,z,1);
+// Mur droit : interruption devant l'accès de la chambre froide z=4.25 à 6.65.
+for(const z of [3.2,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
+ storageRack(14.55,z,-1);
 // Ouverture rectangulaire de 3 m, du sol jusqu’à 3,4 m, sans panneau suspendu.
 // Mur arrière avec passage central réservé à la première extension.
 cube(-6,2.5,-10,8,5,.3,0xe2e8f0,true);
@@ -1539,9 +1543,11 @@ for(const p of catalog){
    new THREE.MeshStandardMaterial({color:p.color,roughness:.7}));
   band.position.set(0,.16,cold?.363:.286);mesh.add(band);
   if(!cold){
-   const label=new THREE.Mesh(new THREE.PlaneGeometry(.43,.27),
+   // Étiquette face à l'allée plutôt que tournée contre le mur.
+   const label=new THREE.Mesh(new THREE.PlaneGeometry(.42,.28),
     new THREE.MeshBasicMaterial({map:packageTexture(p),side:THREE.DoubleSide}));
-   label.position.set(0,-.06,.28);mesh.add(label);
+   label.rotation.y=pos.face>0?Math.PI/2:-Math.PI/2;
+   label.position.set(pos.face*.263,-.06,0);mesh.add(label);
   }
   boxes[p.id].push(mesh);
  }
@@ -1575,7 +1581,7 @@ function refreshCarry(){
  updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
-function atReserve(){return camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<16.85;}
+function atReserve(){return camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<23.45;}
 function atColdRoom(){return camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
 function atStorageFor(p){return coldProduct(p)?atColdRoom():atReserve();}
 function putBack(){
@@ -2742,4 +2748,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.96 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.97 !");
