@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.78 — version synchronisée
+// Business Empire Simulator V0.9.79 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1346,7 +1346,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.78 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.79 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1689,6 +1689,15 @@ function showStockerInteraction(){
  button(panel,"Tu peux rentrer chez toi",()=>{state.stockerSentHomeDay=state.day;stockerTalking=false;panel.style.display="none";save();toast(state.stockerName+" : À demain !");});
  button(panel,"Terminer",()=>{stockerTalking=false;panel.style.display="none";});
 }
+function stockerShelfPosition(p){
+ // La position du produit désigne le centre du meuble : rester côté allée.
+ // Rayons centraux : accès depuis l'allée latérale, pas à travers la gondole.
+ if(p.kind==="extension")return [p.x,p.z+2.1];
+ if(p.kind==="froid"||p.kind==="congelateur")return [p.x,p.z+2.1];
+ if(p.x<=-4)return [p.x+1.65,p.z??1];
+ if(p.x>=4)return [p.x-1.65,p.z??1];
+ return [p.x+1.65,p.z??1];
+}
 function updateStocker(dt){
  const shift=stockerShift();
  const onDuty=state.stockerHired&&state.stockerEnabled&&shift&&state.stockerSentHomeDay!==state.day&&state.hour>=shift[0]&&state.hour<shift[1]&&!(state.hour>=12&&state.hour<13);
@@ -1701,7 +1710,7 @@ function updateStocker(dt){
    stockerCargo=p.id;stockerPhase="reserve";stockerTarget=[coldProduct(p)?19:13,5];
   }else{
    const p=catalog.find(x=>x.id===stockerCargo);
-   stockerPhase="shelf";stockerTarget=[p.x,p.z??1];
+   stockerPhase="shelf";stockerTarget=stockerShelfPosition(p);
   }
  }
  const dx=stockerTarget[0]-stockerGroup.position.x,dz=stockerTarget[1]-stockerGroup.position.z;
@@ -1717,8 +1726,8 @@ function updateStocker(dt){
  stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;
  if(stockerPhase==="reserve"){
   const a=state.inventory[stockerCargo];
-  if(a.boxes>0){a.boxes--;stockerCarton.visible=true;stockerPhase="shelf";stockerTarget=[catalog.find(p=>p.id===stockerCargo).x,catalog.find(p=>p.id===stockerCargo).z??1];stockerUnits=BOX_UNITS;}
-  else if(a.reserve>0){stockerUnits=Math.min(BOX_UNITS,a.reserve);a.reserve-=stockerUnits;stockerCarton.visible=true;stockerPhase="shelf";stockerTarget=[catalog.find(p=>p.id===stockerCargo).x,catalog.find(p=>p.id===stockerCargo).z??1];}
+  if(a.boxes>0){a.boxes--;stockerCarton.visible=true;stockerPhase="shelf";stockerTarget=stockerShelfPosition(catalog.find(p=>p.id===stockerCargo));stockerUnits=BOX_UNITS;}
+  else if(a.reserve>0){stockerUnits=Math.min(BOX_UNITS,a.reserve);a.reserve-=stockerUnits;stockerCarton.visible=true;stockerPhase="shelf";stockerTarget=stockerShelfPosition(catalog.find(p=>p.id===stockerCargo));}
   else{stockerCargo=null;stockerPhase="idle";}
  }else if(stockerPhase==="shelf"){
   const p=catalog.find(x=>x.id===stockerCargo),a=state.inventory[p.id];
@@ -2251,4 +2260,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.78 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.79 !");
