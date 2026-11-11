@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.88 — version synchronisée
+// Business Empire Simulator V0.9.89 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -643,6 +643,7 @@ function completeCheckoutPayment(c,count){
  if(c!==cashier)return;
  state.money+=c.total;state.sales+=count;
  finance.revenue+=c.total;finance.transactions++;
+ c.paid=true;
  sync();finishCheckout(c);
  toast("Paiement accepté : +"+euro(c.total));
 }
@@ -1390,7 +1391,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.88 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.89 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -2288,17 +2289,56 @@ function updateTime(){
 }
 function makeCustomer(){
  const group=new THREE.Group();
- const shirts=[0xef4444,0x2563eb,0x16a34a,0xf59e0b,0x9333ea];
- const shirt=new THREE.MeshStandardMaterial({color:shirts[Math.floor(Math.random()*shirts.length)]});
- const skin=new THREE.MeshStandardMaterial({color:0xd6a17c});
- const pants=new THREE.MeshStandardMaterial({color:0x334155});
- function part(w,h,d,mat,x,y,z){
-  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);group.add(m);return m;
+ const shirts=[0xef4444,0x2563eb,0x16a34a,0xf59e0b,0x9333ea,0x0891b2,0x64748b];
+ const skinTones=[0xf0c9a6,0xd9a884,0xb77c5c,0x8c593f];
+ const hairColors=[0x251b18,0x553724,0x986d36,0x3a3435];
+ const shirt=new THREE.MeshStandardMaterial({color:shirts[Math.floor(Math.random()*shirts.length)],roughness:.8});
+ const skin=new THREE.MeshStandardMaterial({color:skinTones[Math.floor(Math.random()*skinTones.length)],roughness:.9});
+ const pants=new THREE.MeshStandardMaterial({color:[0x334155,0x1e293b,0x475569,0x3f3f46][Math.floor(Math.random()*4)]});
+ const hair=new THREE.MeshStandardMaterial({color:hairColors[Math.floor(Math.random()*hairColors.length)]});
+ const shoes=new THREE.MeshStandardMaterial({color:0x171717});
+ function part(w,h,d,mat,x,y,z,parent=group){
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);mesh.position.set(x,y,z);parent.add(mesh);return mesh;
  }
- part(.5,.7,.3,shirt,0,1.25,0);part(.32,.32,.32,skin,0,1.78,0);
+ part(.5,.7,.3,shirt,0,1.25,0);
+ const head=part(.32,.32,.32,skin,0,1.78,0);
+ part(.34,.12,.34,hair,0,1.99,0);
  const l=part(.18,.65,.2,pants,-.14,.48,0),r=part(.18,.65,.2,pants,.14,.48,0);
- part(.14,.65,.2,shirt,-.34,1.23,0);part(.14,.65,.2,shirt,.34,1.23,0);
- group.position.set(0,0,12.5);scene.add(group);
+ part(.22,.12,.33,shoes,-.14,.11,.06);part(.22,.12,.33,shoes,.14,.11,.06);
+ const armLeft=part(.14,.65,.2,shirt,-.34,1.23,0);
+ const armRight=part(.14,.65,.2,shirt,.34,1.23,0);
+ if(Math.random()<.5){
+  part(.42,.055,.312,new THREE.MeshStandardMaterial({color:0xf8fafc}),0,1.48,.003);
+ }
+ if(Math.random()<.25){
+  part(.37,.11,.38,shirt,0,2.03,0);part(.33,.035,.19,shirt,0,2.01,.23);
+ }
+ // Panier tenu dans la main avec des produits visibles au fur et à mesure des achats.
+ const basketGroup=new THREE.Group();basketGroup.position.set(.48,.72,.11);group.add(basketGroup);
+ const basketMat=new THREE.MeshStandardMaterial({color:[0x2563eb,0x16a34a,0xd97706][Math.floor(Math.random()*3)],roughness:.78});
+ const basketRim=new THREE.MeshStandardMaterial({color:0x1e293b,roughness:.75});
+ part(.58,.055,.38,basketMat,0,0,0,basketGroup);
+ for(const z of [-.17,.17])part(.58,.25,.04,basketMat,0,.15,z,basketGroup);
+ for(const x of [-.27,.27])part(.04,.25,.38,basketMat,x,.15,0,basketGroup);
+ for(const z of [-.18,.18])part(.60,.035,.035,basketRim,0,.29,z,basketGroup);
+ for(const x of [-.23,.23])part(.035,.18,.04,basketRim,x,.39,0,basketGroup);
+ part(.49,.035,.04,basketRim,0,.49,0,basketGroup);
+ const basketCargo=[];
+ for(let i=0;i<4;i++){
+  const cargo=part(.15,.16,.13,new THREE.MeshStandardMaterial({color:0xfacc15}),-.16+(i%3)*.16,.13+Math.floor(i/3)*.14,-.07+(i%2)*.13,basketGroup);
+  cargo.visible=false;basketCargo.push(cargo);
+ }
+ // Sac d'achat qui remplace le panier uniquement après le paiement.
+ const bagGroup=new THREE.Group();bagGroup.position.set(.46,.67,.08);group.add(bagGroup);
+ const bagMat=new THREE.MeshStandardMaterial({color:0xd6b58b,roughness:1});
+ const handleMat=new THREE.MeshStandardMaterial({color:0x91674c,roughness:1});
+ part(.43,.46,.28,bagMat,0,.01,0,bagGroup);
+ for(const z of [-.095,.095]){
+  part(.035,.22,.035,handleMat,-.12,.31,z,bagGroup);
+  part(.035,.22,.035,handleMat,.12,.31,z,bagGroup);
+  part(.27,.035,.035,handleMat,0,.42,z,bagGroup);
+ }
+ bagGroup.visible=false;
  const choices=[...unlockedProducts()].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*catalog.length));
  const route=[{x:0,z:8}];
  for(const p of choices){
@@ -2306,9 +2346,43 @@ function makeCustomer(){
   const targetZ=p.level?p.z:-1.5;
   route.push({x:aisleX,z:8},{x:aisleX,z:targetZ,shop:p.id},{x:aisleX,z:8});
  }
- // Accès caisse depuis l’allée centrale, sans diagonale à travers le meuble.
  route.push({x:3.65,z:6.25});
- customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",stuckTime:0,shoppingTime:0,lastNavX:0,lastNavZ:12.5});
+ group.scale.setScalar(.94+Math.random()*.10);
+ group.position.set(0,0,12.5);scene.add(group);
+ customers.push({
+  group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
+  speed:1.2+Math.random()*.35,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,
+  visualClock:Math.random()*6,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
+  stuckTime:0,shoppingTime:0,lastNavX:0,lastNavZ:12.5
+ });
+}
+function updateCustomerVisual(c,dt){
+ c.visualClock+=dt;
+ const ids=Object.entries(c.basket).flatMap(([id,q])=>Array(Math.max(0,q)).fill(id));
+ for(let i=0;i<c.basketCargo.length;i++){
+  const item=c.basketCargo[i],id=ids[i];
+  item.visible=!!id;
+  if(id){const p=catalog.find(product=>product.id===id);if(p)item.material.color.setHex(p.color);}
+ }
+ c.basketGroup.visible=c.phase==="shopping"||c.phase==="choosing"||c.phase==="queue";
+ c.bagGroup.visible=c.phase==="leaving"&&c.paid;
+ c.head.rotation.y=Math.sin(c.visualClock*1.2)*.15;
+ if(c.phase==="choosing"){
+  // Le client observe le rayon et avance le bras pour prendre un produit.
+  c.armLeft.rotation.x=-.7+Math.sin(c.visualClock*6)*.18;
+  c.armRight.rotation.x=-.1;c.head.rotation.y=.20+Math.sin(c.visualClock*2)*.12;
+  c.group.position.y=.004*Math.sin(c.visualClock*3);
+ }else if(c.phase==="checkout"){
+  c.armLeft.rotation.x=-.35+Math.sin(c.visualClock*2.8)*.10;
+  c.armRight.rotation.x=-.12;c.group.position.y=0;
+ }else if(c.phase==="queue"){
+  c.armLeft.rotation.x=.08*Math.sin(c.visualClock*2.1);
+  c.armRight.rotation.x=-.12;c.group.position.y=.009*Math.sin(c.visualClock*1.6);
+ }else{
+  c.armLeft.rotation.x=Math.sin(c.walkTime)*.23;
+  c.armRight.rotation.x=-.12;
+  c.group.position.y=Math.abs(Math.sin(c.walkTime))*.015;
+ }
 }
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
 // Le joueur conserve son accès à l'ordinateur et au poste de travail.
@@ -2418,6 +2492,7 @@ function sendToExit(c){
 }
 function updateCustomers(dt){
  for(const c of [...customers]){
+  updateCustomerVisual(c,dt);
   if(c.phase==="shopping"){
    c.shoppingTime=(c.shoppingTime||0)+dt;
    if(c.shoppingTime>42){sendToQueue(c);continue;}
@@ -2561,4 +2636,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.88 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.89 !");
