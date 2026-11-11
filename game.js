@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.23 — version synchronisée
+// Business Empire Simulator V0.9.24 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -378,17 +378,46 @@ function showPayment(c,count){
  checkoutUI.replaceChildren();checkoutUI.style.display="block";
  checkoutText("FBA — MODE DE PAIEMENT",true);
  checkoutText("À régler : "+euro(c.total),true);
- checkoutButton("Carte bancaire",()=>showCardPayment(c,count));
- checkoutButton("Espèces — rendre la monnaie",()=>showCashPayment(c,count));
+ checkoutText(c.paymentMethod==="cash"?"Le client paie en espèces.":"Le client paie par carte.");
+ checkoutButton(c.paymentMethod==="cash"?"Ouvrir le tiroir-caisse":"Ouvrir le terminal bancaire",()=>c.paymentMethod==="cash"?showCashPayment(c,count):showCardPayment(c,count));
  checkoutButton("Retour aux articles",showCheckout);
 }
 function showCardPayment(c,count){
  if(c!==cashier)return;
- checkoutUI.replaceChildren();checkoutUI.style.display="block";
- checkoutText("TERMINAL BANCAIRE",true);
- checkoutText("Montant : "+euro(c.total),true);
- checkoutButton("Valider la carte",()=>completeCheckoutPayment(c,count));
- checkoutButton("Retour",()=>showPayment(c,count));
+ let swiped=false,entered="";
+ const expected=Math.round(c.total*100);
+ function draw(){
+  checkoutUI.replaceChildren();checkoutUI.style.display="block";
+  checkoutText("FBA — TERMINAL BANCAIRE",true);
+  checkoutText("Montant à saisir : "+euro(c.total),true);
+  const slot=document.createElement("div");
+  Object.assign(slot.style,{background:"#111827",border:"2px solid #64748b",borderRadius:"9px",padding:"12px",margin:"10px 0",textAlign:"center",touchAction:"pan-y"});
+  const card=document.createElement("div");card.textContent=swiped?"CARTE LUE ✓":"💳 GLISSER LA CARTE →";
+  Object.assign(card.style,{background:swiped?"#14532d":"#1d4ed8",color:"#fff",borderRadius:"7px",padding:"13px 4px",fontSize:"13px",fontWeight:"bold",touchAction:"none",userSelect:"none"});
+  slot.appendChild(card);checkoutUI.appendChild(slot);
+  if(!swiped){
+   let x=null;
+   card.addEventListener("pointerdown",e=>{x=e.clientX;card.setPointerCapture(e.pointerId);});
+   card.addEventListener("pointerup",e=>{if(x!==null&&e.clientX-x>55){swiped=true;draw();}x=null;});
+   checkoutText("Fais glisser la carte de gauche à droite.");
+  }else{
+   checkoutText("Montant saisi : "+(entered?euro(Number(entered)/100):"0,00 €"),true);
+   const grid=document.createElement("div");
+   Object.assign(grid.style,{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"5px"});
+   checkoutUI.appendChild(grid);
+   for(const digit of ["1","2","3","4","5","6","7","8","9","C","0","⌫"]){
+    const b=document.createElement("button");b.textContent=digit;
+    Object.assign(b.style,{padding:"10px",background:"#334155",color:"#fff",border:"1px solid #64748b",borderRadius:"7px"});
+    b.onclick=()=>{entered=digit==="C"?"":digit==="⌫"?entered.slice(0,-1):(entered+digit).slice(0,9);draw();};
+    grid.appendChild(b);
+   }
+   const ok=checkoutButton("Confirmer le paiement",()=>completeCheckoutPayment(c,count));
+   ok.disabled=Number(entered)!==expected;
+   ok.style.opacity=Number(entered)===expected?"1":".45";
+  }
+  checkoutButton("Retour",()=>showPayment(c,count));
+ }
+ draw();
 }
 function showCashPayment(c,count){
  if(c!==cashier)return;
@@ -972,7 +1001,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.23 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.24 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1285,13 +1314,13 @@ function makeCustomer(){
  }
  // Accès caisse depuis l’allée centrale, sans diagonale à travers le meuble.
  route.push({x:3.4,z:4.5});
- customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0});
+ customers.push({group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,speed:1.2+Math.random()*.35,l,r,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",stuckTime:0,lastNavX:0,lastNavZ:12.5});
 }
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
 // Le joueur conserve son accès à l'ordinateur et au poste de travail.
 function customerBlocked(x,z,r=.28){
  if(blocked(x,z,r))return true;
- return x+r>4.85&&x-r<9.45&&z+r>7.35&&z-r<9.95;
+ return x+r>4.7&&x-r<9.45&&z+r>7.25&&z-r<9.95;
 }
 // Navigation A* sur grille invisible : évite les collisions avec les rayons et la caisse.
 const NAV_STEP=.35,NAV_MIN_X=-9.1,NAV_MIN_Z=-21.1,NAV_W=69,NAV_H=99;
@@ -1363,7 +1392,7 @@ function walk(c,t,dt){
   // Recalculer avec une grille plus fine au prochain déplacement.
   return false;
  }
- p.x=nx;p.z=nz;c.group.rotation.y=Math.atan2(-dx,-dz);
+ p.x=nx;p.z=nz;c.stuckTime=0;c.group.rotation.y=Math.atan2(-dx,-dz);
  c.walkTime+=dt*9;c.l.rotation.x=Math.sin(c.walkTime)*.4;c.r.rotation.x=-Math.sin(c.walkTime)*.4;
  return false;
 }
@@ -1465,4 +1494,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.23 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.24 !");
