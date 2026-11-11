@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.82 — version synchronisée
+// Business Empire Simulator V0.9.83 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1337,7 +1337,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.82 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.83 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1879,8 +1879,8 @@ function sitAtCheckout(){
  if(seatedAtCheckout)return;
  checkoutPreviousView={position:camera.position.clone(),yaw,pitch,targetYaw,targetPitch};
  seatedAtCheckout=true;panel.style.display="none";
- camera.position.set(7.45,1.35,7.65);
- const look=new THREE.Vector3(6.1,1.22,6.35);
+ camera.position.set(7.45,1.72,7.65);
+ const look=new THREE.Vector3(6.1,1.32,6.35);
  const dx=look.x-camera.position.x,dz=look.z-camera.position.z;
  yaw=targetYaw=Math.atan2(-dx,-dz);
  pitch=targetPitch=Math.atan2(look.y-camera.position.y,Math.hypot(dx,dz));
@@ -2307,4 +2307,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.82 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.83 !");
