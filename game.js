@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.25 — version synchronisée
+// Business Empire Simulator V0.9.26 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -392,19 +392,32 @@ function showCardPayment(c,count){
   checkoutText("Total à encaisser : "+euro(c.total),true);
   if(!amountConfirmed){
    checkoutText("1. Saisis le montant sur le clavier.");
-   checkoutText("Montant saisi : "+(entered?euro(Number(entered)/100):"0,00 €"),true);
+   const amountDisplay=document.createElement("div");
+   Object.assign(amountDisplay.style,{fontSize:"18px",fontWeight:"bold",margin:"9px 0"});
+   checkoutUI.appendChild(amountDisplay);
    const grid=document.createElement("div");
    Object.assign(grid.style,{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"5px"});
    checkoutUI.appendChild(grid);
    for(const digit of ["1","2","3","4","5","6","7","8","9","C","0","⌫"]){
     const b=document.createElement("button");b.textContent=digit;
     Object.assign(b.style,{padding:"10px",background:"#334155",color:"#fff",border:"1px solid #64748b",borderRadius:"7px"});
-    b.onclick=()=>{entered=digit==="C"?"":digit==="⌫"?entered.slice(0,-1):(entered+digit).slice(0,9);draw();};
+    b.type="button";
+    b.addEventListener("click",e=>{
+     e.stopPropagation();
+     entered=digit==="C"?"":digit==="⌫"?entered.slice(0,-1):(entered+digit).slice(0,9);
+     updateAmount();
+    });
     grid.appendChild(b);
    }
    const ok=checkoutButton("Valider le montant",()=>{amountConfirmed=true;draw();});
    ok.disabled=Number(entered)!==expected;
    ok.style.opacity=Number(entered)===expected?"1":".45";
+   function updateAmount(){
+    amountDisplay.textContent="Montant saisi : "+(entered?euro(Number(entered)/100):"0,00 €");
+    ok.disabled=Number(entered)!==expected;
+    ok.style.opacity=ok.disabled?".45":"1";
+   }
+   updateAmount();
   }else{
    checkoutText("Montant validé : "+euro(c.total),true);
    checkoutText("2. Fais glisser la carte de gauche à droite pour payer.");
@@ -1011,7 +1024,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.25 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.26 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1504,4 +1517,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.25 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.26 !");
