@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.71 — version synchronisée
+// Business Empire Simulator V0.9.72 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -142,7 +142,7 @@ const state=load();
 state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
 state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
 if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
-state.hour=7;
+state.hour=8;
 const finance=state.finance;
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
 function total(){return catalog.reduce((n,p)=>{const a=state.inventory[p.id];return n+a.shelf+a.reserve+a.boxes*BOX_UNITS;},0);}
@@ -1215,7 +1215,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.71 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.72 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1745,7 +1745,7 @@ function movePlayer(dt){
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
 const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
-const PREOPEN_HOUR=7,PREOPEN_SECONDS=600;
+const PREOPEN_HOUR=7,PREOPEN_SECONDS=0; // Mode test : préparation matinale désactivée
 let preopenTimer=0;
 function updateTime(){
  updateLighting();
@@ -1973,7 +1973,8 @@ openButton.addEventListener("click",()=>{
  dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert");
 });
 function business(dt){
- // Préparation de 7 h à 8 h : dix minutes réelles ; l'horloge continue ensuite même si le magasin reste fermé.
+ // Mode test : passer immédiatement à 08:00 sans attente matinale.
+ if(!dayStarted&&PREOPEN_SECONDS===0){state.hour=OPEN_HOUR;dayStarted=true;}
  if(!dayStarted){
   if(preopenTimer<PREOPEN_SECONDS){
    preopenTimer=Math.min(PREOPEN_SECONDS,preopenTimer+dt);
@@ -2000,7 +2001,7 @@ function business(dt){
  }
  // Les clients déjà présents terminent leurs achats et passent en caisse.
  if(closing&&customers.length===0&&queue.length===0&&!cashier){
-  dayTimer=0;preopenTimer=0;state.hour=PREOPEN_HOUR;state.day++;
+  dayTimer=0;preopenTimer=0;state.hour=PREOPEN_SECONDS===0?OPEN_HOUR:PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
   dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
   updateOpen();sync();
@@ -2021,4 +2022,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.71 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.72 !");
