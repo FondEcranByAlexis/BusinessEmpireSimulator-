@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.45 — version synchronisée
+// Business Empire Simulator V0.9.46 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1130,7 +1130,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.45 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.46 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1320,15 +1320,15 @@ function showDisposal(p){
  button(panel,"Annuler",showReserve);
 }
 // Quai logistique : zone de réception et camion visibles côté arrière de la réserve.
-const dockFloor=cube(12.5,.045,11.45,4.4,.09,3.5,0x64748b);
-const dockMark=cube(12.5,.105,10.0,4.0,.018,.09,0xfacc15);
+const dockFloor=cube(0,.045,11.45,4.4,.09,3.5,0x64748b);
+const dockMark=cube(0,.105,10.0,4.0,.018,.09,0xfacc15);
 const deliveryTruck=new THREE.Group();scene.add(deliveryTruck);
-const truckBody=cube(13.3,1.65,15.65,3.5,2.8,4.2,0xe2e8f0);
-const truckCab=cube(13.3,1.15,18.25,3.2,2,1.3,0x2563eb);
-const truckStripe=cube(13.3,2.45,17.76,2.5,.3,.05,0xfacc15);
+const truckBody=cube(0,1.65,16.3,3.5,2.8,4.2,0xe2e8f0);
+const truckCab=cube(0,1.15,18.9,3.2,2,1.3,0x2563eb);
+const truckStripe=cube(0,2.45,18.41,2.5,.3,.05,0xfacc15);
 const dockCartons=[];
 for(let i=0;i<8;i++){
- const m=cube(11.25+(i%3)*1.05,.4+Math.floor(i/3)*.7,11.1,.72,.65,.72,0xb98246);
+ const m=cube(-1.1+(i%3)*1.05,.4+Math.floor(i/3)*.7,11.1,.72,.65,.72,0xb98246);
  dockCartons.push(m);
 }
 function refreshDeliveryDock(){
@@ -1340,7 +1340,7 @@ function refreshDeliveryDock(){
  });
 }
 function showDeliveryDock(){
- if(!near(12.5,11.45,2.4)){toast("Approche-toi de la zone livraison");return;}
+ if(!near(0,11.45,2.6)){toast("Approche-toi de la zone livraison");return;}
  openPanel("ZONE LIVRAISON — Déchargement");
  if(held){paragraph("Rends-toi dans la réserve correspondante pour ranger ton carton.");return;}
  if(!state.deliveryDock.length){paragraph("Aucun camion à décharger pour le moment.");return;}
@@ -1392,7 +1392,7 @@ function interact(){
   toast("Suis le rayon "+p.name+" surligné en bleu puis appuie sur Interagir");
   return;
  }
- if(near(12.5,11.45,2.4)){showDeliveryDock();return;}
+ if(near(0,11.45,2.6)){showDeliveryDock();return;}
  if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
  if(near(11.3,9.13,1.45)&&camera.position.x>10.5){toggleStockroomLights();return;}
  if(atReserve()||atColdRoom()){showReserve();return;}
@@ -1466,7 +1466,7 @@ window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);
 function blocked(x,z,r=.4){
  // La chambre froide prolonge la réserve jusqu'à x=21.4.
  // Limites adaptées à la géométrie réelle, avec porte libre z=4.25..6.65.
- if(x< -9.45+r||x>21.25-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>13.8-r)return true;
+ if(x< -9.45+r||x>21.25-r||z<(state.upgrades.store1?-21.45:-9.45)+r||z>(Math.abs(x)<2.15?13.45:9.45)-r)return true;
  if(x>15.0&&x<15.6&&!(z>4.25+r&&z<6.65-r))return true;
  if(x>15.6&&(z<1.65+r||z>9.35-r))return true;
  if(x>9.45&&x<10.55&&!(z>4.05&&z<6.95))return true;
@@ -1749,4 +1749,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.45 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.46 !");
