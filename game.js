@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.13 — version synchronisée
+// Business Empire Simulator V0.9.14 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -858,7 +858,7 @@ function addShelfGuide(p,x,z){
  edges.renderOrder=1000;highlight.add(edges);
  // Montants lumineux verticaux et bordures rendent le rayon identifiable de loin.
  highlight.position.y=height/2;group.add(highlight);
- scene.add(group);shelfGuides[p.id]={group,highlight,sign,p};
+ scene.add(group);shelfGuides[p.id+"@"+z]={group,highlight,sign,p};
 }
 function updateShelfGuides(){
  for(const guide of Object.values(shelfGuides)){
@@ -897,9 +897,15 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
  colliders.push({minX:p.x-1.4,maxX:p.x+1.4,minZ:p.z-.55,maxZ:p.z+.55,requiresUpgrade:"store1"});
 }
 
-for(const p of catalog.filter(p=>p.kind!=="extension"))addShelfGuide(p,p.x,p.level?p.z:-4);
+for(const p of catalog.filter(p=>p.kind!=="extension"))for(const z of (p.level?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
 function refreshDisplays(){
- for(const p of catalog)displays[p.id].forEach((m,i)=>m.visible=productAvailable(p)&&i<state.inventory[p.id].shelf);
+ for(const p of catalog)displays[p.id].forEach((m,i)=>{
+  const stock=state.inventory[p.id].shelf;
+  // Les 30 articles du stock commun sont répartis entre les deux meubles de départ.
+  const visible=p.level||p.kind==="extension"?i<stock:
+   (i<30?i<Math.ceil(stock/2):i-30<Math.floor(stock/2));
+  m.visible=productAvailable(p)&&visible;
+ });
  for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
  for(const p of catalog.filter(p=>p.kind==="extension")){const g=extensionProductGroups[p.id];if(g)g.visible=!!state.upgrades.store1;}
  updateShelfGuides();
@@ -911,7 +917,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.13 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.14 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1318,4 +1324,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.13 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.14 !");
