@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.51 — version synchronisée
+// Business Empire Simulator V0.9.52 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1176,7 +1176,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.51 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.52 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1369,13 +1369,8 @@ function showDisposal(p){
 const dockFloor=cube(12.65,.045,18.4,4.4,.09,4.7,0x64748b);
 // Sol de raccordement continu entre réserve et quai, sans vide.
 cube(12.65,-.15,16.9,5.3,.3,2.1,0xb9c1c8);
-// Sas fermé : murs latéraux continus de la réserve jusqu’au quai, plafond et seuil.
-cube(10.0,2.5,18.3,.3,5,3.0,0xe2e8f0,true);
-cube(15.3,2.5,18.3,.3,5,3.0,0xe2e8f0,true);
-cube(12.65,5.1,18.3,5.3,.2,3.0,0xf1f5f9);
-// Retour de murs et habillage du seuil pour éviter les fentes entre bâtiment et quai.
-cube(10.0,2.5,16.9,.3,5,.6,0xe2e8f0,true);
-cube(15.3,2.5,16.9,.3,5,.6,0xe2e8f0,true);
+// Quai extérieur ouvert : aucun mur ni plafond ne dépasse de la façade arrière.
+// Seul le seuil de liaison avec la réserve est conservé.
 cube(12.65,.12,17.12,1.8,.08,.65,0x64748b);
 const dockMark=cube(12.65,.105,17.4,4.0,.018,.09,0xfacc15);
 const deliveryTruck=new THREE.Group();scene.add(deliveryTruck);
@@ -1809,4 +1804,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.51 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.52 !");
