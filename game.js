@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.62 — version synchronisée
+// Business Empire Simulator V0.9.63 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1181,7 +1181,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.62 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.63 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1556,7 +1556,7 @@ function movePlayer(dt){
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
 const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
-const PREOPEN_HOUR=7,PREOPEN_SECONDS=60;
+const PREOPEN_HOUR=7,PREOPEN_SECONDS=600;
 let preopenTimer=0;
 function updateTime(){
  updateLighting();
@@ -1783,17 +1783,16 @@ openButton.addEventListener("click",()=>{
  dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert");
 });
 function business(dt){
- // Préparation de 7 h à 8 h : 60 secondes réelles, puis attente de l'ouverture.
+ // Préparation de 7 h à 8 h : dix minutes réelles ; l'horloge continue ensuite même si le magasin reste fermé.
  if(!dayStarted){
   if(preopenTimer<PREOPEN_SECONDS){
    preopenTimer=Math.min(PREOPEN_SECONDS,preopenTimer+dt);
    state.hour=PREOPEN_HOUR+(preopenTimer/PREOPEN_SECONDS)*(OPEN_HOUR-PREOPEN_HOUR);
-   if(preopenTimer>=PREOPEN_SECONDS){state.hour=OPEN_HOUR;toast("08:00 — Tu peux ouvrir le magasin");}
-  }else state.hour=OPEN_HOUR;
+   if(preopenTimer>=PREOPEN_SECONDS){state.hour=OPEN_HOUR;dayStarted=true;toast("08:00 — Tu peux ouvrir le magasin");}
+  }
   dayTimer=0;updateOpen();return;
  }
- // Horloge en pause dès que le magasin est fermé manuellement.
- if(!shopOpen&&!closing){updateTime();return;}
+ // La journée avance même si le joueur ouvre tard ou ferme temporairement.
  if(!closing){
   dayTimer=Math.min(DAY_SECONDS,dayTimer+dt);
   state.hour=OPEN_HOUR+(dayTimer/DAY_SECONDS)*(CLOSE_HOUR-OPEN_HOUR);
@@ -1830,4 +1829,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.62 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.63 !");
