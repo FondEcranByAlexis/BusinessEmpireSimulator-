@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.38 — version synchronisée
+// Business Empire Simulator V0.9.39 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1066,7 +1066,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.38 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.39 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1201,12 +1201,12 @@ function putBack(){
  state.inventory[held.id].reserve+=held.quantity;
  held=null;sync();refreshCarry();showReserve();
 }
-function takeCarton(p,amount){
+function takeCarton(p,amount,source="box"){
  const a=state.inventory[p.id];
  if(held){toast("Dépose d'abord le carton que tu portes");return;}
- if(a.boxes>0){
+ if(source==="box"&&a.boxes>0){
   a.boxes--;held={id:p.id,quantity:BOX_UNITS};
- }else if(a.reserve>0){
+ }else if(source==="loose"&&a.reserve>0){
   const quantity=Math.min(amount,a.reserve);
   a.reserve-=quantity;held={id:p.id,quantity};
  }else{toast("Aucun produit disponible");return;}
@@ -1266,8 +1266,8 @@ function showReserve(){
  for(const p of unlockedProducts().filter(p=>coldProduct(p)===atColdRoom())){
   const a=state.inventory[p.id];
   paragraph("● "+p.name+" — "+a.boxes+" carton(s) fermé(s) ("+(a.boxes*BOX_UNITS)+" unités) + "+a.reserve+" en vrac. Total : "+(a.reserve+a.boxes*BOX_UNITS));
-  if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10));
-  if(a.reserve>0)button(panel,"Prendre un lot de "+p.name+" ("+Math.min(10,a.reserve)+")",()=>takeCarton(p,10));
+  if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10,"box"));
+  if(a.reserve>0)button(panel,"Prendre un lot de "+p.name+" ("+Math.min(10,a.reserve)+")",()=>takeCarton(p,10,"loose"));
   if(a.boxes>0||a.reserve>0)button(panel,"Jeter des "+p.name,()=>showDisposal(p));
  }
 }
@@ -1644,4 +1644,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.38 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.39 !");
