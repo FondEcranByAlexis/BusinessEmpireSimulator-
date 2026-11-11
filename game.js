@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.97 — version synchronisée
+// Business Empire Simulator V0.9.98 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -783,7 +783,9 @@ function ceilingLamp(x,z){
 const lamps=[];
 for(const x of [-6,0,6])for(const z of [-6,0,6])lamps.push({light:ceilingLamp(x,z),extension:false});
 for(const x of [-6,0,6])for(const z of [-14,-19])lamps.push({light:ceilingLamp(x,z),extension:true});
-for(const x of [11.6,13.8])for(const z of [3.5,7.5,11.5,15])lamps.push({light:ceilingLamp(x,z),stockroom:true});
+const reserveLightPositions=[3.5,7.5,11.5,15,18.5,22];
+for(const x of [11.6,13.8])for(const z of reserveLightPositions)
+ lamps.push({light:ceilingLamp(x,z),stockroom:true});
 for(const x of [17.2,21.6])for(const z of [5,11,15])lamps.push({light:ceilingLamp(x,z),coldroom:true});
 function updateLighting(){
  const hour=state.hour;
@@ -795,6 +797,7 @@ function updateLighting(){
  if(typeof coldLightGlow!=="undefined")coldLightGlow.intensity=coldRoomLightsOn?1.8:0;
  if(typeof coldLight!=="undefined")coldLight.material.color.setHex(coldRoomLightsOn?0xf8fafc:0x64748b);
  if(typeof extendedColdLights!=="undefined")extendedColdLights.forEach(m=>m.material.color.setHex(coldRoomLightsOn?0xf8fafc:0x64748b));
+ if(typeof reserveLightPanels!=="undefined")reserveLightPanels.forEach(m=>m.material.color.setHex(stockroomLightsOn?0xfff7db:0x64748b));
 }
 const colliders=[];
 function cube(x,y,z,w,h,d,color,solid=false){
@@ -846,8 +849,15 @@ cube(-10,2.5,0,.3,5,20,0xe2e8f0,true);
 cube(10,2.5,-3,.3,5,14,0xe2e8f0,true);
 cube(10,2.5,8.5,.3,5,3,0xe2e8f0,true);
 cube(10,4.2,5.5,.3,1.6,3,0xe2e8f0);
-cube(12.65,-.15,5.5,5.3,.3,8,0xb9c1c8);
-cube(12.65,5.1,5.5,5.3,.2,8,0xf1f5f9);
+// Un seul sol et plafond pour supprimer les trous entre les trois zones.
+cube(12.65,-.15,12.6,5.3,.3,22.2,0xb9c1c8);
+cube(12.65,5.1,12.6,5.3,.2,22.2,0xf1f5f9);
+// Exactement les mêmes plafonniers LED plats, sur toute la longueur de la réserve.
+const reserveLightPanels=[];
+for(const z of reserveLightPositions)for(const x of [11.6,13.8]){
+ cube(x,4.905,z,1.62,.055,.58,0x94a3b8);
+ reserveLightPanels.push(cube(x,4.869,z,1.49,.024,.46,0xfff7db));
+}
 // Chambre froide accolée à la réserve, accès par une porte libre de 2 m.
 // Cloison continue sur 8 m, avec une porte de 2,4 m (z 4,25 à 6,65).
 cube(15.3,2.5,2.875,.3,5,2.75,0xdbeafe,true);
@@ -873,7 +883,7 @@ cube(22.7,-.15,5.5,2.6,.3,8,0x9ccbdc);
 cube(22.7,5.1,5.5,2.6,.2,8,0xe0f2fe);
 const extendedColdLights=[];
 for(const x of [17.2,21.6])for(const z of [11,15])extendedColdLights.push(cube(x,4.87,z,2.0,.04,.55,0xf8fafc));
-for(const x of [11.6,13.8])for(const z of [11.5,15])cube(x,4.87,z,1.5,.04,.5,0xfff7db);
+// Les anciens luminaires ont été remplacés par le modèle LED unique.
 for(const x of [16.6,22.5])for(const z of [11,14.8]){
  for(const y of [.65,1.7,2.75])cube(x,y,z,1.45,.09,1.5,0x94a3b8);
  for(const dx of [-.65,.65])for(const dz of [-.65,.65])cube(x+dx,1.6,z+dz,.07,3.2,.07,0x64748b);
@@ -910,20 +920,20 @@ cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Passage libre entre ancienne réserve et agrandissement (ancien mur du fond supprimé).
 // Cloison de fond continue et opaque : l'interrupteur est fixé sur sa face intérieure.
 // Réserve prolongée vers l'arrière, avec porte logistique vers le quai.
-cube(12.65,-.15,12.8,5.3,.3,7.0,0xb9c1c8);
-cube(12.65,5.1,12.8,5.3,.2,7.0,0xf1f5f9);
+// Partie centrale déjà comprise dans le sol/plafond continu.
 cube(10,2.5,12.8,.3,5,7,0xe2e8f0,true);
 // Réserve V3 : extension vers z=23,5 au-delà de l'ancien mur de fermeture.
 // L'ancien mur z=17 est supprimé pour créer une seule pièce continue.
 // Le quai logistique conserve son couloir indépendant x=25,65.
-cube(12.65,-.15,20.2,5.3,.3,7.1,0xb9c1c8);
-cube(12.65,5.1,20.2,5.3,.2,7.1,0xf1f5f9);
+// Extension déjà comprise dans le sol/plafond continu.
+// Petit raccord vertical entre les deux anciennes sections du mur gauche.
+cube(10.0,2.5,16.5,.3,5,.65,0xe2e8f0,true);
 cube(10.0,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
 cube(15.3,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
 cube(12.65,2.5,23.7,5.3,5,.3,0xe2e8f0,true);
 wallBaseboard(12.65,23.52,5.0,.07);
 for(const x of [10.2,15.08])wallBaseboard(x,20.05,.07,7.0);
-for(const z of [18.2,21.7])for(const x of [11.6,13.8])ceilingPanel(x,z);
+// L’extension utilise désormais les mêmes plafonniers LED que l’ancienne réserve.
 // Réserve V3 : deux rangées murales uniquement. Aucun meuble au milieu de
 // l'allée, de l'accès magasin (x=10,z=5.5) ou devant l'interrupteur (z=7.8).
 const dryStorageSlots=[];
@@ -2748,4 +2758,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.97 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.98 !");
