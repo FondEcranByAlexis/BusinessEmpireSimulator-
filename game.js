@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.14 — version synchronisée
+// Business Empire Simulator V0.9.15 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -24,6 +24,8 @@ const catalog=[
  {id:"chocolat",name:"Chocolat",cost:5,price:12,color:0x78350f,x:5,z:-15,level:4,kind:"extension",license:"extensionLicense"}
 ];
 const CAPACITY=30, BOX_UNITS=10;
+// Deux gondoles de 30 emplacements pour chaque produit de départ.
+function shelfCapacity(p){return !p.level&&p.kind!=="extension"?CAPACITY*2:CAPACITY;}
 const upgradeCatalog=[
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
  {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Ouvre une nouvelle salle de vente de 20 × 12 m derrière le magasin, avec accès central."},
@@ -109,8 +111,8 @@ function load(){
     const qty=Math.max(0,Math.floor(old.stock||0));
     catalog.forEach((p,i)=>{
      const count=Math.floor(qty/3)+(i<qty%3?1:0);
-     s.inventory[p.id].shelf=Math.min(CAPACITY,count);
-     s.inventory[p.id].reserve=Math.max(0,count-CAPACITY);
+     s.inventory[p.id].shelf=Math.min(shelfCapacity(p),count);
+     s.inventory[p.id].reserve=Math.max(0,count-shelfCapacity(p));
     });
    }
   }
@@ -165,7 +167,7 @@ function showStocks(){
  openPanel("Stocks");
  unlockedProducts().forEach(p=>{
   const a=state.inventory[p.id];
-  paragraph(p.name+" — Rayons "+a.shelf+"/"+CAPACITY+" | Réserve "+a.reserve+" | Cartons "+a.boxes+" | "+a.price+" €");
+  paragraph(p.name+" — Rayons "+a.shelf+"/"+shelfCapacity(p)+" | Réserve "+a.reserve+" | Cartons "+a.boxes+" | "+a.price+" €");
  });
 }
 function showPrices(){
@@ -228,7 +230,7 @@ function showDevTools(){
   sync();showDevTools();toast("Améliorations de test activées");
  });
  button(panel,"Remplir tous les rayons débloqués",()=>{
-  for(const p of unlockedProducts())state.inventory[p.id].shelf=CAPACITY;
+  for(const p of unlockedProducts())state.inventory[p.id].shelf=shelfCapacity(p);
   sync();showDevTools();
  });
  button(panel,"Retour à la partie normale",()=>switchDevMode(false));
@@ -902,8 +904,7 @@ function refreshDisplays(){
  for(const p of catalog)displays[p.id].forEach((m,i)=>{
   const stock=state.inventory[p.id].shelf;
   // Les 30 articles du stock commun sont répartis entre les deux meubles de départ.
-  const visible=p.level||p.kind==="extension"?i<stock:
-   (i<30?i<Math.ceil(stock/2):i-30<Math.floor(stock/2));
+  const visible=p.level||p.kind==="extension"?i<stock:i<stock;
   m.visible=productAvailable(p)&&visible;
  });
  for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
@@ -917,7 +918,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.14 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.15 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1100,7 +1101,7 @@ function interact(){
  if(held){
   const p=catalog.find(p=>p.id===held.id);
   if(productAvailable(p)&&(p.level?near(p.x,p.z,2.2):(near(p.x,1,3.2)||near(p.x,-4,3.2)))){
-   const a=state.inventory[p.id],space=Math.max(0,CAPACITY-a.shelf);
+   const a=state.inventory[p.id],space=Math.max(0,shelfCapacity(p)-a.shelf);
    if(!space){toast("Rayons "+p.name+" pleins");return;}
    const placed=Math.min(space,held.quantity);
    a.shelf+=placed;held.quantity-=placed;
@@ -1324,4 +1325,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.14 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.15 !");
