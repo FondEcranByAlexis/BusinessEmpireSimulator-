@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.3 — version synchronisée
+// Business Empire Simulator V0.10.4 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -182,14 +182,27 @@ state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSe
 const finance=state.finance;
 function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
 function total(){return catalog.reduce((n,p)=>{const a=state.inventory[p.id];return n+a.shelf+a.reserve+a.boxes*BOX_UNITS;},0);}
+// Une clientèle satisfaite revient plus souvent ; un plafond protège la fluidité mobile.
+function customerTraffic(){
+ const rating=Math.max(0,Math.min(100,Number(state.satisfaction??80)));
+ if(rating>=85)return {label:"Très élevée",min:5,max:8};
+ if(rating>=70)return {label:"Élevée",min:7,max:12};
+ if(rating>=40)return {label:"Modérée",min:11,max:17};
+ return {label:"Faible",min:16,max:24};
+}
+function nextCustomerDelay(){
+ const traffic=customerTraffic();
+ return traffic.min+Math.random()*(traffic.max-traffic.min);
+}
 function updateSatisfactionDisplay(){
  const rating=Math.max(0,Math.min(100,Math.round(state.satisfaction??80)));
- const fill=$("satisfactionFill"),value=$("satisfactionValue"),status=$("satisfactionStatus");
+ const fill=$("satisfactionFill"),value=$("satisfactionValue"),status=$("satisfactionStatus"),trafficLabel=$("trafficStatus");
  if(!fill||!value||!status)return;
  const color=rating>=70?"#22c55e":rating>=40?"#f59e0b":"#ef4444";
  fill.style.width=rating+"%";fill.style.background=color;
  value.textContent=rating+" %";value.style.color=color;
  status.textContent=rating>=85?"Excellente":rating>=70?"Bonne":rating>=40?"À améliorer":"Insatisfaits";
+ if(trafficLabel)trafficLabel.textContent="Affluence : "+customerTraffic().label;
 }
 function changeSatisfaction(amount){
  const old=state.satisfaction??80;
@@ -2851,7 +2864,7 @@ openButton.addEventListener("click",()=>{
   shopOpen=false;updateOpen();toast("Fermé aux nouveaux clients");return;
  }
  if(state.hour>=closingHour()){toast("Horaire de fermeture dépassé");return;}
- dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert");
+ dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert — affluence "+customerTraffic().label.toLowerCase());
 });
 function business(dt){
  // Mode test : passer immédiatement à 08:00 sans attente matinale.
@@ -2871,7 +2884,7 @@ function business(dt){
   if(shopOpen&&state.hour<closingHour()){
    spawnTimer-=dt;
    if(spawnTimer<=0&&customers.length<MAX_CUSTOMERS){
-    makeCustomer();spawnTimer=7+Math.random()*5;
+    makeCustomer();spawnTimer=nextCustomerDelay();
    }
   }
   if(shopOpen&&state.hour>=closingHour()){shopOpen=false;toast("Heure de fermeture atteinte — derniers clients en caisse");}
@@ -2910,4 +2923,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.10.3 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.10.4 !");
