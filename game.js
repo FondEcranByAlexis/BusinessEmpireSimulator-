@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.99 — version synchronisée
+// Business Empire Simulator V0.10.0 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -34,7 +34,7 @@ function shelfCapacity(p){return CAPACITY;}
 const upgradeCatalog=[
  {id:"handtruck",name:"Diable de manutention",level:1,cost:125,description:"Transporte jusqu’à 3 cartons du quai vers la réserve sèche et la chambre froide."},
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
- {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Ouvre une nouvelle salle de vente de 20 × 12 m derrière le magasin, avec accès central."},
+ {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Agrandit le magasin et la réserve sèche : +40 places de stockage, jusqu’à 100 cartons après l’amélioration du niveau 3."},
  {id:"phoneSkill",name:"Compétence Téléphonie",level:5,cost:1200,description:"Formation préalable à la vente de téléphones."},
  {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:"phoneSkill",description:"Débloque la spécialisation téléphones."},
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
@@ -57,7 +57,7 @@ function playerLevel(){
  return level;
 }
 function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
-function reserveLimit(){return state.upgrades.reserve1?60:30;}
+function reserveLimit(){return 30+(state.upgrades.reserve1?30:0)+(state.upgrades.store1?40:0);}
 function reserveBoxes(){return catalog.reduce((n,p)=>n+state.inventory[p.id].boxes+Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);}
 const MAX_BOXES_PER_PRODUCT=5;
 function productStoredUnits(p){const a=state.inventory[p.id];return a.boxes*BOX_UNITS+a.reserve;}
@@ -235,7 +235,7 @@ function renderStockCapacity(parent,includeCart=true){
  if(data.free===0){
   const warning=document.createElement("p");
   warning.textContent="Aucune nouvelle commande possible : retire un carton du panier ou libère de la place"+
-   (!state.upgrades.reserve1?" (ou agrandis la réserve).":".");
+   (!state.upgrades.reserve1?" (ou agrandis la réserve).":!state.upgrades.store1?" (ou débloque la première extension du magasin).":".");
   Object.assign(warning.style,{fontSize:"12px",fontWeight:"bold",color:"#fca5a5",margin:"8px 0 0"});
   container.appendChild(warning);
  }
@@ -838,11 +838,12 @@ function updateLighting(){
  scene.background.setRGB(.055+.55*daylight,.09+.69*daylight,.17+.74*daylight);
  sun.intensity=.12+1.28*daylight;
  ambient.intensity=.25+1.95*daylight;
- for(const l of lamps)l.light.intensity=l.breakroom?1.8:l.stockroom?(stockroomLightsOn?1.7:0):l.coldroom?(coldRoomLightsOn?1.8:0):(storeLightsOn&&(!l.extension||state.upgrades.store1)?1.35:0);
+ for(const l of lamps)l.light.intensity=l.requiresUpgrade&&!state.upgrades[l.requiresUpgrade]?0:l.breakroom?1.8:l.stockroom?(stockroomLightsOn?1.7:0):l.coldroom?(coldRoomLightsOn?1.8:0):(storeLightsOn&&(!l.extension||state.upgrades.store1)?1.35:0);
  if(typeof coldLightGlow!=="undefined")coldLightGlow.intensity=coldRoomLightsOn?1.8:0;
  if(typeof coldLight!=="undefined")coldLight.material.color.setHex(coldRoomLightsOn?0xf8fafc:0x64748b);
  if(typeof extendedColdLights!=="undefined")extendedColdLights.forEach(m=>m.material.color.setHex(coldRoomLightsOn?0xf8fafc:0x64748b));
  if(typeof reserveLightPanels!=="undefined")reserveLightPanels.forEach(m=>m.material.color.setHex(stockroomLightsOn?0xfff7db:0x64748b));
+ if(typeof storageExtensionLightPanels!=="undefined")storageExtensionLightPanels.forEach(m=>m.material.color.setHex(stockroomLightsOn?0xfff7db:0x64748b));
 }
 const colliders=[];
 function cube(x,y,z,w,h,d,color,solid=false){
@@ -975,24 +976,57 @@ cube(10,2.5,12.8,.3,5,7,0xe2e8f0,true);
 cube(10.0,2.5,16.5,.3,5,.65,0xe2e8f0,true);
 cube(10.0,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
 cube(15.3,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
-cube(12.65,2.5,23.7,5.3,5,.3,0xe2e8f0,true);
+// La cloison arrière s'efface à l'achat de l'extension du magasin.
+const oldReserveEndWall=cube(12.65,2.5,23.7,5.3,5,.3,0xe2e8f0);
+const oldReserveWallCollider={minX:10.0,maxX:15.3,minZ:23.55,maxZ:23.85};
+colliders.push(oldReserveWallCollider);
+// Pièce de stockage additionnelle derrière la réserve existante.
+// Ses murs et rayonnages n'entravent pas la circulation tant que l'extension n'est pas acquise.
+const storageExtensionMeshes=[],storageExtensionColliders=[],storageExtensionLightPanels=[];
+function storageExtensionPart(x,y,z,w,h,d,color,solid=false){
+ const mesh=cube(x,y,z,w,h,d,color);
+ storageExtensionMeshes.push(mesh);
+ if(solid){
+  const hit={minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2,requiresUpgrade:"store1"};
+  colliders.push(hit);storageExtensionColliders.push(hit);
+ }
+ return mesh;
+}
+storageExtensionPart(12.65,-.15,27.1,5.3,.3,7.0,0xb9c1c8);
+storageExtensionPart(12.65,5.1,27.1,5.3,.2,7.0,0xf1f5f9);
+storageExtensionPart(10.0,2.5,27.15,.3,5,7.0,0xe2e8f0,true);
+storageExtensionPart(15.3,2.5,27.15,.3,5,7.0,0xe2e8f0,true);
+storageExtensionPart(12.65,2.5,30.6,5.3,5,.3,0xe2e8f0,true);
+for(const x of [11.6,13.8])for(const z of [25.2,28.5]){
+ storageExtensionPart(x,4.905,z,1.62,.055,.58,0x94a3b8);
+ const panel=storageExtensionPart(x,4.869,z,1.49,.024,.46,0xfff7db);
+ storageExtensionLightPanels.push(panel);
+ const lamp=ceilingLamp(x,z);
+ lamps.push({light:lamp,stockroom:true,requiresUpgrade:"store1"});
+}
 wallBaseboard(12.65,23.52,5.0,.07);
 for(const x of [10.2,15.08])wallBaseboard(x,20.05,.07,7.0);
 // L’extension utilise désormais les mêmes plafonniers LED que l’ancienne réserve.
 // Réserve V3 : deux rangées murales uniquement. Aucun meuble au milieu de
 // l'allée, de l'accès magasin (x=10,z=5.5) ou devant l'interrupteur (z=7.8).
 const dryStorageSlots=[];
-function storageRack(x,z,face){
+function storageRack(x,z,face,expansion=false){
+ const put=(px,py,pz,w,h,d,col)=>{
+  const m=cube(px,py,pz,w,h,d,col);
+  if(expansion)storageExtensionMeshes.push(m);
+  return m;
+ };
  for(const y of [.62,1.62,2.62]){
-  cube(x,y,z,.84,.075,1.65,0x94a3b8);
-  cube(x,y+.062,z+.80,.84,.07,.035,0x64748b);
-  for(const dz of [-.37,.37])dryStorageSlots.push({x,y:y+.367,z:z+dz,face});
+  put(x,y,z,.84,.075,1.65,0x94a3b8);
+  put(x,y+.062,z+.80,.84,.07,.035,0x64748b);
+  for(const dz of [-.37,.37])dryStorageSlots.push({x,y:y+.367,z:z+dz,face,requiresUpgrade:expansion?"store1":null});
  }
  for(const dx of [-.38,.38])for(const dz of [-.78,.78])
-  cube(x+dx,1.66,z+dz,.055,3.32,.055,0x64748b);
- cube(x,3.3,z,.82,.07,1.58,0x64748b);
- // Les rayonnages bloquent la traversée des meubles, pas l'allée de service.
- colliders.push({minX:x-.44,maxX:x+.44,minZ:z-.82,maxZ:z+.82});
+  put(x+dx,1.66,z+dz,.055,3.32,.055,0x64748b);
+ put(x,3.3,z,.82,.07,1.58,0x64748b);
+ const hit={minX:x-.44,maxX:x+.44,minZ:z-.82,maxZ:z+.82};
+ if(expansion){hit.requiresUpgrade="store1";storageExtensionColliders.push(hit);}
+ colliders.push(hit);
 }
 // Mur gauche : interruption sur 2,45 m au niveau de l'interrupteur.
 for(const z of [3.1,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
@@ -1000,6 +1034,11 @@ for(const z of [3.1,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
 // Mur droit : interruption devant l'accès de la chambre froide z=4.25 à 6.65.
 for(const z of [3.2,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
  storageRack(14.55,z,-1);
+// Deux rangées supplémentaires, toujours sans étagère au milieu du passage.
+for(const z of [25.2,27.35,29.5]){
+ storageRack(10.75,z,1,true);
+ storageRack(14.55,z,-1,true);
+}
 // Ouverture rectangulaire de 3 m, du sol jusqu’à 3,4 m, sans panneau suspendu.
 // Mur arrière avec passage central réservé à la première extension.
 cube(-6,2.5,-10,8,5,.3,0xe2e8f0,true);
@@ -1113,6 +1152,10 @@ function refreshExtension(){
  extensionGate.visible=!unlocked;
  extensionGateCollider.disabled=unlocked;
  for(const mesh of extensionMeshes)mesh.visible=unlocked;
+ // La même amélioration agrandit aussi la surface exploitable du stockage.
+ oldReserveEndWall.visible=!unlocked;
+ oldReserveWallCollider.disabled=unlocked;
+ for(const mesh of storageExtensionMeshes)mesh.visible=unlocked;
 }
 cube(-6,2.5,10,8,5,.3,0xe2e8f0,true);
 cube(6,2.5,10,8,5,.3,0xe2e8f0,true);
@@ -1636,7 +1679,7 @@ function refreshCarry(){
  updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
-function atReserve(){return camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<23.45;}
+function atReserve(){return camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<(state.upgrades.store1?30.45:23.45);}
 function atColdRoom(){return camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
 function atStorageFor(p){return coldProduct(p)?atColdRoom():atReserve();}
 function putBack(){
@@ -2803,4 +2846,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.99 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.10.0 !");
