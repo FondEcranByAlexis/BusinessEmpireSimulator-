@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.66 — version synchronisée
+// Business Empire Simulator V0.9.67 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -99,7 +99,7 @@ function showUpgrades(){
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
- return {money:1000,day:1,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
+ return {money:1000,day:1,sundayMode:'closed',sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
  const s=initial();
@@ -108,12 +108,13 @@ function load(){
   if(current?.inventory){
    if(Number.isFinite(current.devLevel))s.devLevel=current.devLevel;
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
+   if(["closed","morning"].includes(current.sundayMode))s.sundayMode=current.sundayMode;
    if(current.upgrades&&typeof current.upgrades==="object")for(const u of upgradeCatalog)s.upgrades[u.id]=current.upgrades[u.id]===true;
    if(current.finance)for(const k of Object.keys(s.finance))if(Number.isFinite(current.finance[k])&&current.finance[k]>=0)s.finance[k]=current.finance[k];
    if(Array.isArray(current.supplierOrders))s.supplierOrders=current.supplierOrders.filter(o=>o&&Array.isArray(o.items)&&Number.isFinite(o.due));
    if(Array.isArray(current.deliveryDock))s.deliveryDock=current.deliveryDock.filter(it=>it&&typeof it.id==="string"&&Number.isFinite(it.qty));
    // Une session rechargée démarre toujours en préparation à 08:00.
-   s.hour=8;
+   s.hour=7;
    for(const p of catalog){
     const src=current.inventory[p.id]||{},dst=s.inventory[p.id];
     for(const k of ["shelf","reserve","boxes"])if(Number.isFinite(src[k]))dst[k]=Math.max(0,Math.floor(src[k]));
@@ -361,6 +362,23 @@ function showComputer(){
  button(panel,"Stocks du magasin",showStocks);
  button(panel,"Bilan financier",showFinance);
  button(panel,"Améliorations",showUpgrades);
+ button(panel,"Calendrier et horaires",showCalendar);
+}
+const FBA_START_DATE=new Date(Date.UTC(2027,0,1));
+const FBA_DAYS=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+function gameDate(){const d=new Date(FBA_START_DATE.getTime());d.setUTCDate(d.getUTCDate()+Math.max(0,Math.floor(state.day)-1));return d;}
+function dateLabel(){return new Intl.DateTimeFormat("fr-FR",{timeZone:"UTC",weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(gameDate());}
+function isSunday(){return gameDate().getUTCDay()===0;}
+function closingHour(){return isSunday()&&state.sundayMode==="morning"?12:20;}
+function showCalendar(){
+ openPanel("CALENDRIER — Gestion des horaires");
+ paragraph("Date du jeu : "+dateLabel());
+ paragraph("Calendrier réel : mois de 28 à 31 jours, années bissextiles incluses.");
+ paragraph("Du lundi au samedi : 08:00–20:00.");
+ paragraph("Dimanche : "+(state.sundayMode==="morning"?"ouvert de 08:00 à 12:00":"fermé toute la journée")+".");
+ button(panel,"Dimanche : fermer",()=>{state.sundayMode="closed";save();showCalendar();toast("Dimanche : fermeture programmée");});
+ button(panel,"Dimanche : ouvrir de 08:00 à 12:00",()=>{state.sundayMode="morning";save();showCalendar();toast("Dimanche : ouverture 08:00–12:00");});
+ paragraph("Les horaires personnalisés et la paie mensuelle seront ajoutés avec la gestion du personnel.");
 }
 function showComputerOrders(){
  if(!near(7.3,6.5,3.4)){toast("Approche-toi de l'ordinateur");return;}
@@ -1181,7 +1199,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.66 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.67 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1560,7 +1578,7 @@ const PREOPEN_HOUR=7,PREOPEN_SECONDS=600;
 let preopenTimer=0;
 function updateTime(){
  updateLighting();
- $("day").textContent=state.day;
+ $("day").textContent=state.day+" — "+dateLabel();
  $("hour").textContent=formatHour(state.hour);
  $("shopStatus").textContent=shopOpen?"OUVERT":"FERMÉ";
  $("shopStatus").style.color=shopOpen?"#4ade80":"#fca5a5";
@@ -1768,18 +1786,19 @@ const openButton=$("openShop");
 let dayStarted=false,closing=false;
 function updateOpen(){
  openButton.textContent=shopOpen?"Fermer le magasin":closing?"Fermeture en cours":"Ouvrir le magasin";
- openButton.disabled=closing||state.hour<OPEN_HOUR;
- openButton.title=state.hour<OPEN_HOUR?"Ouverture possible à 08:00":"";
+ openButton.disabled=closing||state.hour<OPEN_HOUR||(isSunday()&&state.sundayMode==="closed")||state.hour>=closingHour();
+ openButton.title=isSunday()&&state.sundayMode==="closed"?"Fermé le dimanche (modifiable sur le PC)":state.hour<OPEN_HOUR?"Ouverture possible à 08:00":"";
  updateTime();
 }
 openButton.addEventListener("click",()=>{
  if(paused){toast("Reprends la partie avant d’ouvrir le magasin");return;}
  if(closing){toast("Attends le départ des derniers clients");return;}
  if(state.hour<OPEN_HOUR){toast("Ouverture possible à 08:00");return;}
+ if(isSunday()&&state.sundayMode==="closed"){toast("Dimanche fermé : change les horaires sur le PC");return;}
  if(shopOpen){
   shopOpen=false;updateOpen();toast("Fermé aux nouveaux clients");return;
  }
- if(state.hour>=CLOSE_HOUR){toast("Fermeture à 20 h");return;}
+ if(state.hour>=closingHour()){toast("Horaire de fermeture dépassé");return;}
  dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert");
 });
 function business(dt){
@@ -1796,15 +1815,16 @@ function business(dt){
  if(!closing){
   dayTimer=Math.min(DAY_SECONDS,dayTimer+dt);
   state.hour=OPEN_HOUR+(dayTimer/DAY_SECONDS)*(CLOSE_HOUR-OPEN_HOUR);
-  if(shopOpen&&state.hour<CLOSE_HOUR){
+  if(shopOpen&&state.hour<closingHour()){
    spawnTimer-=dt;
    if(spawnTimer<=0&&customers.length<MAX_CUSTOMERS){
     makeCustomer();spawnTimer=7+Math.random()*5;
    }
   }
+  if(shopOpen&&state.hour>=closingHour()){shopOpen=false;toast("Heure de fermeture atteinte — derniers clients en caisse");}
   if(dayTimer>=DAY_SECONDS){
    state.hour=CLOSE_HOUR;shopOpen=false;closing=true;
-   updateOpen();toast("20 h : magasin fermé, fin des passages en caisse");
+   updateOpen();toast("20 h : fin de journée, derniers clients en caisse");
   }
  }
  // Les clients déjà présents terminent leurs achats et passent en caisse.
@@ -1813,7 +1833,7 @@ function business(dt){
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
   dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
   updateOpen();sync();
-  toast("Jour "+state.day+" — 7 h : préparation du magasin, charges "+euro(DAILY_CHARGES));
+  toast(dateLabel()+" — 7 h : préparation, charges "+euro(DAILY_CHARGES));
  }
  updateTime();
 }
@@ -1829,4 +1849,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.66 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.67 !");
