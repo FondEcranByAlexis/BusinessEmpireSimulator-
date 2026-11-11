@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.52 — version synchronisée
+// Business Empire Simulator V0.9.53 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -642,7 +642,10 @@ cube(15.13,1.7,6.65,.10,3.4,.10,0x64748b);
 cube(15.13,3.42,5.45,.10,.09,2.48,0x64748b);
 cube(18.35,-.15,5.5,6.1,.3,8,0x9ccbdc);
 cube(18.35,5.1,5.5,6.1,.2,8,0xe0f2fe);
-cube(24,2.5,9.25,.3,5,15.5,0xcbd5e1,true);
+// Porte technique sur la façade est de la chambre froide, vers le couloir logistique.
+cube(24,2.5,2.875,.3,5,2.75,0xcbd5e1,true);
+cube(24,2.5,11.825,.3,5,10.35,0xcbd5e1,true);
+cube(24,4.2,5.45,.3,1.6,2.4,0xcbd5e1);
 cube(19.65,2.5,1.5,8.7,5,.3,0xcbd5e1,true);
 cube(19.65,2.5,17,8.7,5,.3,0xcbd5e1,true);
 // Extension de la chambre froide vers l'arrière et l'est.
@@ -1176,7 +1179,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.52 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.53 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1365,21 +1368,23 @@ function showDisposal(p){
  });
  button(panel,"Annuler",showReserve);
 }
-// Quai logistique : zone de réception et camion visibles côté arrière de la réserve.
-const dockFloor=cube(12.65,.045,18.4,4.4,.09,4.7,0x64748b);
-// Sol de raccordement continu entre réserve et quai, sans vide.
-cube(12.65,-.15,16.9,5.3,.3,2.1,0xb9c1c8);
-// Quai extérieur ouvert : aucun mur ni plafond ne dépasse de la façade arrière.
-// Seul le seuil de liaison avec la réserve est conservé.
-cube(12.65,.12,17.12,1.8,.08,.65,0x64748b);
-const dockMark=cube(12.65,.105,17.4,4.0,.018,.09,0xfacc15);
+// Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
+// Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
+const serviceCorridorFloor=cube(25.65,-.15,-9.0,3.1,.3,30.0,0xb9c1c8);
+cube(27.2,2.5,-9.0,.25,5,30.0,0xe2e8f0,true);
+cube(25.65,5.1,-9.0,3.1,.2,30.0,0xf1f5f9);
+// Liaison depuis la porte technique de la chambre froide (z 4.25 à 6.65).
+cube(25.65,-.15,5.45,3.1,.3,2.6,0xb9c1c8);
+// Quai arrière extérieur, sans murs qui dépassent du bâtiment.
+const dockFloor=cube(25.65,.045,-25.2,5.2,.09,4.8,0x64748b);
+const dockMark=cube(25.65,.105,-23.0,4.8,.018,.09,0xfacc15);
 const deliveryTruck=new THREE.Group();scene.add(deliveryTruck);
-const truckBody=cube(12.65,1.65,23.5,3.5,2.8,4.2,0xe2e8f0);
-const truckCab=cube(12.65,1.15,26.1,3.2,2,1.3,0x2563eb);
-const truckStripe=cube(12.65,2.45,25.61,2.5,.3,.05,0xfacc15);
+const truckBody=cube(25.65,1.65,-29.0,3.5,2.8,4.2,0xe2e8f0);
+const truckCab=cube(25.65,1.15,-31.6,3.2,2,1.3,0x2563eb);
+const truckStripe=cube(25.65,2.45,-31.11,2.5,.3,.05,0xfacc15);
 const dockCartons=[];
 for(let i=0;i<8;i++){
- const m=cube(11.55+(i%3)*1.05,.4+Math.floor(i/3)*.7,18.5,.72,.65,.72,0xb98246);
+ const m=cube(24.55+(i%3)*1.05,.4+Math.floor(i/3)*.7,-24.3,.72,.65,.72,0xb98246);
  dockCartons.push(m);
 }
 function refreshDeliveryDock(){
@@ -1391,7 +1396,7 @@ function refreshDeliveryDock(){
  });
 }
 function showDeliveryDock(){
- if(!near(12.65,18.5,2.6)){toast("Approche-toi de la zone livraison");return;}
+ if(!near(25.65,-24.3,2.9)){toast("Approche-toi de la zone livraison");return;}
  openPanel("ZONE LIVRAISON — Déchargement");
  if(held){paragraph("Rends-toi dans la réserve correspondante pour ranger ton carton.");return;}
  if(!state.deliveryDock.length){paragraph("Aucun camion à décharger pour le moment.");return;}
@@ -1515,17 +1520,17 @@ document.addEventListener("keydown",e=>{if(keyMap[e.code]){keys[keyMap[e.code]]=
 document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=false;});
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;joystickPointer=null;joyX=0;joyY=0;stick.style.transform="translate(0px,0px)";});
 function blocked(x,z,r=.4){
- // Plan : vente, réserve sèche agrandie, chambre froide et quai arrière.
- if(x< -9.45+r||z<(state.upgrades.store1?-21.45:-9.45)+r)return true;
- const shop=x<=9.45&&z<=9.45;
+ // Entrée clientèle au sud (z positif), quai logistique à l'arrière (z négatif).
+ const shop=x>=-9.45+r&&x<=9.45-r&&z>=(state.upgrades.store1?-21.45:-9.45)+r&&z<=9.45-r;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<16.85;
  const cold=x>15.55&&x<23.75&&z>1.8&&z<16.8;
- const dock=x>10.45&&x<14.85&&z>=16.65&&z<20.75;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<13.45;
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
- const dockDoor=x>11.8&&x<13.7&&z>16.6&&z<17.4;
- if(!(shop||reserve||cold||dock||entrance||reserveDoor||coldDoor||dockDoor))return true;
+ const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
+ const serviceCorridor=x>24.2&&x<27.0&&z>-24.0&&z<6.6;
+ const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
+ if(!(shop||reserve||cold||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock))return true;
  return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 function movePlayer(dt){
@@ -1804,4 +1809,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.52 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.53 !");
