@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.48 — version synchronisée
+// Business Empire Simulator V0.9.49 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -659,9 +659,13 @@ for(const x of [16.6,22.5])for(const z of [11,14.8]){
  for(const dx of [-.65,.65])for(const dz of [-.65,.65])cube(x+dx,1.6,z+dz,.07,3.2,.07,0x64748b);
 }
 // Sol antidérapant et plinthes sanitaires.
-const coldFloor=cube(18.35,.016,5.5,5.8,.025,7.65,0xb7dce8);
+// Revêtement continu, posé légèrement au-dessus des anciens dallages pour supprimer les démarcations.
+const coldFloor=cube(19.65,.055,9.25,8.65,.11,15.45,0xb7dce8);
 cube(19.65,.14,1.75,8.4,.23,.08,0x64748b);
 cube(19.65,.14,16.82,8.4,.23,.08,0x64748b);
+// Plinthes sanitaires le long de la cloison, de part et d’autre de la porte froide.
+cube(15.48,.14,2.9,.08,.23,2.6,0x64748b);
+cube(15.48,.14,11.75,.08,.23,10.0,0x64748b);
 cube(23.82,.14,9.25,.08,.23,15.0,0x64748b);
 const coldLight=cube(18.35,4.88,5.5,3.4,.045,.55,0xf8fafc);
 const coldLightGlow=new THREE.PointLight(0xbceeff,1.3,11);
@@ -720,6 +724,11 @@ for(const z of [-9.78,-10.22])for(const x of [-6,6])wallBaseboard(x,z,7.7,.065,t
 wallBaseboard(15.08,2.85,.065,2.6);
 wallBaseboard(15.08,8.02,.065,2.65);
 wallBaseboard(12.65,1.73,5.0,.065);
+// Plinthes périphériques de la réserve étendue, interrompues seulement aux portes.
+wallBaseboard(10.2,13.0,.07,7.8);
+wallBaseboard(15.08,12.4,.07,8.8);
+wallBaseboard(11,16.86,2.0,.07);
+wallBaseboard(14.55,16.86,1.5,.07);
 // Ancienne plinthe du mur de fond supprimée : passage vers la nouvelle réserve.
 // Face magasin de la cloison caisse/réserve, sans traverser sa porte.
 wallBaseboard(9.78,2.7,.065,2.35);
@@ -1159,7 +1168,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.48 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.49 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1209,8 +1218,8 @@ scene.add(checkoutLogoOpposite);
 const lightSwitch=cube(8.08,1.16,6.93,.10,.09,.035,0x22c55e);
 // Interrupteur dédié, sur le mur intérieur de la réserve près de son entrée.
 // Plaque et bouton fixés sur le mur du fond de la réserve, côté intérieur.
-const stockroomSwitchPlate=cube(10.18,1.35,7.8,.045,.22,.19,0xf8fafc);
-const stockroomSwitch=cube(10.14,1.35,7.8,.045,.11,.09,0x22c55e);
+const stockroomSwitchPlate=cube(10.27,1.35,7.8,.045,.22,.19,0xf8fafc);
+const stockroomSwitch=cube(10.31,1.35,7.8,.045,.11,.09,0x22c55e);
 function toggleColdRoomLights(){
  coldRoomLightsOn=!coldRoomLightsOn;
  coldSwitch.material.color.setHex(coldRoomLightsOn?0x22c55e:0xef4444);
@@ -1351,7 +1360,11 @@ function showDisposal(p){
 // Quai logistique : zone de réception et camion visibles côté arrière de la réserve.
 const dockFloor=cube(12.65,.045,18.4,4.4,.09,4.7,0x64748b);
 // Sol de raccordement continu entre réserve et quai, sans vide.
-cube(12.65,-.15,16.65,4.1,.3,1.2,0xb9c1c8);
+cube(12.65,-.15,16.9,5.3,.3,2.1,0xb9c1c8);
+// Retour de murs et habillage du seuil pour éviter les fentes entre bâtiment et quai.
+cube(10.0,2.5,16.9,.3,5,.6,0xe2e8f0,true);
+cube(15.3,2.5,16.9,.3,5,.6,0xe2e8f0,true);
+cube(12.65,.12,17.12,1.8,.08,.65,0x64748b);
 const dockMark=cube(12.65,.105,17.4,4.0,.018,.09,0xfacc15);
 const deliveryTruck=new THREE.Group();scene.add(deliveryTruck);
 const truckBody=cube(12.65,1.65,23.5,3.5,2.8,4.2,0xe2e8f0);
@@ -1784,4 +1797,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.48 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.49 !");
