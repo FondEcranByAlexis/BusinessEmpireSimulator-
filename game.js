@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.37 — version synchronisée
+// Business Empire Simulator V0.9.38 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1066,7 +1066,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.37 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.38 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1140,16 +1140,32 @@ cube(12.8,.1,5.5,3.5,.2,5.8,0x8b5e3c);
 // Représentation 3D : jusqu'à 3 cartons par produit, plus un lot ouvert
 const boxes={},reserveModels={};
 const coldProduct=p=>p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits";
+// Chaque produit froid occupe un module de rayonnage inox existant.
+// Les cartons reposent sur les plateaux (y = .65, 1.70 et 2.75).
+const coldSlots={
+ fromage:{x:16.35,z:3.1},
+ surgeles:{x:20.15,z:3.1},
+ pommes:{x:16.35,z:7.8}
+};
 for(const [i,p] of catalog.entries()){
  boxes[p.id]=[];
+ const cold=coldProduct(p);
+ const slot=cold?coldSlots[p.id]:null;
  for(let j=0;j<3;j++){
-  const cold=coldProduct(p);
-  const mesh=cube(cold?17.15+(i%2)*2.15:11.3+(i%4)*.85,.48+j*.68,cold?3.1+Math.floor(i/2)*1.2:3.3+Math.floor(i/4)*1.55,.7,.65,.7,0xb98246);
+  const mesh=cube(cold?slot.x:11.3+(i%4)*.85,
+   cold?[1.025,2.075,3.125][j]:.48+j*.68,
+   cold?slot.z:3.3+Math.floor(i/4)*1.55,
+   .7,.65,.7,0xb98246);
   const band=new THREE.Mesh(new THREE.BoxGeometry(.72,.13,.72),new THREE.MeshStandardMaterial({color:p.color}));
   band.position.y=.18;mesh.add(band);
   boxes[p.id].push(mesh);
  }
- reserveModels[p.id]=cube(coldProduct(p)?17.15+(i%2)*2.15:11.3+(i%4)*.85,.25,coldProduct(p)?3.5+Math.floor(i/2)*1.2:4.1+Math.floor(i/4)*1.55,.55,.4,.45,p.color);
+ // Le lot ouvert est posé sur le quatrième module, pas sur le sol.
+ const looseSlot=cold?{x:20.15,z:7.8}:null;
+ reserveModels[p.id]=cube(cold?looseSlot.x+(Object.keys(coldSlots).indexOf(p.id)-1)*.43:11.3+(i%4)*.85,
+  cold?1.05:.25,
+  cold?looseSlot.z:4.1+Math.floor(i/4)*1.55,
+  .42,.4,.45,p.color);
 }
 function refreshBoxes(){
  catalog.forEach(p=>{
@@ -1628,4 +1644,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.37 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.38 !");
