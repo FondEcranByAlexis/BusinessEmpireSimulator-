@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.86 — version synchronisée
+// Business Empire Simulator V0.9.87 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -384,6 +384,7 @@ function showComputer(){
  button(panel,"Améliorations",showUpgrades);
  button(panel,"Calendrier et horaires",showCalendar);
  button(panel,"Personnaliser les prénoms",showNames);
+ button(panel,"État de l’équipe — présence et tâches",showEmployeeOverview);
  button(panel,"Personnel — manutentionnaire",showWorkerManagement);
  button(panel,"Personnel — mise en rayon",showStockerManagement);
  button(panel,"Planning des employés",showWorkerPlanning);
@@ -417,6 +418,19 @@ function settleWorkerPayroll(){
  toast(state.workerWageDue?"Paie partielle : dette salariale "+euro(state.workerWageDue):"Salaire mensuel versé : "+euro(paid));
 }
 function workerShift(day=state.day){const d=new Date(Date.UTC(2027,0,1));d.setUTCDate(d.getUTCDate()+day-1);return state.workerLeaveDays.includes(day)?null:state.workerSchedule[d.getUTCDay()];}
+// Statuts communs : gestion du personnel, dialogues, horaires et animations.
+function employeeOnLunch(shift){return !!shift&&state.hour>=shift[0]&&state.hour<shift[1]&&state.hour>=12&&state.hour<13;}
+function employeeWorking(shift){return !!shift&&state.hour>=shift[0]&&state.hour<shift[1]&&!employeeOnLunch(shift);}
+function employeeStatus(hired,enabled,sentHomeDay,shift){
+ if(!hired)return "Non recruté";
+ if(!enabled)return "Affectation suspendue";
+ if(sentHomeDay===state.day)return "Rentré chez lui pour aujourd’hui";
+ if(!shift)return "Repos ou congé";
+ if(state.hour<shift[0])return "Prise de poste à "+formatHour(shift[0]);
+ if(state.hour>=shift[1])return "Service terminé à "+formatHour(shift[1]);
+ if(employeeOnLunch(shift))return "Pause déjeuner — reprise à 13:00";
+ return "En service";
+}
 function showWorkerPlanning(){
  openPanel("PLANNING — "+state.workerName);
  paragraph("Semaine du "+dateLabel()+". Les horaires sont modifiables et sauvegardés.");
@@ -445,8 +459,9 @@ function showWorkerManagement(){
  button(panel,"Modifier les prénoms",showNames);
  button(panel,"Voir / modifier le planning",showWorkerPlanning);
  paragraph("Contrat : "+(state.workerHired?"CDI — manutentionnaire":"Aucun contrat")+".");
- paragraph("Statut : "+(state.workerSentHomeDay===state.day?"Rentré chez lui pour aujourd’hui":state.workerEnabled?"En service":"Non affecté")+".");
- paragraph("Planning : lundi à samedi, 08:00–17:00, pause 12:00–13:00 ; dimanche repos.");
+ paragraph("Statut actuel : "+employeeStatus(state.workerHired,state.workerEnabled,state.workerSentHomeDay,workerShift())+".");
+ paragraph("Tâche : "+workerTaskLabel()+".");
+ paragraph("Horaires : selon le planning enregistré, pause déjeuner 12:00–13:00.");
  paragraph("Salaire de simulation : "+euro(WORKER_DAILY_WAGE)+" par journée travaillée, versé en fin de mois.");
  paragraph("Journées comptabilisées : "+state.workerDaysWorked+".");
  paragraph("Salaire restant à payer : "+euro(state.workerWageDue)+".");
@@ -492,6 +507,8 @@ function showStockerManagement(){
  const input=document.createElement("input");input.value=state.stockerName;input.maxLength=24;input.style.width="100%";panel.appendChild(input);
  button(panel,"Enregistrer le prénom",()=>{state.stockerName=input.value.trim().slice(0,24)||"Camille";save();showStockerManagement();});
  paragraph("Contrat : "+(state.stockerHired?"CDI":"Non recruté"));
+ paragraph("Statut actuel : "+employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift())+".");
+ paragraph("Tâche : "+stockerTaskLabel()+".");
  paragraph("Salaire : "+euro(STOCKER_DAILY_WAGE)+"/journée | Dû : "+euro(state.stockerWageDue)+" | Versé : "+euro(state.stockerPaidTotal));
  paragraph("Mission : transporter des produits depuis la réserve et remplir les rayons.");
  button(panel,"Planning de mise en rayon",showStockerPlanning);
@@ -522,6 +539,20 @@ function showStockerPlanning(){
   state.stockerLeaveDays=state.stockerLeaveDays.includes(state.day)?state.stockerLeaveDays.filter(d=>d!==state.day):[...state.stockerLeaveDays,state.day];save();showStockerPlanning();
  });
  button(panel,"Retour au personnel",showStockerManagement);
+}
+function showEmployeeOverview(){
+ openPanel("ÉQUIPE — PRÉSENCE ET MISSIONS");
+ paragraph("Heure du magasin : "+formatHour(state.hour)+". Pause déjeuner automatique de 12:00 à 13:00.");
+ paragraph(state.workerName+" — Manutentionnaire");
+ paragraph("Présence : "+employeeStatus(state.workerHired,state.workerEnabled,state.workerSentHomeDay,workerShift()));
+ paragraph("Mission : "+workerTaskLabel());
+ paragraph(state.stockerName+" — Mise en rayon");
+ paragraph("Présence : "+employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift()));
+ paragraph("Mission : "+stockerTaskLabel());
+ button(panel,"Actualiser les statuts",showEmployeeOverview);
+ button(panel,"Gérer le manutentionnaire",showWorkerManagement);
+ button(panel,"Gérer la mise en rayon",showStockerManagement);
+ button(panel,"Retour à l’ordinateur",showComputer);
 }
 const FBA_START_DATE=new Date(Date.UTC(2027,0,1));
 const FBA_DAYS=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
@@ -1359,7 +1390,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.86 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.87 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1638,6 +1669,13 @@ const workerRouteDry=[[25.65,5.5],[24.7,5.5],[22,5.5],[19,5.5],[16.2,5.5],[14.2,
 const workerRouteCold=[[25.65,5.5],[24.7,5.5],[22,5.5],[19.5,5.5]];
 let workerRoute=[],workerWaypoint=0,workerPhase="dock",workerCargo=null,workerWait=0,workerTalking=false,workerTalkTimer=0,workerWalkClock=0;
 workerGroup.position.set(25.65,0,-23.8);
+function workerTaskLabel(){
+ if(workerCargo){const p=catalog.find(p=>p.id===workerCargo.id);return "Transport d’un carton"+(p?" de "+p.name:"");}
+ if(workerRoute.length&&workerPhase==="pickup")return "En route pour décharger le quai";
+ if(workerRoute.length&&workerPhase==="dock")return "Retour au quai";
+ if(state.deliveryDock.length)return state.deliveryDock.length+" carton(s) à prendre en charge";
+ return "Disponible au quai";
+}
 function workerGo(route,phase){workerRoute=route.map(p=>p.slice());workerWaypoint=0;workerPhase=phase;}
 function workerReply(message,continueWork=false){
  panel.style.display="none";
@@ -1660,11 +1698,12 @@ function showWorkerInteraction(){
  openPanel("DISCUSSION — "+state.workerName);
  paragraph(state.workerName+" : Salut "+state.playerName+" ! Tu as besoin de quelque chose ?");
  const p=workerCargo&&catalog.find(p=>p.id===workerCargo.id);
- paragraph("Statut : "+(p?"Transport d’un carton de "+p.name:workerPhase==="pickup"?"En route vers le quai":workerPhase==="storage"?"Rangement en réserve":"Disponible au quai")+".");
+ paragraph("Présence : "+employeeStatus(state.workerHired,state.workerEnabled,state.workerSentHomeDay,workerShift())+".");
+ paragraph("Mission : "+workerTaskLabel()+".");
  paragraph("Cartons à décharger : "+state.deliveryDock.length+".");
  button(panel,"Comment ça va ?",()=>workerReply("Ça va bien, merci "+state.playerName+" !"));
  button(panel,"Tu fais quoi ?",()=>workerReply(workerCargo?"Je range un carton.":state.deliveryDock.length?"Je m’occupe des livraisons.":"J’attends une livraison."));
- button(panel,"Va décharger le camion",()=>workerReply(state.deliveryDock.length?"Pas de souci, j’y vais !":"Il n’y a aucun camion à décharger.",true));
+ button(panel,"Va décharger le camion",()=>workerReply(employeeOnLunch(workerShift())?"Je reprends les livraisons à 13 h, après ma pause.":state.deliveryDock.length?"Pas de souci, j’y vais !":"Il n’y a aucun camion à décharger.",true));
  button(panel,"Combien de cartons restent ?",()=>workerReply("Il reste "+state.deliveryDock.length+" carton(s) au quai."));
  button(panel,"Reprends ton travail",()=>workerReply("D’accord, je reprends le travail !",true));
  button(panel,"Tu peux rentrer chez toi pour aujourd’hui",()=>{
@@ -1695,10 +1734,23 @@ function stockerNeeds(){
  return catalog.find(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
  (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0));
 }
+function stockerTaskLabel(){
+ if(stockerCargo){const p=catalog.find(p=>p.id===stockerCargo);return "Réassort"+(p?" du rayon "+p.name:"");}
+ if(stockerPhase==="idle-return")return "Retour vers la réserve";
+ const waiting=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&(state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)).length;
+ return waiting?waiting+" rayon(s) à réapprovisionner":"Surveillance des stocks";
+}
 function showStockerInteraction(){
  stockerTalking=true;openPanel("DISCUSSION — "+state.stockerName);
  paragraph(state.stockerName+" : Salut "+state.playerName+" ! Je m’occupe des rayons.");
- button(panel,"Tu fais quoi ?",()=>{panel.style.display="none";toast(state.stockerName+" : "+(stockerCargo?"Je remplis les rayons.":"Je vérifie les stocks."));stockerTalking=false;});
+ paragraph("Présence : "+employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift())+".");
+ paragraph("Mission : "+stockerTaskLabel()+".");
+ button(panel,"Tu fais quoi ?",()=>{panel.style.display="none";toast(state.stockerName+" : "+stockerTaskLabel());stockerTalking=false;});
+ button(panel,"Des rayons ont besoin d’être remplis ?",()=>{panel.style.display="none";toast(state.stockerName+" : "+stockerTaskLabel());stockerTalking=false;});
+ button(panel,"Reprends ton travail",()=>{
+  stockerTalking=false;panel.style.display="none";
+  toast(employeeOnLunch(stockerShift())?state.stockerName+" : Je reprends à 13 h !":state.stockerName+" : D’accord, je m’en occupe !");
+ });
  button(panel,"Tu peux rentrer chez toi",()=>{state.stockerSentHomeDay=state.day;stockerTalking=false;panel.style.display="none";save();toast(state.stockerName+" : À demain !");});
  button(panel,"Terminer",()=>{stockerTalking=false;panel.style.display="none";});
 }
@@ -1727,9 +1779,15 @@ function stockerRouteTo(point){
 }
 function updateStocker(dt){
  const shift=stockerShift();
- const onDuty=state.stockerHired&&state.stockerEnabled&&shift&&state.stockerSentHomeDay!==state.day&&state.hour>=shift[0]&&state.hour<shift[1]&&!(state.hour>=12&&state.hour<13);
- stockerGroup.visible=!!onDuty;
- if(!onDuty||stockerTalking)return;
+ const assigned=state.stockerHired&&state.stockerEnabled&&state.stockerSentHomeDay!==state.day;
+ const onDuty=assigned&&employeeWorking(shift),onBreak=assigned&&employeeOnLunch(shift);
+ // Pendant la pause, l'employé reste visible à sa position.
+ stockerGroup.visible=!!(onDuty||onBreak);
+ if(!onDuty){
+  stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;
+  return;
+ }
+ if(stockerTalking)return;
  if(stockerTimer>0){stockerTimer-=dt;return;}
  if(!stockerTarget){
   if(stockerRoute.length){stockerTarget=stockerRoute.shift();}
@@ -1770,9 +1828,14 @@ function updateStocker(dt){
 let stockerUnits=0;
 function updateWorker(dt){
  const shift=workerShift();
- const onDuty=state.workerHired&&state.workerEnabled&&shift&&state.workerSentHomeDay!==state.day&&state.hour>=shift[0]&&state.hour<shift[1]&&!(state.hour>=12&&state.hour<13);
- workerGroup.visible=!!onDuty;
- if(!onDuty){workerLeftLeg.rotation.x=workerRightLeg.rotation.x=0;return;}
+ const assigned=state.workerHired&&state.workerEnabled&&state.workerSentHomeDay!==state.day;
+ const onDuty=assigned&&employeeWorking(shift),onBreak=assigned&&employeeOnLunch(shift);
+ // Pause sur place : ne pas masquer le personnage ni le téléporter.
+ workerGroup.visible=!!(onDuty||onBreak);
+ if(!onDuty){
+  workerLeftLeg.rotation.x=workerRightLeg.rotation.x=workerLeftArm.rotation.x=workerRightArm.rotation.x=0;
+  return;
+ }
  if(workerTalking){workerLeftLeg.rotation.x=workerRightLeg.rotation.x=0;workerLeftArm.rotation.x=workerRightArm.rotation.x=0;return;}
  if(workerWait>0){workerWait-=dt;return;}
  if(!workerRoute.length){
@@ -1781,7 +1844,13 @@ function updateWorker(dt){
    workerGo((p&&coldProduct(p)?workerRouteCold:workerRouteDry).slice().reverse(),"storage");
   }else if(state.deliveryDock.length){
    workerGo(workerRouteDock.slice().reverse(),"pickup");
-  }else{workerGroup.position.set(25.65,0,-23.8);workerPhase="dock";return;}
+  }else if(Math.hypot(workerGroup.position.x-25.65,workerGroup.position.z+23.8)>.3){
+   // Retour au quai en marchant, notamment après un rappel au travail.
+   const back=workerGroup.position.x<24.7
+    ?[[24.7,5.5],[25.65,5.5],[25.65,-23.8]]
+    :[[25.65,-23.8]];
+   workerGo(back,"dock");
+  }else{workerPhase="dock";return;}
  }
  const target=workerRoute[workerWaypoint];
  if(target){
@@ -2331,4 +2400,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.86 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.87 !");
