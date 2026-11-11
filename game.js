@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.76 — version synchronisée
+// Business Empire Simulator V0.9.77 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -100,7 +100,7 @@ function showUpgrades(){
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
- return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
+ return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
  const s=initial();
@@ -116,6 +116,8 @@ function load(){
    s.workerHired=typeof current.workerHired==="boolean"?current.workerHired:current.workerEnabled===true;
    for(const k of ["workerWageDue","workerPaidTotal","workerDaysWorked"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(Array.isArray(current.workerPayrollHistory))s.workerPayrollHistory=current.workerPayrollHistory.slice(-24);
+   if(Array.isArray(current.workerSchedule)&&current.workerSchedule.length===7)s.workerSchedule=current.workerSchedule.map(v=>Array.isArray(v)&&v.length===2&&Number.isInteger(v[0])&&Number.isInteger(v[1])&&v[0]>=8&&v[1]<=20&&v[1]>v[0]?v:null);
+   if(Array.isArray(current.workerLeaveDays))s.workerLeaveDays=current.workerLeaveDays.filter(Number.isInteger).slice(-60);
    if(Array.isArray(current.trolleyCargo))s.trolleyCargo=current.trolleyCargo.filter(it=>it&&catalog.some(p=>p.id===it.id)).slice(0,3).map(it=>({id:it.id}));
    if(["closed","morning"].includes(current.sundayMode))s.sundayMode=current.sundayMode;
    if(current.upgrades&&typeof current.upgrades==="object")for(const u of upgradeCatalog)s.upgrades[u.id]=current.upgrades[u.id]===true;
@@ -378,6 +380,7 @@ function showComputer(){
  button(panel,"Calendrier et horaires",showCalendar);
  button(panel,"Personnaliser les prénoms",showNames);
  button(panel,"Personnel — manutentionnaire",showWorkerManagement);
+ button(panel,"Planning des employés",showWorkerPlanning);
 }
 function showNames(){
  openPanel("PERSONNALISATION — Prénoms");
@@ -407,9 +410,34 @@ function settleWorkerPayroll(){
  state.workerPayrollHistory=state.workerPayrollHistory.slice(-24);
  toast(state.workerWageDue?"Paie partielle : dette salariale "+euro(state.workerWageDue):"Salaire mensuel versé : "+euro(paid));
 }
+function workerShift(day=state.day){const d=new Date(Date.UTC(2027,0,1));d.setUTCDate(d.getUTCDate()+day-1);return state.workerLeaveDays.includes(day)?null:state.workerSchedule[d.getUTCDay()];}
+function showWorkerPlanning(){
+ openPanel("PLANNING — "+state.workerName);
+ paragraph("Semaine du "+dateLabel()+". Les horaires sont modifiables et sauvegardés.");
+ const names=["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+ for(let i=0;i<7;i++){
+  const shift=state.workerSchedule[i];
+  paragraph(names[i]+" : "+(shift?formatHour(shift[0])+"–"+formatHour(shift[1])+" (pause 12:00–13:00 si incluse)":"Repos"));
+  button(panel,names[i]+" — "+(shift?"Modifier / repos":"Définir horaires"),()=>{
+   openPanel("HORAIRES — "+names[i]);
+   const start=document.createElement("select"),end=document.createElement("select");
+   for(let h=8;h<=20;h++)for(const el of [start,end]){const opt=document.createElement("option");opt.value=h;opt.textContent=formatHour(h);el.appendChild(opt);}
+   start.value=shift?shift[0]:8;end.value=shift?shift[1]:17;
+   paragraph("Début");panel.appendChild(start);paragraph("Fin");panel.appendChild(end);
+   button(panel,"Enregistrer",()=>{const a=Number(start.value),b=Number(end.value);if(b<=a){toast("La fin doit être après le début");return;}state.workerSchedule[i]=[a,b];save();showWorkerPlanning();});
+   button(panel,"Jour de repos",()=>{state.workerSchedule[i]=null;save();showWorkerPlanning();});
+   button(panel,"Retour au planning",showWorkerPlanning);
+  });
+ }
+ paragraph("Aujourd’hui : "+(state.workerLeaveDays.includes(state.day)?"Congé":state.workerSentHomeDay===state.day?"Rentré plus tôt":workerShift()?"Travail prévu":"Repos"));
+ button(panel,state.workerLeaveDays.includes(state.day)?"Annuler le congé du jour":"Accorder un congé aujourd’hui",()=>{state.workerLeaveDays=state.workerLeaveDays.includes(state.day)?state.workerLeaveDays.filter(d=>d!==state.day):[...state.workerLeaveDays,state.day];save();showWorkerPlanning();});
+ button(panel,"Retour au personnel",showWorkerManagement);
+}
 function showWorkerManagement(){
+
  openPanel("PERSONNEL — "+state.workerName);
  button(panel,"Modifier les prénoms",showNames);
+ button(panel,"Voir / modifier le planning",showWorkerPlanning);
  paragraph("Contrat : "+(state.workerHired?"CDI — manutentionnaire":"Aucun contrat")+".");
  paragraph("Statut : "+(state.workerSentHomeDay===state.day?"Rentré chez lui pour aujourd’hui":state.workerEnabled?"En service":"Non affecté")+".");
  paragraph("Planning : lundi à samedi, 08:00–17:00, pause 12:00–13:00 ; dimanche repos.");
@@ -1270,7 +1298,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.76 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.77 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1585,7 +1613,8 @@ function showWorkerInteraction(){
  button(panel,"Terminer la conversation",()=>{panel.style.display="none";workerTalking=false;});
 }
 function updateWorker(dt){
- const onDuty=state.workerHired&&state.workerEnabled&&!isSunday()&&state.workerSentHomeDay!==state.day&&state.hour>=8&&state.hour<17&&!(state.hour>=12&&state.hour<13);
+ const shift=workerShift();
+ const onDuty=state.workerHired&&state.workerEnabled&&shift&&state.workerSentHomeDay!==state.day&&state.hour>=shift[0]&&state.hour<shift[1]&&!(state.hour>=12&&state.hour<13);
  workerGroup.visible=!!onDuty;
  if(!onDuty){workerLeftLeg.rotation.x=workerRightLeg.rotation.x=0;return;}
  if(workerTalking){workerLeftLeg.rotation.x=workerRightLeg.rotation.x=0;workerLeftArm.rotation.x=workerRightArm.rotation.x=0;return;}
@@ -2080,7 +2109,7 @@ function business(dt){
  // Les clients déjà présents terminent leurs achats et passent en caisse.
  if(closing&&customers.length===0&&queue.length===0&&!cashier){
   const finishedDate=gameDate();
-  if(state.workerHired&&state.workerEnabled&&!isSunday()&&state.workerSentHomeDay!==state.day){
+  if(state.workerHired&&state.workerEnabled&&workerShift()&&state.workerSentHomeDay!==state.day){
    state.workerWageDue+=WORKER_DAILY_WAGE;state.workerDaysWorked++;
   }
   if(finishedDate.getUTCDate()===new Date(Date.UTC(finishedDate.getUTCFullYear(),finishedDate.getUTCMonth()+1,0)).getUTCDate())settleWorkerPayroll();
@@ -2105,4 +2134,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.76 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.77 !");
