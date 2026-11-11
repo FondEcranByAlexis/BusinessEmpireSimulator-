@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.40 — version synchronisée
+// Business Empire Simulator V0.9.41 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -53,7 +53,20 @@ function playerLevel(){
 function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
 function reserveLimit(){return state.upgrades.reserve1?60:30;}
 function reserveBoxes(){return catalog.reduce((n,p)=>n+state.inventory[p.id].boxes+Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);}
-function canOrderBox(){return reserveBoxes()<reserveLimit();}
+const MAX_BOXES_PER_PRODUCT=5;
+function productStoredUnits(p){const a=state.inventory[p.id];return a.boxes*BOX_UNITS+a.reserve;}
+function stockAlert(p){
+ const a=state.inventory[p.id],available=productStoredUnits(p)+a.shelf;
+ return available===0?"RUPTURE":available<=10?"STOCK FAIBLE":"OK";
+}
+function canOrderBox(p){
+ return reserveBoxes()<reserveLimit()&&(!p||state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT);
+}
+function orderBlockReason(p){
+ if(state.inventory[p.id].boxes>=MAX_BOXES_PER_PRODUCT)return "Maximum de 5 cartons de "+p.name+" atteint";
+ if(reserveBoxes()>=reserveLimit())return "Réserve pleine — améliore sa capacité";
+ return "";
+}
 function hasProductLicense(p){
  if(p.license)return !!state.upgrades[p.license];
  if(p.id==="fromage"||p.id==="surgeles")return !!state.upgrades.freshLicense;
@@ -155,19 +168,24 @@ function paragraph(t){
 }
 function showOrders(){
  openPanel("Fournisseurs — cartons de 10");
- unlockedProducts().forEach(p=>button(panel,p.name+" : "+(p.cost*10)+" €",()=>{
+ paragraph("Maximum : 5 cartons fermés par produit. Livraisons dans la réserve correspondante.");
+ unlockedProducts().forEach(p=>{
+ const a=state.inventory[p.id];
+ const b=button(panel,p.name+" — "+a.boxes+"/5 cartons | "+(p.cost*10)+" €",()=>{
   const cost=p.cost*10;
-  if(!canOrderBox()){toast("Réserve pleine — améliore sa capacité");return;}
+  if(!canOrderBox(p)){toast(orderBlockReason(p));return;}
   if(state.money<cost){toast("Trésorerie insuffisante");return;}
   state.money-=cost;finance.supplies+=cost;state.inventory[p.id].boxes++;
   sync();showOrders();toast("Carton livré : "+p.name);
- }));
+ });
+ b.disabled=!canOrderBox(p);if(b.disabled)b.style.opacity=".45";
+ });
 }
 function showStocks(){
  openPanel("Stocks");
  unlockedProducts().forEach(p=>{
   const a=state.inventory[p.id];
-  paragraph(p.name+" — Rayons "+a.shelf+"/"+shelfCapacity(p)+" | Réserve "+a.reserve+" | Cartons "+a.boxes+" | "+a.price+" €");
+  paragraph(p.name+" — "+stockAlert(p)+" | Rayon "+a.shelf+"/"+shelfCapacity(p)+" | "+(p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits"?"Chambre froide":"Réserve sèche")+" : "+a.boxes+"/5 cartons + "+a.reserve+" en vrac | "+a.price+" €");
  });
 }
 function showPrices(){
@@ -289,16 +307,17 @@ function showComputer(){
 function showComputerOrders(){
  if(!near(7.3,6.5,3.4)){toast("Approche-toi de l'ordinateur");return;}
  openPanel("ORDINATEUR — Fournisseurs");
- paragraph("Commandes livrées en réserve. Chaque carton contient "+BOX_UNITS+" produits.");
+ paragraph("Commandes livrées en réserve sèche ou en chambre froide. Chaque carton contient "+BOX_UNITS+" produits. Limite : 5 cartons fermés par produit.");
  for(const p of unlockedProducts()){
   const a=state.inventory[p.id],cost=p.cost*BOX_UNITS;
-  paragraph(p.name+" | "+euro(cost)+"/carton | "+a.boxes+" carton(s) en réserve");
-  button(panel,"Commander 1 carton — "+euro(cost),()=>{
-   if(!canOrderBox()){toast("Réserve pleine — améliore sa capacité");return;}
+  paragraph(p.name+" | "+euro(cost)+"/carton | "+a.boxes+"/5 cartons | "+stockAlert(p));
+  const orderButton=button(panel,"Commander 1 carton — "+euro(cost),()=>{
+   if(!canOrderBox(p)){toast(orderBlockReason(p));return;}
    if(state.money<cost){toast("Trésorerie insuffisante");return;}
    state.money-=cost;finance.supplies+=cost;a.boxes++;
    sync();showComputerOrders();toast("Commande livrée : "+p.name);
   });
+  orderButton.disabled=!canOrderBox(p);if(orderButton.disabled)orderButton.style.opacity=".45";
  }
  button(panel,"← Bureau",showComputer);
 }
@@ -1066,7 +1085,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.40 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.41 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1151,11 +1170,11 @@ for(const [i,p] of catalog.entries()){
  boxes[p.id]=[];
  const cold=coldProduct(p);
  const slot=cold?coldSlots[p.id]:null;
- for(let j=0;j<3;j++){
-  const mesh=cube(cold?slot.x:11.3+(i%4)*.85,
-   cold?[1.025,2.075,3.125][j]:.48+j*.68,
+ for(let j=0;j<MAX_BOXES_PER_PRODUCT;j++){
+  const mesh=cube(cold?slot.x+(j%2===0?-.34:.34):11.3+(i%4)*.85+(j%2===0?-.18:.18),
+   cold?[1.025,1.025,2.075,2.075,3.125][j]:.48+Math.floor(j/2)*.68,
    cold?slot.z:3.3+Math.floor(i/4)*1.55,
-   .7,.65,.7,0xb98246);
+   cold?.56:.34,.65,.7,0xb98246);
   const band=new THREE.Mesh(new THREE.BoxGeometry(.72,.13,.72),new THREE.MeshStandardMaterial({color:p.color}));
   band.position.y=.18;mesh.add(band);
   boxes[p.id].push(mesh);
@@ -1170,7 +1189,7 @@ for(const [i,p] of catalog.entries()){
 function refreshBoxes(){
  catalog.forEach(p=>{
   const a=state.inventory[p.id];
-  boxes[p.id].forEach((m,i)=>m.visible=i<Math.min(3,a.boxes));
+  boxes[p.id].forEach((m,i)=>m.visible=i<Math.min(MAX_BOXES_PER_PRODUCT,a.boxes));
   reserveModels[p.id].visible=a.reserve>0;
  });
 }
@@ -1265,7 +1284,7 @@ function showReserve(){
  }
  for(const p of unlockedProducts().filter(p=>coldProduct(p)===atColdRoom())){
   const a=state.inventory[p.id];
-  paragraph("● "+p.name+" — "+a.boxes+" carton(s) fermé(s) ("+(a.boxes*BOX_UNITS)+" unités) + "+a.reserve+" en vrac. Total : "+(a.reserve+a.boxes*BOX_UNITS));
+  paragraph("● "+p.name+" — "+stockAlert(p)+" | Cartons : "+a.boxes+"/5 ("+(a.boxes*BOX_UNITS)+" unités) | Espace vrac : "+a.reserve+" unités | Total réserve : "+(a.reserve+a.boxes*BOX_UNITS));
   if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10,"box"));
   if(a.reserve>0)button(panel,"PRENDRE EN VRAC — "+p.name+" ("+Math.min(10,a.reserve)+")",()=>takeCarton(p,10,"loose"));
   if(a.boxes>0||a.reserve>0)button(panel,"Jeter des "+p.name,()=>showDisposal(p));
@@ -1644,4 +1663,4 @@ function animate(){
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);}
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.40 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.41 !");
