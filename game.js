@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.73 — version synchronisée
+// Business Empire Simulator V0.9.74 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1239,7 +1239,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.73 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.74 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1519,21 +1519,35 @@ const workerRouteCold=[[25.65,5.5],[24.7,5.5],[22,5.5],[19.5,5.5]];
 let workerRoute=[],workerWaypoint=0,workerPhase="dock",workerCargo=null,workerWait=0,workerTalking=false,workerTalkTimer=0,workerWalkClock=0;
 workerGroup.position.set(25.65,0,-23.8);
 function workerGo(route,phase){workerRoute=route.map(p=>p.slice());workerWaypoint=0;workerPhase=phase;}
+function workerReply(message,continueWork=false){
+ panel.style.display="none";
+ if(continueWork)workerTalking=false;
+ const old=document.getElementById("fba-worker-reply");if(old)old.remove();
+ const reply=document.createElement("section");reply.id="fba-worker-reply";
+ Object.assign(reply.style,{position:"fixed",left:"50%",bottom:"14%",transform:"translateX(-50%)",width:"min(92vw,470px)",background:"rgba(15,23,42,.96)",border:"1px solid #38bdf8",borderRadius:"14px",padding:"16px",zIndex:"60",color:"white",boxShadow:"0 8px 30px #0008"});
+ const name=document.createElement("strong");name.textContent=state.workerName;name.style.color="#7dd3fc";reply.appendChild(name);
+ const answer=document.createElement("p");answer.textContent=message;Object.assign(answer.style,{fontSize:"15px",lineHeight:"1.5",margin:"10px 0 14px"});reply.appendChild(answer);
+ const actions=document.createElement("div");Object.assign(actions.style,{display:"flex",gap:"8px",flexWrap:"wrap"});reply.appendChild(actions);
+ const add=(label,fn)=>{const b=document.createElement("button");b.textContent=label;Object.assign(b.style,{background:"#2563eb",color:"white",padding:"10px 14px",borderRadius:"8px",flex:"1",minWidth:"110px"});b.onclick=()=>{reply.remove();fn();};actions.appendChild(b);};
+ add("Continuer la discussion",showWorkerInteraction);
+ add("Terminer",()=>{workerTalking=false;});
+ document.body.appendChild(reply);
+}
 function showWorkerInteraction(){
  if(!state.workerEnabled||!workerGroup.visible){toast("Le manutentionnaire n’est pas en service");return;}
+ const old=document.getElementById("fba-worker-reply");if(old)old.remove();
+ workerTalking=true;
  openPanel("DISCUSSION — "+state.workerName);
  paragraph(state.workerName+" : Salut "+state.playerName+" ! Tu as besoin de quelque chose ?");
  const p=workerCargo&&catalog.find(p=>p.id===workerCargo.id);
- paragraph("Statut : "+(workerTalking?"En discussion":p?"Transport d’un carton de "+p.name:workerPhase==="pickup"?"En route vers le quai":workerPhase==="storage"?"Rangement en réserve":"Disponible au quai")+".");
+ paragraph("Statut : "+(p?"Transport d’un carton de "+p.name:workerPhase==="pickup"?"En route vers le quai":workerPhase==="storage"?"Rangement en réserve":"Disponible au quai")+".");
  paragraph("Cartons à décharger : "+state.deliveryDock.length+".");
- button(panel,"Comment ça va ?",()=>{toast(state.workerName+" : Ça va bien, merci "+state.playerName+" !");});
- button(panel,"Tu fais quoi ?",()=>{toast(state.workerName+" : "+(workerCargo?"Je range un carton.":state.deliveryDock.length?"Je m’occupe des livraisons.":"J’attends une livraison.") );});
- button(panel,"Va décharger le camion",()=>{workerTalking=false;toast(state.workerName+" : "+(state.deliveryDock.length?"Pas de souci, j’y vais !":"Il n’y a aucun camion à décharger."));});
- button(panel,"Combien de cartons restent ?",()=>{toast(state.workerName+" : Il reste "+state.deliveryDock.length+" carton(s) au quai.");});
- button(panel,workerTalking?"Reprendre le travail":"Lui parler — arrêter temporairement",()=>{
-  workerTalking=!workerTalking;showWorkerInteraction();toast(workerTalking?"Le manutentionnaire t’écoute":"Le manutentionnaire reprend son travail");
- });
- button(panel,"Retour",showComputer);
+ button(panel,"Comment ça va ?",()=>workerReply("Ça va bien, merci "+state.playerName+" !"));
+ button(panel,"Tu fais quoi ?",()=>workerReply(workerCargo?"Je range un carton.":state.deliveryDock.length?"Je m’occupe des livraisons.":"J’attends une livraison."));
+ button(panel,"Va décharger le camion",()=>workerReply(state.deliveryDock.length?"Pas de souci, j’y vais !":"Il n’y a aucun camion à décharger.",true));
+ button(panel,"Combien de cartons restent ?",()=>workerReply("Il reste "+state.deliveryDock.length+" carton(s) au quai."));
+ button(panel,"Reprends ton travail",()=>workerReply("D’accord, je reprends le travail !",true));
+ button(panel,"Terminer la conversation",()=>{panel.style.display="none";workerTalking=false;});
 }
 function updateWorker(dt){
  const onDuty=state.workerEnabled&&state.hour>=8&&state.hour<17&&!(state.hour>=12&&state.hour<13);
@@ -2051,4 +2065,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.73 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.74 !");
