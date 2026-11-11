@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.80 — version synchronisée
+// Business Empire Simulator V0.9.81 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -573,11 +573,11 @@ function scanCheckoutArticle(){
  c.scanned++;
  renderCheckoutVisual(c);
  toast(c.scanned===count?"Tous les articles sont scannés":"Bip ! Article scanné");
- if(checkoutUI.style.display!=="none")showCheckout();
+ if(checkoutUI.style.display!=="none"||seatedAtCheckout)showCheckout();
 }
 function showCheckout(){
  if(!cashier){closeCheckoutUI();clearCheckoutVisual();toast("Aucun client à encaisser");return;}
- if(!near(6.5,6.5,3.5)){toast("Approche-toi de la caisse");return;}
+ if(!seatedAtCheckout&&!near(6.5,6.5,3.5)){toast("Approche-toi de la caisse");return;}
  panel.style.display="none";
  checkoutUI.replaceChildren();checkoutUI.style.display="block";
  const c=cashier,count=Object.values(c.basket).reduce((n,q)=>n+q,0);
@@ -591,7 +591,7 @@ function showCheckout(){
   checkoutButton("Scanner l'article suivant",scanCheckoutArticle);
  }else{
   checkoutText("Scan terminé — terminal bancaire prêt.");
-  checkoutButton("Payer par carte",()=>showPayment(c,count));
+  checkoutButton(c.paymentMethod==="cash"?"Le client tend un billet — Espèces":"Le client présente sa carte — CB",()=>showPayment(c,count));
  }
  checkoutButton("Fermer la fenêtre",closeCheckoutUI);
 }
@@ -1346,7 +1346,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.80 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.81 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1879,6 +1879,41 @@ function showReserve(){
   if(a.boxes>0||a.reserve>0)button(panel,"Jeter des "+p.name,()=>showDisposal(p));
  }
 }
+let seatedAtCheckout=false,checkoutPreviousView=null;
+const seatButton=document.createElement("button");
+seatButton.textContent="S’asseoir à la caisse";
+Object.assign(seatButton.style,{position:"fixed",right:"14px",bottom:"23%",zIndex:"25",padding:"13px",background:"#2563eb",color:"#fff",borderRadius:"10px",fontWeight:"bold",display:"none"});
+document.body.appendChild(seatButton);
+function sitAtCheckout(){
+ if(seatedAtCheckout)return;
+ checkoutPreviousView={position:camera.position.clone(),yaw,pitch,targetYaw,targetPitch};
+ seatedAtCheckout=true;panel.style.display="none";
+ camera.position.set(7.45,1.35,7.65);
+ const look=new THREE.Vector3(6.1,1.22,6.35);
+ const dx=look.x-camera.position.x,dz=look.z-camera.position.z;
+ yaw=targetYaw=Math.atan2(-dx,-dz);
+ pitch=targetPitch=Math.atan2(look.y-camera.position.y,Math.hypot(dx,dz));
+ seatButton.textContent="Se lever de la caisse";
+ joystick.style.display="none";
+ if(cashier)showCheckout();else{closeCheckoutUI();toast("Poste de caisse prêt — attends un client");}
+}
+function leaveCheckoutSeat(){
+ if(!seatedAtCheckout)return;
+ seatedAtCheckout=false;closeCheckoutUI();clearCheckoutVisual();
+ if(checkoutPreviousView){
+  camera.position.copy(checkoutPreviousView.position);
+  yaw=checkoutPreviousView.yaw;pitch=checkoutPreviousView.pitch;
+  targetYaw=checkoutPreviousView.targetYaw;targetPitch=checkoutPreviousView.targetPitch;
+ }
+ joystick.style.display="";seatButton.textContent="S’asseoir à la caisse";
+}
+seatButton.addEventListener("click",()=>seatedAtCheckout?leaveCheckoutSeat():sitAtCheckout());
+function showCheckoutSeatPrompt(){
+ openPanel("POSTE DE CAISSE");
+ paragraph("Assieds-toi pour scanner les articles avec une caméra fixe orientée vers le tapis et l’écran.");
+ button(panel,"S’asseoir à la caisse",sitAtCheckout);
+ button(panel,"Ordinateur de gestion",showComputer);
+}
 function interact(){
  if(held){
   const p=catalog.find(p=>p.id===held.id);
@@ -1911,7 +1946,7 @@ function interact(){
   toast(freezerOpen?"Congélateur ouvert":"Congélateur fermé");return;
  }
  if(near(8.08,6.93,1.15)){toggleLights();return;}
- if(near(7.3,6.5,3.4)){if(cashier)showCheckout();else showComputer();return;}
+ if(near(7.3,6.5,3.4)){showCheckoutSeatPrompt();return;}
  toast("Approche-toi de la réserve, de la chambre froide ou de la caisse");
 }
 refreshCarry();
@@ -1922,7 +1957,7 @@ const canvas=renderer.domElement;canvas.style.touchAction="none";
 // Un toucher sur un article 3D déclenche directement son scan.
 const checkoutRaycaster=new THREE.Raycaster();
 canvas.addEventListener("pointerup",e=>{
- if(!cashier||!checkoutVisual?.models.length||!near(6.5,6.5,3.5))return;
+ if(!cashier||!checkoutVisual?.models.length||(!seatedAtCheckout&&!near(6.5,6.5,3.5)))return;
  const rect=canvas.getBoundingClientRect();
  const pointer=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);
  checkoutRaycaster.setFromCamera(pointer,camera);
@@ -1938,6 +1973,7 @@ canvas.addEventListener("pointermove",e=>{
  const dx=THREE.MathUtils.clamp(e.clientX-lastX,-65,65);
  const dy=THREE.MathUtils.clamp(e.clientY-lastY,-65,65);
  lastX=e.clientX;lastY=e.clientY;
+ if(seatedAtCheckout)return;
  targetYaw-=dx*.0025;targetPitch=THREE.MathUtils.clamp(targetPitch-dy*.0025,-1.15,1.15);
 });
 function stopLook(e){if(e.pointerId===lookPointer)lookPointer=null;}
@@ -1984,7 +2020,7 @@ function blocked(x,z,r=.4){
  return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 function movePlayer(dt){
- if(panel.style.display!=="none")return;
+ if(seatedAtCheckout||panel.style.display!=="none")return;
  const f=Number(keys.forward)-Number(keys.backward)-joyY,s=Number(keys.right)-Number(keys.left)+joyX;
  if(!f&&!s)return;
  const len=Math.max(1,Math.hypot(f,s)),speed=(state.upgrades.handtruck&&state.trolleyCargo.length?3.7:5.5)*dt;
@@ -2175,7 +2211,7 @@ function updateCustomers(dt){
    if(i===0&&!cashier&&(arrived||Math.hypot(p.x-target.x,p.z-target.z)<.45)){
     queue.shift();cashier=c;c.phase="checkout";c.scanned=0;c.queueStall=0;
     c.navTarget=null;c.navRoute=null;
-    toast("Client en caisse : utilise Interagir");
+    if(seatedAtCheckout)showCheckout();else toast("Client en caisse : assieds-toi au poste");
    }else if(c.queueStall>5){
     c.queueStall=0;c.navTarget=null;c.navRoute=null;
     // Déblocage local sans passage derrière le comptoir.
@@ -2276,7 +2312,8 @@ function animate(){
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  if(!paused){movePlayer(dt);business(dt);updateCustomers(dt);updateWorker(dt);updateStocker(dt);}
+ seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.80 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.81 !");
