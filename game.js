@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.95 — version synchronisée
+// Business Empire Simulator V0.9.96 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -925,11 +925,22 @@ cube(12.65,5.04,16.7,5.3,.18,1.1,0xf1f5f9);
 cube(12.65,2.5,17.05,5.3,5,.3,0xe2e8f0,true);
 // Plinthe continue au pied du mur de condamnation, côté réserve.
 cube(12.65,.14,16.85,5.15,.23,.09,0x64748b);
-// Rayonnages de réserve agrandie, de type magasin : 3 plateaux.
-for(const x of [11.0,14.3])for(const z of [11.0,14.3]){
- for(const y of [.7,1.75,2.8])cube(x,y,z,.85,.09,1.4,0x94a3b8);
- for(const dx of [-.37,.37])for(const dz of [-.62,.62])cube(x+dx,1.65,z+dz,.06,3.3,.06,0x64748b);
+// Réserve V2 : étagères métalliques murales et courte rangée centrale.
+const dryStorageSlots=[];
+function storageRack(x,z){
+ for(const y of [.62,1.62,2.62]){
+  cube(x,y,z,.84,.075,1.65,0x94a3b8);
+  cube(x,y+.062,z+.80,.84,.07,.035,0x64748b);
+  for(const dz of [-.37,.37])dryStorageSlots.push({x,y:y+.367,z:z+dz});
+ }
+ for(const dx of [-.38,.38])for(const dz of [-.78,.78])
+  cube(x+dx,1.66,z+dz,.055,3.32,.055,0x64748b);
+ cube(x,3.3,z,.82,.07,1.58,0x64748b);
 }
+// Porte froide dégagée à droite ; circulation centrale maintenue à x=12.65.
+for(const z of [3.3,5.5,7.7,9.9,12.1,14.3,15.8])storageRack(10.76,z);
+for(const z of [3.3,8.35,10.55,12.75,14.95,16.0])storageRack(14.52,z);
+for(const z of [10.3,12.6,14.9])storageRack(11.72,z);
 // Ouverture rectangulaire de 3 m, du sol jusqu’à 3,4 m, sans panneau suspendu.
 // Mur arrière avec passage central réservé à la première extension.
 cube(-6,2.5,-10,8,5,.3,0xe2e8f0,true);
@@ -1505,36 +1516,38 @@ function toggleLights(){
  updateLighting();
  toast("Éclairage du magasin : "+(storeLightsOn?"allumé":"éteint"));
 }
-cube(12.8,.1,5.5,3.5,.2,5.8,0x8b5e3c);
-// Représentation 3D : jusqu'à 3 cartons par produit, plus un lot ouvert
+// Chaque produit sec possède six places sur les étagères : cinq cartons et un lot ouvert.
 const boxes={},reserveModels={};
 const coldProduct=p=>p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits";
-// Chaque produit froid occupe un module de rayonnage inox existant.
-// Les cartons reposent sur les plateaux (y = .65, 1.70 et 2.75).
+const dryProducts=catalog.filter(p=>!coldProduct(p));
+if(dryStorageSlots.length<dryProducts.length*(MAX_BOXES_PER_PRODUCT+1))
+ throw Error("Capacité visuelle de la réserve insuffisante");
+// Produits froids : conserver les emplacements des rayonnages inox.
 const coldSlots={
  fromage:{x:16.35,z:3.1},
  surgeles:{x:20.15,z:3.1},
  pommes:{x:16.35,z:7.8}
 };
-for(const [i,p] of catalog.entries()){
+for(const p of catalog){
  boxes[p.id]=[];
- const cold=coldProduct(p);
- const slot=cold?coldSlots[p.id]:null;
+ const cold=coldProduct(p),slot=cold?coldSlots[p.id]:null;
+ const base=cold?-1:dryProducts.findIndex(q=>q.id===p.id)*(MAX_BOXES_PER_PRODUCT+1);
  for(let j=0;j<MAX_BOXES_PER_PRODUCT;j++){
-  const mesh=cube(cold?slot.x+(j%2===0?-.34:.34):11.3+(i%4)*.85+(j%2===0?-.18:.18),
-   cold?[1.025,1.025,2.075,2.075,3.125][j]:.48+Math.floor(j/2)*.68,
-   cold?slot.z:3.3+Math.floor(i/4)*1.55,
-   cold?.56:.34,.65,.7,0xb98246);
-  const band=new THREE.Mesh(new THREE.BoxGeometry(cold?.44:.26,.085,.025),new THREE.MeshStandardMaterial({color:p.color,roughness:.7}));
-  band.position.set(0,.16,.363);mesh.add(band);
+  const pos=cold?{x:slot.x+(j%2===0?-.34:.34),y:[1.025,1.025,2.075,2.075,3.125][j],z:slot.z}:dryStorageSlots[base+j];
+  const mesh=cube(pos.x,pos.y,pos.z,cold?.56:.51,.65,cold?.7:.55,0xb98246);
+  const band=new THREE.Mesh(new THREE.BoxGeometry(cold?.44:.43,.085,.025),
+   new THREE.MeshStandardMaterial({color:p.color,roughness:.7}));
+  band.position.set(0,.16,cold?.363:.286);mesh.add(band);
+  if(!cold){
+   const label=new THREE.Mesh(new THREE.PlaneGeometry(.43,.27),
+    new THREE.MeshBasicMaterial({map:packageTexture(p),side:THREE.DoubleSide}));
+   label.position.set(0,-.06,.28);mesh.add(label);
+  }
   boxes[p.id].push(mesh);
  }
- // Le lot ouvert est posé sur le quatrième module, pas sur le sol.
- const looseSlot=cold?{x:20.15,z:7.8}:null;
- reserveModels[p.id]=cube(cold?looseSlot.x+(Object.keys(coldSlots).indexOf(p.id)-1)*.43:11.3+(i%4)*.85,
-  cold?1.05:.25,
-  cold?looseSlot.z:4.1+Math.floor(i/4)*1.55,
-  .42,.4,.45,p.color);
+ const looseSlot=cold?{x:20.15,z:7.8}:dryStorageSlots[base+MAX_BOXES_PER_PRODUCT];
+ reserveModels[p.id]=cube(cold?looseSlot.x+(Object.keys(coldSlots).indexOf(p.id)-1)*.43:looseSlot.x,
+  cold?1.05:looseSlot.y-.12,looseSlot.z,.42,.4,.45,p.color);
 }
 function refreshBoxes(){
  catalog.forEach(p=>{
@@ -2729,4 +2742,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.95 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.96 !");
