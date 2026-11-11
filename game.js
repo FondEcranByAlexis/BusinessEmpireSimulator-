@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.75 — version synchronisée
+// Business Empire Simulator V0.9.76 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -100,7 +100,7 @@ function showUpgrades(){
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
- return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
+ return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],sales:0,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
  const s=initial();
@@ -113,6 +113,9 @@ function load(){
    if(typeof current.workerName==="string")s.workerName=current.workerName.slice(0,24);
    if(Number.isInteger(current.workerSentHomeDay))s.workerSentHomeDay=current.workerSentHomeDay;
    if(typeof current.workerEnabled==="boolean")s.workerEnabled=current.workerEnabled;
+   s.workerHired=typeof current.workerHired==="boolean"?current.workerHired:current.workerEnabled===true;
+   for(const k of ["workerWageDue","workerPaidTotal","workerDaysWorked"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
+   if(Array.isArray(current.workerPayrollHistory))s.workerPayrollHistory=current.workerPayrollHistory.slice(-24);
    if(Array.isArray(current.trolleyCargo))s.trolleyCargo=current.trolleyCargo.filter(it=>it&&catalog.some(p=>p.id===it.id)).slice(0,3).map(it=>({id:it.id}));
    if(["closed","morning"].includes(current.sundayMode))s.sundayMode=current.sundayMode;
    if(current.upgrades&&typeof current.upgrades==="object")for(const u of upgradeCatalog)s.upgrades[u.id]=current.upgrades[u.id]===true;
@@ -351,9 +354,10 @@ function showFinance(){
  paragraph("Chiffre d'affaires cumulé : "+euro(finance.revenue));
  paragraph("Achats fournisseurs : "+euro(finance.supplies));
  paragraph("Charges cumulées : "+euro(finance.charges));
- paragraph("Bénéfice net simplifié : "+euro(finance.revenue-finance.supplies-finance.charges));
+ paragraph("Bénéfice net simplifié : "+euro(finance.revenue-finance.supplies-finance.charges-state.workerPaidTotal));
  paragraph("Transactions : "+finance.transactions+" | Articles vendus : "+state.sales);
  paragraph("Charges journalières : loyer "+euro(RENTS)+", électricité "+euro(ELECTRICITY)+", autres "+euro(OTHER_CHARGES)+".");
+ paragraph("Salaires versés : "+euro(state.workerPaidTotal)+" | Salaires dus : "+euro(state.workerWageDue));
  paragraph("Le bilan est cumulatif et ne valorise pas le stock restant.");
 }
 function formatHour(hour){
@@ -393,18 +397,43 @@ function showNames(){
  });
  button(panel,"Retour au personnel",showWorkerManagement);
 }
+const WORKER_DAILY_WAGE=65;
+function settleWorkerPayroll(){
+ if(!state.workerWageDue)return;
+ const due=state.workerWageDue,paid=Math.min(Math.max(0,state.money),due);
+ state.money-=paid;state.workerWageDue-=paid;state.workerPaidTotal+=paid;
+ const d=gameDate();
+ state.workerPayrollHistory.push({month:d.getUTCMonth()+1,year:d.getUTCFullYear(),due,paid});
+ state.workerPayrollHistory=state.workerPayrollHistory.slice(-24);
+ toast(state.workerWageDue?"Paie partielle : dette salariale "+euro(state.workerWageDue):"Salaire mensuel versé : "+euro(paid));
+}
 function showWorkerManagement(){
  openPanel("PERSONNEL — "+state.workerName);
  button(panel,"Modifier les prénoms",showNames);
- paragraph("Prototype du premier employé 3D : manutention au quai et rangement des cartons en réserve.");
- paragraph("État : "+(state.workerSentHomeDay===state.day?"Rentré chez lui pour aujourd’hui":state.workerEnabled?"En service":"Non affecté")+".");
- paragraph("Il travaille de 08:00 à 17:00 et respecte une pause de 12:00 à 13:00.");
- paragraph("Il déplace un carton à la fois, dans la limite des capacités de stockage.");
- paragraph("Approche-toi de lui et appuie sur Interagir pour discuter et suspendre temporairement son travail.");
- paragraph("Version expérimentale : recrutement, contrats et salaires mensuels seront intégrés ultérieurement.");
- button(panel,state.workerEnabled?"Désactiver le manutentionnaire":"Affecter un manutentionnaire (test)",()=>{
-  state.workerEnabled=!state.workerEnabled;if(!state.workerEnabled)workerTalking=false;save();showWorkerManagement();toast(state.workerEnabled?"Manutentionnaire affecté":"Manutentionnaire désactivé");
+ paragraph("Contrat : "+(state.workerHired?"CDI — manutentionnaire":"Aucun contrat")+".");
+ paragraph("Statut : "+(state.workerSentHomeDay===state.day?"Rentré chez lui pour aujourd’hui":state.workerEnabled?"En service":"Non affecté")+".");
+ paragraph("Planning : lundi à samedi, 08:00–17:00, pause 12:00–13:00 ; dimanche repos.");
+ paragraph("Salaire de simulation : "+euro(WORKER_DAILY_WAGE)+" par journée travaillée, versé en fin de mois.");
+ paragraph("Journées comptabilisées : "+state.workerDaysWorked+".");
+ paragraph("Salaire restant à payer : "+euro(state.workerWageDue)+".");
+ paragraph("Salaires déjà versés : "+euro(state.workerPaidTotal)+".");
+ if(!state.workerHired)button(panel,"Recruter "+state.workerName+" — CDI",()=>{
+  state.workerHired=true;state.workerEnabled=true;save();showWorkerManagement();toast(state.workerName+" recruté !");
  });
+ else{
+  button(panel,state.workerEnabled?"Suspendre l’affectation":"Réactiver l’affectation",()=>{
+   state.workerEnabled=!state.workerEnabled;if(!state.workerEnabled)workerTalking=false;save();showWorkerManagement();
+  });
+  if(state.workerWageDue>0)button(panel,"Verser les salaires dus",()=>{settleWorkerPayroll();sync();showWorkerManagement();});
+  button(panel,"Rompre le contrat",()=>{
+   if(workerCargo){toast("Attends qu’il dépose son carton");return;}
+   state.workerHired=false;state.workerEnabled=false;workerTalking=false;save();showWorkerManagement();toast("Contrat terminé — les salaires dus restent à payer");
+  });
+ }
+ if(state.workerPayrollHistory.length){
+  paragraph("Historique des paies :");
+  for(const p of state.workerPayrollHistory.slice(-4).reverse())paragraph(String(p.month).padStart(2,"0")+"/"+p.year+" — dû "+euro(p.due)+" / versé "+euro(p.paid));
+ }
 }
 const FBA_START_DATE=new Date(Date.UTC(2027,0,1));
 const FBA_DAYS=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
@@ -1241,7 +1270,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.75 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.76 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1556,7 +1585,7 @@ function showWorkerInteraction(){
  button(panel,"Terminer la conversation",()=>{panel.style.display="none";workerTalking=false;});
 }
 function updateWorker(dt){
- const onDuty=state.workerEnabled&&state.workerSentHomeDay!==state.day&&state.hour>=8&&state.hour<17&&!(state.hour>=12&&state.hour<13);
+ const onDuty=state.workerHired&&state.workerEnabled&&!isSunday()&&state.workerSentHomeDay!==state.day&&state.hour>=8&&state.hour<17&&!(state.hour>=12&&state.hour<13);
  workerGroup.visible=!!onDuty;
  if(!onDuty){workerLeftLeg.rotation.x=workerRightLeg.rotation.x=0;return;}
  if(workerTalking){workerLeftLeg.rotation.x=workerRightLeg.rotation.x=0;workerLeftArm.rotation.x=workerRightArm.rotation.x=0;return;}
@@ -2050,6 +2079,11 @@ function business(dt){
  }
  // Les clients déjà présents terminent leurs achats et passent en caisse.
  if(closing&&customers.length===0&&queue.length===0&&!cashier){
+  const finishedDate=gameDate();
+  if(state.workerHired&&state.workerEnabled&&!isSunday()&&state.workerSentHomeDay!==state.day){
+   state.workerWageDue+=WORKER_DAILY_WAGE;state.workerDaysWorked++;
+  }
+  if(finishedDate.getUTCDate()===new Date(Date.UTC(finishedDate.getUTCFullYear(),finishedDate.getUTCMonth()+1,0)).getUTCDate())settleWorkerPayroll();
   dayTimer=0;preopenTimer=0;state.hour=PREOPEN_SECONDS===0?OPEN_HOUR:PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
   dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
@@ -2071,4 +2105,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.75 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.76 !");
