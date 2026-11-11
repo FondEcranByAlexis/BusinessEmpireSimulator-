@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.9.79 — version synchronisée
+// Business Empire Simulator V0.9.80 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1346,7 +1346,7 @@ cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
-// V0.9.79 — Équipements réalistes de la caisse, purement visuels.
+// V0.9.80 — Équipements réalistes de la caisse, purement visuels.
 const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
@@ -1698,6 +1698,20 @@ function stockerShelfPosition(p){
  if(p.x>=4)return [p.x-1.65,p.z??1];
  return [p.x+1.65,p.z??1];
 }
+let stockerRoute=[];
+function stockerRouteTo(point){
+ const x=stockerGroup.position.x,z=stockerGroup.position.z;
+ const inside=x>10.3&&z>1.8,goingInside=point[0]>10.3&&point[1]>1.8;
+ // Passage du personnel : ouverture du mur est à x=10, z=5.5.
+ const route=[];
+ if(inside!==goingInside){
+  if(inside)route.push([11.1,5.5],[8.8,5.5]);
+  else route.push([8.8,5.5],[11.1,5.5]);
+ }
+ route.push(point);
+ stockerRoute=route;
+ stockerTarget=stockerRoute.shift();
+}
 function updateStocker(dt){
  const shift=stockerShift();
  const onDuty=state.stockerHired&&state.stockerEnabled&&shift&&state.stockerSentHomeDay!==state.day&&state.hour>=shift[0]&&state.hour<shift[1]&&!(state.hour>=12&&state.hour<13);
@@ -1705,14 +1719,29 @@ function updateStocker(dt){
  if(!onDuty||stockerTalking)return;
  if(stockerTimer>0){stockerTimer-=dt;return;}
  if(!stockerTarget){
-  if(!stockerCargo){
-   const p=stockerNeeds();if(!p){stockerGroup.position.set(13,0,5);stockerPhase="idle";return;}
-   stockerCargo=p.id;stockerPhase="reserve";stockerTarget=[coldProduct(p)?19:13,5];
+  if(stockerRoute.length){stockerTarget=stockerRoute.shift();}
+  else if(stockerPhase==="reserve"||stockerPhase==="shelf"||stockerPhase==="idle-return"){
+   if(stockerPhase==="reserve"){
+    const a=state.inventory[stockerCargo];
+    if(a.boxes>0){a.boxes--;stockerUnits=BOX_UNITS;stockerCarton.visible=true;}
+    else if(a.reserve>0){stockerUnits=Math.min(BOX_UNITS,a.reserve);a.reserve-=stockerUnits;stockerCarton.visible=true;}
+    else{stockerCargo=null;stockerPhase="idle";}
+    if(stockerCargo){const p=catalog.find(p=>p.id===stockerCargo);stockerPhase="shelf";stockerRouteTo(stockerShelfPosition(p));}
+   }else if(stockerPhase==="shelf"){
+    const p=catalog.find(x=>x.id===stockerCargo),a=state.inventory[p.id];
+    const qty=Math.max(0,Math.min(stockerUnits,shelfCapacity(p)-a.shelf));
+    a.shelf+=qty;a.reserve+=stockerUnits-qty;
+    stockerCargo=null;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;sync();
+   }else stockerPhase="idle";
+   return;
   }else{
-   const p=catalog.find(x=>x.id===stockerCargo);
-   stockerPhase="shelf";stockerTarget=stockerShelfPosition(p);
+   const p=stockerNeeds();
+   if(p){stockerCargo=p.id;stockerPhase="reserve";stockerRouteTo([coldProduct(p)?19:13,5]);}
+   else if(Math.hypot(stockerGroup.position.x-13,stockerGroup.position.z-5)>.3){stockerPhase="idle-return";stockerRouteTo([13,5]);}
+   else{stockerPhase="idle";return;}
   }
  }
+ if(!stockerTarget)return;
  const dx=stockerTarget[0]-stockerGroup.position.x,dz=stockerTarget[1]-stockerGroup.position.z;
  const dist=Math.hypot(dx,dz),step=dt*2.5;
  if(dist>step){
@@ -1720,19 +1749,9 @@ function updateStocker(dt){
   stockerGroup.rotation.y=Math.atan2(-dx,-dz);
   stockerWalk+=dt*9;stockerLegA.rotation.x=Math.sin(stockerWalk)*.35;stockerLegB.rotation.x=-stockerLegA.rotation.x;
   stockerArmA.rotation.x=-stockerLegA.rotation.x*.5;stockerArmB.rotation.x=-stockerLegB.rotation.x*.5;
-  return;
- }
- stockerGroup.position.x=stockerTarget[0];stockerGroup.position.z=stockerTarget[1];stockerTarget=null;
- stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;
- if(stockerPhase==="reserve"){
-  const a=state.inventory[stockerCargo];
-  if(a.boxes>0){a.boxes--;stockerCarton.visible=true;stockerPhase="shelf";stockerTarget=stockerShelfPosition(catalog.find(p=>p.id===stockerCargo));stockerUnits=BOX_UNITS;}
-  else if(a.reserve>0){stockerUnits=Math.min(BOX_UNITS,a.reserve);a.reserve-=stockerUnits;stockerCarton.visible=true;stockerPhase="shelf";stockerTarget=stockerShelfPosition(catalog.find(p=>p.id===stockerCargo));}
-  else{stockerCargo=null;stockerPhase="idle";}
- }else if(stockerPhase==="shelf"){
-  const p=catalog.find(x=>x.id===stockerCargo),a=state.inventory[p.id];
-  const qty=Math.min(stockerUnits,shelfCapacity(p)-a.shelf);a.shelf+=qty;a.reserve+=stockerUnits-qty;
-  stockerCargo=null;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;sync();
+ }else{
+  stockerGroup.position.x=stockerTarget[0];stockerGroup.position.z=stockerTarget[1];stockerTarget=null;
+  stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;
  }
 }
 let stockerUnits=0;
@@ -2260,4 +2279,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();animate();toast("Business Empire Simulator V0.9.79 !");
+sync();updateOpen();animate();toast("Business Empire Simulator V0.9.80 !");
