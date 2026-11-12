@@ -81,5 +81,24 @@ export const DEPARTMENTS = [
 ];
 
 export const ANNEX_ENTRY = -34;
-export const ANNEX_DEPTH = 9;
-export const annexWall = count => ANNEX_ENTRY - count * ANNEX_DEPTH;
+export const MALL_GRID = 12;
+export const MALL_ROOM = 9;
+export const MALL_MIN_Z = ANNEX_ENTRY - 5 * MALL_GRID;
+export const MALL_HALF_WIDTH = 2.5 * MALL_GRID;
+export const MALL_PLAZA_Z = ANNEX_ENTRY - 2.5 * MALL_GRID;
+
+// Les premières ouvertures bordent l’entrée. L’axe central et la place
+// restent libres lorsque les dix-neuf départements sont ouverts.
+const cells = [
+  [-1,0],[1,0],[-2,0],[2,0],
+  [-1,1],[1,1],[-2,1],[2,1],
+  [-2,2],[2,2],
+  [-1,3],[1,3],[-2,3],[2,3],
+  [0,4],[-1,4],[1,4],[-2,4],[2,4],
+];
+export function departmentLocation(index) {
+  const [column, row] = cells[index];
+  const x = column * MALL_GRID;
+  const z = ANNEX_ENTRY - (row + .5) * MALL_GRID;
+  return { column, row, x, z, front: z + MALL_ROOM / 2 };
+}

@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.0";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, ANNEX_DEPTH, annexWall } from "./departments.js?v=0.13.0";
-// Business Empire Simulator V0.13.0 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.1";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.1";
+// Business Empire Simulator V0.13.1 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -58,14 +58,14 @@ for(const [id,name,cost,price,level,x,z,rotation] of EARLY_PRODUCTS){
 DEPARTMENTS.forEach((department,index)=>{
  department.id="annex"+(index+3);
  department.level=15+10*index;
- department.front=annexWall(index);
+ Object.assign(department,departmentLocation(index));
  department.cost=6000+index*4500;
  (department.licenses??[]).forEach((license,i)=>{department.licenses[i]={id:department.id+"License"+i,level:license[0],name:"Licence "+license[1],cost:license[2],requires:license[3],category:"licences",description:"Autorise les références du département "+department.name+"."};});
  department.products.forEach(([id,name,cost,price,license,level,storage],slot)=>{
   const permit=typeof license==="number"?department.licenses[license]:null;
   const side=slot%2===0?-1:1;
   catalog.push({id,name,cost,price,level:level??permit?.level??department.level,license:permit?.id??license,storage,
-   x:side*8.8,z:department.front-1.35-Math.floor(slot/2)*2.05,rotation:-side,
+   x:department.x+side*3.55,z:department.front-1.35-Math.floor(slot/2)*1.6,rotation:-side,
    color:departmentColors[(index+slot)%departmentColors.length],kind:"department",department:department.id});
  });
 });
@@ -89,8 +89,8 @@ const upgradeCatalog=[
 // livrés des services spécialisés qui restent prévus dans le programme.
 DEPARTMENTS.forEach((department,index)=>{
  upgradeCatalog.push({id:department.id,name:"Extension "+(index+3)+" · "+department.name,level:department.level,cost:department.cost,
-  requires:index===0?"store2":DEPARTMENTS[index-1].id,category:"extensions",construction:true,front:department.front,
-  description:department.products.length?"Ouvre un département relié à la galerie commerciale.":"Ouvre un espace aménageable. Le service spécialisé est prévu dans le programme."});
+  requires:index===0?"store2":DEPARTMENTS[index-1].id,category:"extensions",construction:true,front:department.front,x:department.x,
+  description:department.products.length?"Ouvre un département accessible depuis la place centrale.":"Ouvre un espace aménageable. Le service spécialisé est prévu dans le programme."});
  upgradeCatalog.push(...(department.licenses??[]));
 });
 LEVEL_REWARDS.forEach(([, , , stock, cold],index)=>{
@@ -768,6 +768,7 @@ function showMainMenu(){
  });
  button(panel,"Profil",showProfile);
  button(panel,"Progression des niveaux",showProgression);
+ if(openDepartmentCount())button(panel,"Plan de la galerie",showMallMap);
  if(camera.position.z<ANNEX_ENTRY-1)button(panel,"Retour à la caisse",()=>{
   if(held){toast("Dépose le carton avant de revenir");return;}
   camera.position.set(5.4,1.7,7.5);panel.style.display="none";
@@ -832,9 +833,32 @@ function showDepartmentTravel(){
  for(const department of DEPARTMENTS.filter(item=>state.upgrades[item.id])){
   button(panel,department.name,()=>{
    if(seatedAtCheckout||held){toast("Libère tes mains et relève-toi avant le déplacement");return;}
-   camera.position.set(0,1.7,department.front-1.2);
+   camera.position.set(department.x,1.7,department.front+.9);
+   yaw=targetYaw=0;pitch=targetPitch=0;
    panel.style.display="none";
   });
+ }
+}
+function showMallMap(){
+ openPanel("Plan de la galerie");
+ paragraph("Entrée depuis l’électronique en haut du plan. Les allées relient toutes les rangées.");
+ const grid=document.createElement("div");
+ Object.assign(grid.style,{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:"4px",marginTop:"12px"});
+ panel.appendChild(grid);
+ for(let row=0;row<5;row++){
+  for(let column=-2;column<=2;column++){
+   const department=DEPARTMENTS.find(item=>item.row===row&&item.column===column);
+   const open=department&&state.upgrades[department.id];
+   const here=camera.position.z<ANNEX_ENTRY&&Math.round(camera.position.x/MALL_GRID)===column&&
+    Math.floor((ANNEX_ENTRY-camera.position.z)/MALL_GRID)===row;
+   const cell=document.createElement("div");
+   cell.textContent=department?department.name:row===0?"Entrée":row===2&&column===0?"Place centrale":"Allée";
+   if(here)cell.textContent+=" · Vous êtes ici";
+   Object.assign(cell.style,{padding:"5px",fontSize:"10px",overflowWrap:"anywhere",borderRadius:"5px",
+    background:open?"#155e75":department?"#27354a":"#164e46",border:here?"2px solid #fbbf24":"1px solid #465a70"});
+   if(department&&!open)cell.textContent+=" · N"+department.level;
+   grid.appendChild(cell);
+  }
  }
 }
 function inputNumber(label,value,min,max){
@@ -1853,6 +1877,7 @@ electronicsCube(6.65,2.5,ANNEX_ENTRY,6.7,5,.3,0xdbeafe);
 electronicsCube(0,4.2,ANNEX_ENTRY,6.6,1.6,.3,0xdbeafe);
 const annexGate=electronicsCube(0,1.7,ANNEX_ENTRY,6.6,3.4,.3,0x475569);
 const annexGroups=new Map();
+const mallShell=new THREE.Group();scene.add(mallShell);
 function openDepartmentCount(){
  let count=0;
  for(const department of DEPARTMENTS){
@@ -1934,10 +1959,13 @@ function refreshExtension(){
  electronicsGate.visible=unlocked&&!electronicsUnlocked;
  electronicsGateCollider.disabled=electronicsUnlocked||!unlocked;
  for(const mesh of electronicsMeshes)mesh.visible=electronicsUnlocked;
- annexGate.visible=electronicsUnlocked&&openDepartmentCount()===0;
- for(const [id,group] of annexGroups){
-  group.visible=!!state.upgrades[id];
-  for(const mesh of group.children)if(mesh.userData.nextDepartment)mesh.visible=!state.upgrades[mesh.userData.nextDepartment];
+ const mallOpen=openDepartmentCount()>0;
+ annexGate.visible=electronicsUnlocked&&!mallOpen;
+ mallShell.visible=mallOpen;
+ for(const [id,room] of annexGroups){
+  room.group.visible=mallOpen;
+  room.gate.visible=!state.upgrades[id];
+  room.furnishings.visible=!!state.upgrades[id];
  }
  // La même amélioration agrandit aussi la surface exploitable du stockage.
  oldReserveEndWall.visible=!unlocked;
@@ -2005,8 +2033,15 @@ function updateConstructionUI(){
  }
  for(const w of constructionCrew){
   const target=active?state.construction.target:null;
-  const front=upgradeCatalog.find(u=>u.id===target)?.front;
-  w.group.position.z=front!==undefined?front+1.6:target==="store2"?-20.1:-8.75;
+  const project=upgradeCatalog.find(u=>u.id===target);
+  const front=project?.front;
+  if(front!==undefined&&openDepartmentCount()){
+   w.group.position.x=project.x+Math.sign(w.offset-.5)*1.4;
+   w.group.position.z=front+1.25;
+  }else{
+   w.group.position.x=w.offset===0?-2.85:2.85;
+   w.group.position.z=front!==undefined?ANNEX_ENTRY+1.4:target==="store2"?-20.1:-8.75;
+  }
   w.group.visible=active&&constructionOnShift();
   if(!constructionOnShift()){w.arm.rotation.x=0;w.group.position.y=0;}
  }
@@ -2411,7 +2446,7 @@ function updateShelfGuides(){
   guide.group.visible=productAvailable(guide.p)&&(guide.p.kind!=="extension"||!!state.upgrades.store1)&&
    (guide.p.kind!=="electronics"||!!state.upgrades.store2);
   guide.highlight.visible=active;
-  guide.sign.visible=guide.group.visible&&guide.p.kind!=="wall"&&guide.p.kind!=="electronics";
+  guide.sign.visible=guide.group.visible&&guide.p.kind!=="wall"&&guide.p.kind!=="electronics"&&guide.p.kind!=="department";
  }
 }
 const extensionProductGroups={};
@@ -2487,37 +2522,78 @@ for(const item of wallProductRacks){
  addShelfGuide(p,p.x,p.z,item.rotation);
 }
 for(const p of catalog.filter(p=>p.kind!=="extension"&&p.kind!=="electronics"&&p.kind!=="wall"&&p.kind!=="department"))for(const z of (p.z!==undefined?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
-// La galerie part du passage laissé libre au fond de l'électronique.
+// Cinq rangées reliées par un axe central et des allées transversales.
+function mallPart(group,x,y,z,w,h,d,material){
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+ mesh.position.set(x,y,z);group.add(mesh);return mesh;
+}
+function mallSign(group,title,subtitle,x,z,rotation=0,width=6){
+ const sign=brandPanel(title,subtitle,width,.95);
+ sign.material.side=THREE.FrontSide;
+ sign.position.set(x,3.55,z);sign.rotation.y=rotation;group.add(sign);
+ return sign;
+}
+const mallCenter=(ANNEX_ENTRY+MALL_MIN_Z)/2;
+const mallSize=ANNEX_ENTRY-MALL_MIN_Z;
+const mallWallMaterial=new THREE.MeshStandardMaterial({color:0xcbd5e1});
+const mallFloorMaterial=new THREE.MeshStandardMaterial({color:0xaabacb});
+const plazaMaterial=new THREE.MeshStandardMaterial({color:0xd2e4e6});
+const guideMaterial=new THREE.MeshBasicMaterial({color:0x69b8b4});
+mallPart(mallShell,0,-.16,mallCenter,2*MALL_HALF_WIDTH,.3,mallSize,mallFloorMaterial);
+mallPart(mallShell,0,5.1,mallCenter,2*MALL_HALF_WIDTH,.2,mallSize,mallWallMaterial);
+mallPart(mallShell,0,2.5,MALL_MIN_Z,2*MALL_HALF_WIDTH,5,.3,mallWallMaterial);
+for(const side of [-1,1]){
+ mallPart(mallShell,side*MALL_HALF_WIDTH,2.5,mallCenter,.3,5,mallSize,mallWallMaterial);
+ mallPart(mallShell,side*16.65,2.5,ANNEX_ENTRY,26.7,5,.3,mallWallMaterial);
+ mallPart(mallShell,side*3.05,.012,mallCenter,.09,.015,mallSize-2,guideMaterial);
+}
+mallPart(mallShell,0,.003,MALL_PLAZA_Z,31,.018,11,plazaMaterial);
+mallSign(mallShell,"GALERIE FBA","↑ PLACE CENTRALE · ← AILE OUEST · AILE EST →",0,ANNEX_ENTRY-2,0,6.5);
+mallSign(mallShell,"PLACE CENTRALE","← AILE OUEST · ↑ FOND DE GALERIE · AILE EST →",0,MALL_PLAZA_Z-3,0,7.5);
+mallSign(mallShell,"SORTIE","↑ ÉLECTRONIQUE · MAGASIN · CAISSES",0,MALL_PLAZA_Z+3,Math.PI,6.5);
+mallSign(mallShell,"PLAN DE LA GALERIE","SUR LA PLACE · APPUIE SUR INTERAGIR",4.4,MALL_PLAZA_Z-.6,0,4.4);
+for(const [z,west,east] of [
+ [ANNEX_ENTRY-5,"BOISSONS · PRIMEUR","BOULANGERIE · HYGIÈNE"],
+ [ANNEX_ENTRY-16,"BOUCHERIE · JEUX VIDÉO","POISSONNERIE · ANIMALERIE"],
+ [ANNEX_ENTRY-29,"MAISON","RETRAIT DES COMMANDES"],
+ [ANNEX_ENTRY-40,"CUISINES DU MONDE · TEXTILE","JARDIN · RÉCEPTION"],
+ [ANNEX_ENTRY-51,"VRAC · EXPÉDITION","PROFESSIONNELS · ÉVÉNEMENTS"],
+]){
+ mallSign(mallShell,"← "+west,"AILE OUEST", -4.2,z,0,6.1);
+ mallSign(mallShell,east+" →","AILE EST",4.2,z,0,6.1);
+}
+
 for(const [index,department] of DEPARTMENTS.entries()){
- const group=new THREE.Group();
- annexGroups.set(department.id,group);scene.add(group);
- const center=department.front-ANNEX_DEPTH/2;
- const color=departmentColors[index%departmentColors.length];
- const part=(x,y,z,w,h,d,material)=>{
-  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
-  mesh.position.set(x,y,z);group.add(mesh);return mesh;
- };
- const wall=new THREE.MeshStandardMaterial({color:0xe2e8f0});
- const accent=new THREE.MeshStandardMaterial({color});
- const floor=new THREE.MeshStandardMaterial({color:index%2===0?0xb5c2d1:0xc4ccd6});
- part(0,-.15,center,20,.3,ANNEX_DEPTH,floor);
- part(0,5.1,center,20,.2,ANNEX_DEPTH,wall);
- for(const x of [-10,10]){
-  part(x,2.5,center,.3,5,ANNEX_DEPTH,wall);
-  part(x*.978,2.8,center,.05,.25,ANNEX_DEPTH,accent);
+ const group=new THREE.Group(),furnishings=new THREE.Group();
+ group.add(furnishings);scene.add(group);
+ const {x,z,front}=department,half=MALL_ROOM/2;
+ const accent=new THREE.MeshStandardMaterial({color:departmentColors[index%departmentColors.length]});
+ const roomWall=(x,y,z,w,h,d,material)=>mallPart(group,x,y,z,w,h,d,material);
+ const fixture=(x,y,z,w,h,d,material)=>mallPart(furnishings,x,y,z,w,h,d,material);
+ const hit=(x,z,w,d,lockedBy)=>colliders.push({
+  minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2,requiresUpgrade:"annex3",lockedBy
+ });
+ roomWall(x,.01,z,MALL_ROOM,.025,MALL_ROOM,plazaMaterial);
+ for(const side of [-1,1]){
+  roomWall(x+side*half,2.5,z,.24,5,MALL_ROOM,mallWallMaterial);
+  hit(x+side*half,z,.24,MALL_ROOM);
+  roomWall(x+side*2.95,2.5,front,3.1,5,.24,mallWallMaterial);
+  hit(x+side*2.95,front,3.1,.24);
  }
- const back=part(0,2.5,center-ANNEX_DEPTH/2,20,5,.3,wall);
- const next=DEPARTMENTS[index+1];
- if(next)back.userData.nextDepartment=next.id;
- const sign=brandPanel(department.name.toUpperCase(),"FBA SUPERMARKET",5.9,.9);
- sign.position.set(0,4.12,department.front-.18);group.add(sign);
+ roomWall(x,2.5,z-half,MALL_ROOM,5,.24,mallWallMaterial);
+ hit(x,z-half,MALL_ROOM,.24);
+ roomWall(x,4.2,front,2.8,1.6,.24,accent);
+ const gate=roomWall(x,1.7,front,2.8,3.4,.24,new THREE.MeshStandardMaterial({color:0x475569}));
+ hit(x,front,2.8,.24,department.id);
+ mallSign(group,department.name.toUpperCase(),"NIVEAU "+department.level,x,front+.15,0,7.4);
+ annexGroups.set(department.id,{group,gate,furnishings});
  if(!department.products.length){
-  part(6,.52,center+1.45,3.2,1.04,.82,accent);
-  part(6,1.06,center+1.45,3.2,.09,.9,wall);
-  colliders.push({minX:4.4,maxX:7.6,minZ:center+1,maxZ:center+1.9,requiresUpgrade:department.id});
+  fixture(x+2.25,.52,z,2.6,1.04,.82,accent);
+  fixture(x+2.25,1.06,z,2.6,.09,.9,mallWallMaterial);
+  colliders.push({minX:x+.95,maxX:x+3.55,minZ:z-.45,maxZ:z+.45,requiresUpgrade:department.id});
  }
  for(const p of catalog.filter(product=>product.department===department.id)){
-  const rack=new THREE.Group();group.add(rack);
+  const rack=new THREE.Group();furnishings.add(rack);
   rack.position.set(p.x,0,p.z);rack.rotation.y=p.rotation*Math.PI/2;
   const sign=shelfSign(p.name);sign.position.y=2.34;rack.add(sign);
   const shelfMaterial=new THREE.MeshStandardMaterial({color:p.storage==="cold"?0x93c5fd:0x475569});
@@ -2536,6 +2612,7 @@ for(const [index,department] of DEPARTMENTS.entries()){
    }
   }
   colliders.push({minX:p.x-.42,maxX:p.x+.42,minZ:p.z-.87,maxZ:p.z+.87,requiresUpgrade:department.id});
+  addShelfGuide(p,p.x,p.z,p.rotation*Math.PI/2);
  }
 }
 function refreshDisplays(){
@@ -3360,6 +3437,7 @@ function interact(){
  if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
  if(near(10.2,7.8,1.45)&&camera.position.x>10.2){toggleStockroomLights();return;}
  if(currentStorageKind()){showReserve();return;}
+ if(openDepartmentCount()&&near(0,MALL_PLAZA_Z,3)){showMallMap();return;}
  const register=activeRegisters().find(r=>near(r.x,r.z,1.65));
  if(register){showAuxiliaryCheckout(register);return;}
  if(fridgeDoor&&playerLevel()>=4&&near(-8.5,-3.5,2.4)){
@@ -3434,10 +3512,11 @@ document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=fal
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;joystickPointer=null;joyX=0;joyY=0;stick.style.transform="translate(0px,0px)";});
 function blocked(x,z,r=.4){
  // Entrée clientèle au sud (z positif), quai logistique à l'arrière (z négatif).
- const count=openDepartmentCount();
- const depth=count?annexWall(count)+.17:state.upgrades.store2?-33.45:state.upgrades.store1?-21.45:-9.45;
- if(count&&Math.abs(z-ANNEX_ENTRY)<.2+r&&Math.abs(x)>3.3-r)return true;
+ const mallOpen=!!state.upgrades.annex3;
+ const depth=state.upgrades.store2?-33.45:state.upgrades.store1?-21.45:-9.45;
  const shop=x>=-9.45+r&&x<=9.45-r&&z>=depth+r&&z<=9.45-r;
+ const mall=mallOpen&&Math.abs(x)<=MALL_HALF_WIDTH-.15-r&&z>=MALL_MIN_Z+.15+r&&z<=ANNEX_ENTRY-.15-r;
+ const mallDoor=mallOpen&&Math.abs(x)<3.3-r&&z>ANNEX_ENTRY-.8-r&&z<ANNEX_ENTRY+.95+r;
  // Le volume accessible suit les extensions physiques de la réserve.
  const reserveDepth=state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
@@ -3456,28 +3535,36 @@ function blocked(x,z,r=.4){
   const wing=STORAGE_WINGS[kind];
   return inStorageWing(kind,x,z)&&x>wing.minX+.7+r&&x<wing.maxX-.7-r;
  });
- if(!(shop||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor))return true;
- return colliders.some(c=>!c.disabled&&(!c.storageGate||!storageBayCount(c.storageGate))&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
+ if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor))return true;
+ return colliders.some(c=>!c.disabled&&(!c.storageGate||!storageBayCount(c.storageGate))&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&(!c.lockedBy||!state.upgrades[c.lockedBy])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 // Trajets employés sur la carte du bâtiment, sans traverser murs, rayons ni meubles.
 // Les chemins parcourus sont inversés après la pause : reprise au point de travail exact.
+function directWalk(from,to,isBlocked){
+ const steps=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.z-from.z)/.23));
+ for(let step=1;step<=steps;step++){
+  const fraction=step/steps;
+  if(isBlocked(from.x+(to.x-from.x)*fraction,from.z+(to.z-from.z)*fraction))return false;
+ }
+ return true;
+}
 function staffBreakPath(from,to){
- const galleryStart=ANNEX_ENTRY-1.2;
- if(Math.min(from.z,to.z)>=ANNEX_ENTRY-2)return findStaffPath(from,to);
- const fromGallery=from.z<galleryStart,toGallery=to.z<galleryStart;
- const entry={x:0,z:galleryStart};
- const path=fromGallery?[from,{x:0,z:from.z}]:findStaffPath(from,entry);
- if(!path.length)return [];
- if(toGallery)return [...path,{x:0,z:to.z},to];
- const remainder=findStaffPath(entry,to);
- return remainder.length?[...path,...remainder]:[];
+ return directWalk(from,to,(x,z)=>blocked(x,z,.22))?[from,to]:findStaffPath(from,to);
 }
 function findStaffPath(from,to){
- const STEP=.5,MIN_X=-10,MIN_Z=Math.floor(Math.min(-34,from.z-2,to.z-2)),W=80,H=Math.ceil((Math.max(44,from.z+2,to.z+2)-MIN_Z)/STEP)+1;
+ const STEP=.5,MIN_X=Math.min(-10,Math.floor(Math.min(from.x,to.x)-12)),MIN_Z=Math.floor(Math.min(-34,from.z-6,to.z-6));
+ const W=Math.ceil((Math.max(30,from.x+12,to.x+12)-MIN_X)/STEP)+1;
+ const H=Math.ceil((Math.max(44,from.z+2,to.z+2)-MIN_Z)/STEP)+1;
  const at=(i,j)=>({x:MIN_X+i*STEP,z:MIN_Z+j*STEP});
  const node=p=>({i:Math.max(0,Math.min(W-1,Math.round((p.x-MIN_X)/STEP))),
                  j:Math.max(0,Math.min(H-1,Math.round((p.z-MIN_Z)/STEP)))});
- const free=(i,j)=>i>=0&&j>=0&&i<W&&j<H&&!blocked(MIN_X+i*STEP,MIN_Z+j*STEP,.22);
+ const cells=new Uint8Array(W*H);
+ const free=(i,j)=>{
+  if(i<0||j<0||i>=W||j>=H)return false;
+  const key=j*W+i;
+  if(!cells[key])cells[key]=blocked(MIN_X+i*STEP,MIN_Z+j*STEP,.22)?2:1;
+  return cells[key]===1;
+ };
  const nearest=p=>{
   if(free(p.i,p.j))return p;
   for(let radius=1;radius<=10;radius++){
@@ -3490,11 +3577,11 @@ function findStaffPath(from,to){
  const start=nearest(node(from)),goal=nearest(node(to));
  if(!start||!goal)return [];
  const key=(i,j)=>i+","+j,startKey=key(start.i,start.j),endKey=key(goal.i,goal.j);
- const frontier=[{i:start.i,j:start.j,g:0,f:Math.hypot(start.i-goal.i,start.j-goal.j)}];
+ const frontier=[{i:start.i,j:start.j,g:0,f:Math.abs(start.i-goal.i)+Math.abs(start.j-goal.j)}];
  const costs=new Map([[startKey,0]]),parents=new Map(),visited=new Set();
  while(frontier.length){
   let index=0;
-  for(let k=1;k<frontier.length;k++)if(frontier[k].f<frontier[index].f)index=k;
+  for(let k=1;k<frontier.length;k++)if(frontier[k].f<frontier[index].f||(frontier[k].f===frontier[index].f&&frontier[k].g>frontier[index].g))index=k;
   const current=frontier.splice(index,1)[0],id=key(current.i,current.j);
   if(visited.has(id))continue;
   if(id===endKey){
@@ -3512,7 +3599,7 @@ function findStaffPath(from,to){
    if(!free(i,j)||visited.has(nk))continue;
    const g=current.g+1;if(g>=(costs.get(nk)??Infinity))continue;
    costs.set(nk,g);parents.set(nk,id);
-   frontier.push({i,j,g,f:g+Math.hypot(goal.i-i,goal.j-j)});
+   frontier.push({i,j,g,f:g+Math.abs(goal.i-i)+Math.abs(goal.j-j)});
   }
  }
  return [];
@@ -3698,29 +3785,24 @@ function customerBlocked(x,z,r=.28){
  return x+r>4.7&&x-r<9.45&&z+r>7.25&&z-r<9.95;
 }
 // Navigation A* sur grille invisible : évite les collisions avec les rayons et la caisse.
-const NAV_STEP=.35,NAV_MIN_X=-9.1,NAV_MIN_Z=annexWall(DEPARTMENTS.length),NAV_W=69,NAV_H=Math.ceil((13.6-NAV_MIN_Z)/NAV_STEP);
+const NAV_STEP=.35,NAV_MIN_X=-MALL_HALF_WIDTH,NAV_MIN_Z=MALL_MIN_Z,NAV_W=Math.ceil(2*MALL_HALF_WIDTH/NAV_STEP),NAV_H=Math.ceil((13.6-NAV_MIN_Z)/NAV_STEP);
 function navNode(x,z){
  return {i:Math.max(0,Math.min(NAV_W-1,Math.round((x-NAV_MIN_X)/NAV_STEP))),
  j:Math.max(0,Math.min(NAV_H-1,Math.round((z-NAV_MIN_Z)/NAV_STEP)))};
 }
 function navPoint(i,j){return {x:NAV_MIN_X+i*NAV_STEP,z:NAV_MIN_Z+j*NAV_STEP};}
 function navPath(from,to){
- if(Math.min(from.z,to.z)<ANNEX_ENTRY-2){
-  const galleryStart=ANNEX_ENTRY-1.2;
-  const fromGallery=from.z<galleryStart;
-  const toGallery=to.z<galleryStart;
-  const entry={x:0,z:galleryStart};
-  const path=fromGallery?[{x:0,z:from.z}]:findNavPath(from,entry);
-  if(!path.length)return [];
-  if(toGallery)path.push({x:0,z:to.z},to);
-  else path.push(entry,...findNavPath(entry,to));
-  return path;
- }
- return findNavPath(from,to);
+ return directWalk(from,to,customerBlocked)?[to]:findNavPath(from,to);
 }
 function findNavPath(from,to){
  const start=navNode(from.x,from.z),goal=navNode(to.x,to.z);
- const free=(i,j)=>i>=0&&j>=0&&i<NAV_W&&j<NAV_H&&!customerBlocked(NAV_MIN_X+i*NAV_STEP,NAV_MIN_Z+j*NAV_STEP,.28);
+ const cells=new Uint8Array(NAV_W*NAV_H);
+ const free=(i,j)=>{
+  if(i<0||j<0||i>=NAV_W||j>=NAV_H)return false;
+  const key=j*NAV_W+i;
+  if(!cells[key])cells[key]=customerBlocked(NAV_MIN_X+i*NAV_STEP,NAV_MIN_Z+j*NAV_STEP,.28)?2:1;
+  return cells[key]===1;
+ };
  const nearest=n=>{
   if(free(n.i,n.j))return n;
   for(let radius=1;radius<=12;radius++){
@@ -3735,10 +3817,10 @@ function findNavPath(from,to){
  };
  const a=nearest(start),b=nearest(goal);if(!a||!b)return [];
  const key=(i,j)=>i+","+j,goalKey=key(b.i,b.j);
- const open=[{i:a.i,j:a.j,g:0,f:Math.hypot(b.i-a.i,b.j-a.j)}];
+ const open=[{i:a.i,j:a.j,g:0,f:Math.abs(b.i-a.i)+Math.abs(b.j-a.j)}];
  const best=new Map([[key(a.i,a.j),0]]),parents=new Map(),closed=new Set();
  while(open.length){
-  let index=0;for(let k=1;k<open.length;k++)if(open[k].f<open[index].f)index=k;
+  let index=0;for(let k=1;k<open.length;k++)if(open[k].f<open[index].f||(open[k].f===open[index].f&&open[k].g>open[index].g))index=k;
   const n=open.splice(index,1)[0],nk=key(n.i,n.j);
   if(closed.has(nk))continue;
   if(nk===goalKey){
@@ -3756,7 +3838,7 @@ function findNavPath(from,to){
    if(!free(i,j)||closed.has(k))continue;
    const g=n.g+1;if(g>=(best.get(k)??Infinity))continue;
    best.set(k,g);parents.set(k,nk);
-   open.push({i,j,g,f:g+Math.hypot(b.i-i,b.j-j)});
+   open.push({i,j,g,f:g+Math.abs(b.i-i)+Math.abs(b.j-j)});
   }
  }
  return [];
@@ -4073,4 +4155,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.0 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.1 !");
