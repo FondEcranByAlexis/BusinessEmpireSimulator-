@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.2";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.2";
-// Business Empire Simulator V0.13.2 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.3";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.3";
+// Business Empire Simulator V0.13.3 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -453,7 +453,7 @@ Object.assign(levelModalCard.style,{width:"min(94vw,460px)",maxHeight:"88dvh",
  background:"#0f172a",boxShadow:"0 12px 40px #0009"});
 levelModal.appendChild(levelModalCard);document.body.appendChild(levelModal);
 function implementedMilestone(level){
- return [1,2,3,4,5,6,7,8,9,11,14,16,18,19,20,31,49,59,66,72,77,86,88,94,104,109,110,112,138,154,172,174,179,199,200].includes(level);
+ return [1,2,3,4,5,6,7,8,9,11,14,16,18,19,20,24,25,31,49,59,66,72,77,86,88,94,104,109,110,112,138,154,172,174,179,199,200].includes(level);
 }
 function milestoneEntries(level){
  const entries=LEVEL_REWARDS[level-1];
@@ -820,6 +820,7 @@ function showComputer(){
  button(panel,"Progression des niveaux",showProgression);
  if(openDepartmentCount())button(panel,"Accès aux départements",showDepartmentTravel);
  if(playerLevel()>=7)button(panel,"Gestion commerciale",showCommercialManagement);
+ if(playerLevel()>=24)button(panel,"Fournil et boulanger",showBakery);
  if(playerLevel()>=40)button(panel,"Commandes des clients",showOrderServices);
  button(panel,"Calendrier et horaires",showCalendar);
  button(panel,"Personnaliser les prénoms",showNames);
@@ -871,6 +872,118 @@ function inputNumber(label,value,min,max){
  wrapper.appendChild(input);panel.appendChild(wrapper);
  return input;
 }
+const BAKERY_ID="annex4";
+const BAKER_WAGE=60;
+const BAKERY_RECIPES=[
+ {id:"pain",name:"Pains",hour:8,ingredients:{farine:1}},
+ {id:"viennoiseries",name:"Viennoiseries",hour:13,ingredients:{farine:1,sucre:1,lait:1}}
+];
+function bakeryState(){
+ return state.management.bakery??={enabled:true,plan:{},lastBake:{},paidDay:0,batch:null};
+}
+function bakerOnDuty(){
+ return !!state.upgrades[BAKERY_ID]&&state.hour>=8&&state.hour<17&&(state.hour<12||state.hour>=13)&&!(isSunday()&&state.sundayMode==="closed")&&state.hour<closingHour();
+}
+function bakeryPlan(recipe){
+ return bakeryState().plan[recipe.id]??{hour:recipe.hour,quantity:10};
+}
+function bakeryStatus(){
+ if(!state.upgrades[BAKERY_ID])return "Recrutement automatique à l’ouverture de la boulangerie, niveau 25.";
+ const bakery=bakeryState();
+ if(bakery.batch){
+  const product=BAKERY_RECIPES.find(recipe=>recipe.id===bakery.batch.id)?.name;
+  return product+" · "+bakery.batch.quantity+" en préparation ou en attente de place en rayon.";
+ }
+ if(!bakery.enabled)return "Fournées automatiques en pause.";
+ if(!bakerOnDuty())return "Hors service. Horaires de 8 h à 17 h, pause de midi à 13 h.";
+ return "En service · le boulanger prépare les fournées prévues.";
+}
+function showBakery(){
+ openPanel("Fournil et boulanger");
+ paragraph(bakeryStatus());
+ paragraph("Salaire de "+euro(BAKER_WAGE)+" le jour où la première fournée démarre. Les ingrédients sont prélevés en réserve.");
+ const bakery=bakeryState();
+ for(const recipe of BAKERY_RECIPES){
+  const rule=bakeryPlan(recipe);
+  paragraph(recipe.name+" · "+rule.quantity+" à "+rule.hour+" h · "+Object.entries(recipe.ingredients).map(([id,amount])=>{
+   const product=catalog.find(p=>p.id===id);
+   return amount+" "+product.name+" pour 5 pièces ("+productStoredUnits(product)+" en réserve)";
+  }).join(" · "));
+  button(panel,"Régler la fournée · "+recipe.name,()=>editBakeryPlan(recipe));
+ }
+ const enabled=button(panel,bakery.enabled?"Suspendre les fournées":"Reprendre les fournées",()=>{
+  bakery.enabled=!bakery.enabled;save();showBakery();
+ });
+ enabled.disabled=!state.upgrades[BAKERY_ID];
+}
+function editBakeryPlan(recipe){
+ openPanel("Planning · "+recipe.name);
+ const rule=bakeryPlan(recipe);
+ const hour=inputNumber("Heure de départ",rule.hour,8,16);
+ const quantity=inputNumber("Quantité, par multiples de 5",rule.quantity,5,20);
+ button(panel,"Enregistrer la fournée",()=>{
+  const h=Number(hour.value),q=Number(quantity.value);
+  if(!Number.isInteger(h)||h<8||h>16||h===12||!Number.isInteger(q)||q<5||q>20||q%5){
+   toast("Choisis une heure de 8 h à 16 h hors midi, et 5, 10, 15 ou 20 pièces.");return;
+  }
+  bakeryState().plan[recipe.id]={hour:h,quantity:q};save();showBakery();
+ });
+}
+function consumeBakeryIngredients(recipe,quantity){
+ const items=Object.entries(recipe.ingredients).map(([id,amount])=>({
+  product:catalog.find(p=>p.id===id),quantity:amount*quantity/5
+ }));
+ if(items.some(item=>productStoredUnits(item.product)<item.quantity))return false;
+ for(const item of items){
+  const inventory=state.inventory[item.product.id];
+  const fromLoose=Math.min(inventory.reserve,item.quantity);
+  inventory.reserve-=fromLoose;
+  const remaining=item.quantity-fromLoose;
+  if(remaining){
+   const cartons=Math.ceil(remaining/BOX_UNITS);
+   inventory.boxes-=cartons;
+   inventory.reserve+=cartons*BOX_UNITS-remaining;
+  }
+ }
+ return true;
+}
+let bakeryTick=-1;
+function updateBakery(){
+ if(!state.upgrades[BAKERY_ID])return;
+ const minute=Math.floor(state.hour*60),tick=state.day*1440+minute;
+ if(tick===bakeryTick)return;
+ bakeryTick=tick;
+ const bakery=bakeryState();
+ const batch=bakery.batch;
+ if(batch&&tick>=batch.ready){
+  const product=catalog.find(p=>p.id===batch.id);
+  const inventory=product&&state.inventory[product.id];
+  const quantity=inventory?Math.min(batch.quantity,Math.max(0,shelfCapacity(product)-inventory.shelf)):0;
+  if(quantity){
+   inventory.shelf+=quantity;
+   batch.quantity-=quantity;
+   if(batch.quantity===0)bakery.batch=null;
+   sync();toast("Fournée en rayon · "+quantity+" × "+product.name);
+  }
+  return;
+ }
+ if(batch||!bakery.enabled||!bakerOnDuty()||minute+20>Math.min(17,closingHour())*60)return;
+ const wage=bakery.paidDay===state.day?0:BAKER_WAGE;
+ if(state.money<wage)return;
+ for(const recipe of BAKERY_RECIPES){
+  const rule=bakeryPlan(recipe),product=catalog.find(p=>p.id===recipe.id);
+  if(bakery.lastBake[recipe.id]===state.day||minute<rule.hour*60||!productAvailable(product))continue;
+  if(shelfCapacity(product)-state.inventory[product.id].shelf<rule.quantity)continue;
+  if(!consumeBakeryIngredients(recipe,rule.quantity))continue;
+  bakery.lastBake[recipe.id]=state.day;
+  bakery.paidDay=state.day;
+  bakery.batch={id:recipe.id,quantity:rule.quantity,ready:tick+20};
+  state.money-=wage;finance.charges+=wage;
+  sync();toast("Fournée lancée · "+recipe.name);
+  return;
+ }
+}
+
 function showCommercialManagement(){
  openPanel("Gestion commerciale");
  button(panel,"Produits à démarquer",showMarkdowns);
@@ -1319,6 +1432,11 @@ function showEmployeeOverview(){
  paragraph(state.stockerName+" — Mise en rayon");
  paragraph("Présence : "+(employeeBreakLabel(stockerBreakJourney)||employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift())));
  paragraph("Mission : "+stockerTaskLabel());
+ if(state.upgrades[BAKERY_ID]){
+  paragraph("Boulanger · recruté à l’ouverture du fournil");
+  paragraph(bakeryStatus());
+  button(panel,"Planning des fournées",showBakery);
+ }
  button(panel,"Actualiser les statuts",showEmployeeOverview);
  button(panel,"Gérer le manutentionnaire",showWorkerManagement);
  button(panel,"Gérer la mise en rayon",showStockerManagement);
@@ -2605,6 +2723,7 @@ function departmentProductBatch(parent,product){
  }
  departmentDisplays.set(product.id,result);
 }
+let bakeryScene=null;
 for(const [index,department] of DEPARTMENTS.entries()){
  const group=new THREE.Group(),furnishings=new THREE.Group();
  furnishings.visible=false;
@@ -2630,6 +2749,33 @@ for(const [index,department] of DEPARTMENTS.entries()){
  hit(x,front,2.8,.24,department.id);
  mallSign(group,department.name.toUpperCase(),"NIVEAU "+department.level,x,front+.15,0,7.4);
  annexGroups.set(department.id,{group,gate,furnishings,x,z});
+ if(department.id===BAKERY_ID){
+  const ovenZ=z-3.62;
+  const metal=new THREE.MeshStandardMaterial({color:0x334155,roughness:.55});
+  const glass=new THREE.MeshStandardMaterial({color:0x16243a,emissive:0xfb7b24,emissiveIntensity:0});
+  fixture(x,.88,ovenZ,2.35,1.76,.92,metal);
+  fixture(x,1.1,ovenZ+.47,1.85,.67,.045,glass);
+  fixture(x,1.54,ovenZ+.54,1.45,.045,.09,metal);
+  fixture(x,.84,z-1.7,1.45,.13,.6,accent);
+  for(const side of [-1,1])fixture(x+side*.53,.41,z-1.7,.08,.82,.58,metal);
+  colliders.push({minX:x-1.18,maxX:x+1.18,minZ:ovenZ-.46,maxZ:ovenZ+.46,requiresUpgrade:BAKERY_ID});
+  colliders.push({minX:x-.73,maxX:x+.73,minZ:z-2,maxZ:z-1.4,requiresUpgrade:BAKERY_ID});
+  const sign=shelfSign("FOURNIL · PLANNING");sign.position.set(x,2.35,ovenZ+.5);furnishings.add(sign);
+  const baker=new THREE.Group();
+  baker.position.set(x+1.75,0,ovenZ+.95);
+  furnishings.add(baker);
+  const uniform=new THREE.MeshStandardMaterial({color:0xf1f5f9});
+  const skin=new THREE.MeshStandardMaterial({color:0xd99d73});
+  const trousers=new THREE.MeshStandardMaterial({color:0x27354a});
+  mallPart(baker,0,1.22,0,.44,.67,.29,uniform);
+  mallPart(baker,0,1.72,0,.29,.31,.27,skin);
+  mallPart(baker,0,1.95,0,.36,.22,.34,uniform);
+  for(const side of [-1,1]){
+   mallPart(baker,side*.125,.43,0,.2,.86,.24,trousers);
+   mallPart(baker,side*.29,1.17,0,.13,.52,.16,uniform);
+  }
+  bakeryScene={baker,glass,x,z:ovenZ+.55};
+ }
  if(!department.products.length){
   fixture(x+2.25,.52,z,2.6,1.04,.82,accent);
   fixture(x+2.25,1.06,z,2.6,.09,.9,mallWallMaterial);
@@ -3473,6 +3619,7 @@ function interact(){
   toast("Suis le rayon "+p.name+" surligné en bleu puis appuie sur Interagir");
   return;
  }
+ if(state.upgrades[BAKERY_ID]&&bakeryScene&&near(bakeryScene.x,bakeryScene.z,2.5)){showBakery();return;}
  if(stockerGroup.visible&&near(stockerGroup.position.x,stockerGroup.position.z,2.25)){showStockerInteraction();return;}
  if(state.workerEnabled&&workerGroup.visible&&near(workerGroup.position.x,workerGroup.position.z,2.25)){showWorkerInteraction();return;}
  if(near(25.65,-24.3,3.2)){showDeliveryDock();return;}
@@ -4216,10 +4363,15 @@ function animate(){
  const dt=Math.min(clock.getDelta(),.05),smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
- if(!paused){movePlayer(dt);updateConstruction(dt);business(dt);updateCustomers(dt);updateWorker(dt);updateStocker(dt);}
+ if(!paused){movePlayer(dt);updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);}
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
  updateGalleryRendering();
+ if(bakeryScene&&state.upgrades[BAKERY_ID]){
+  bakeryScene.baker.visible=bakerOnDuty();
+  const batch=state.management.bakery?.batch;
+  bakeryScene.glass.emissiveIntensity=batch&&state.day*1440+state.hour*60<batch.ready ? .9 : 0;
+ }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.2 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.3 !");
