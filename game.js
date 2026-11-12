@@ -26,7 +26,12 @@ const catalog=[
  {id:"pommes",name:"Pommes",cost:3,price:7,color:0xf87171,x:8.5,z:0,level:6,kind:"fruits"},
  {id:"cafe",name:"Café",cost:7,price:15,color:0x92400e,x:-5,z:-15,level:4,kind:"extension",license:"extensionLicense"},
  {id:"jus",name:"Jus de fruits",cost:4,price:9,color:0xfb923c,x:0,z:-15,level:4,kind:"extension",license:"extensionLicense"},
- {id:"chocolat",name:"Chocolat",cost:5,price:12,color:0x78350f,x:5,z:-15,level:4,kind:"extension",license:"extensionLicense"}
+ {id:"chocolat",name:"Chocolat",cost:5,price:12,color:0x78350f,x:5,z:-15,level:4,kind:"extension",license:"extensionLicense"},
+ {id:"smartphones",name:"Téléphones",cost:65,price:125,color:0x2563eb,x:-7,z:-29,level:6,kind:"electronics",license:"phones"},
+ {id:"ecouteurs",name:"Écouteurs",cost:12,price:29,color:0x38bdf8,x:-3.5,z:-29,level:6,kind:"electronics",license:"store2"},
+ {id:"casques",name:"Casques audio",cost:25,price:59,color:0xa78bfa,x:0,z:-29,level:6,kind:"electronics",license:"store2"},
+ {id:"ordinateurs",name:"Ordinateurs",cost:135,price:279,color:0x94a3b8,x:3.5,z:-29,level:6,kind:"electronics",license:"store2"},
+ {id:"drones",name:"Drones",cost:85,price:179,color:0x22c55e,x:7,z:-29,level:6,kind:"electronics",license:"store2"}
 ];
 const CAPACITY=30, BOX_UNITS=10;
 // Six gondoles : une par produit de départ, 30 emplacements chacune.
@@ -35,6 +40,7 @@ const upgradeCatalog=[
  {id:"handtruck",name:"Diable de manutention",level:1,cost:125,description:"Transporte jusqu’à 3 cartons du quai vers la réserve sèche et la chambre froide."},
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
  {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Agrandit le magasin et la réserve sèche : +40 places de stockage, jusqu’à 100 cartons après l’amélioration du niveau 3."},
+ {id:"store2",name:"Extension Électronique II",level:6,cost:3000,requires:"store1",description:"Hall électronique avec cinq rayons et chantier sur trois journées (ouvriers de 8 h à 17 h). Réserve sèche : +40 cartons."},
  {id:"phoneSkill",name:"Compétence Téléphonie",level:5,cost:1200,description:"Formation préalable à la vente de téléphones."},
  {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:"phoneSkill",description:"Débloque la spécialisation téléphones."},
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
@@ -58,7 +64,7 @@ function playerLevel(){
 }
 function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
 // Deux capacités logistiques indépendantes ; la chambre froide sera agrandie plus tard.
-function reserveLimit(){return 30+(state.upgrades.reserve1?30:0)+(state.upgrades.store1?40:0);}
+function reserveLimit(){return 30+(state.upgrades.reserve1?30:0)+(state.upgrades.store1?40:0)+(state.upgrades.store2?40:0);}
 function coldLimit(){return 20;}
 function coldStorageProduct(p){return p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits";}
 function storageKind(p){return coldStorageProduct(p)?"cold":"dry";}
@@ -91,14 +97,14 @@ function hasProductLicense(p){
  if(p.id==="pommes")return !!state.upgrades.fruitLicense;
  return true;
 }
-function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p);}
+function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p)&&(p.kind!=="electronics"||!!state.upgrades.store2);}
 function unlockedProducts(){return catalog.filter(productAvailable);}
 function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=2?2:0);}
 const CONSTRUCTION_DAYS=3;
 const CONSTRUCTION_START_HOUR=8,CONSTRUCTION_END_HOUR=17;
 const CONSTRUCTION_SHIFT_SECONDS=450; // 600 s pour 12 heures : 9 heures = 450 s
 function constructionOnShift(){
- return !!state.construction&&!state.upgrades.store1&&
+ return !!state.construction&&!state.upgrades[state.construction.target||"store1"]&&
   state.hour>=CONSTRUCTION_START_HOUR&&state.hour<CONSTRUCTION_END_HOUR;
 }
 function constructionStage(){
@@ -119,7 +125,7 @@ const UPGRADE_TABS=[
 ];
 let activeUpgradeTab="licences";
 function upgradeCategory(u){
- if(u.id==="store1")return "extensions";
+ if(u.id==="store1"||u.id==="store2")return "extensions";
  if(u.id==="reserve1"||u.id==="handtruck")return "stock";
  if(u.id==="freshLicense"||u.id==="fruitLicense"||u.id==="extensionLicense")return "licences";
  if(u.id.endsWith("Skill")||u.id==="phones"||u.id==="consoles")return "competences";
@@ -157,8 +163,8 @@ function showUpgrades(tab=activeUpgradeTab){
   button(panel,"Consulter les stocks",showStocks);
  }else if(activeUpgradeTab==="extensions"){
   note.textContent="Agrandissements du magasin et suivi des chantiers.";
-  if(state.construction&&!state.upgrades.store1){
-   paragraph("Chantier en cours : "+constructionPercent()+" % — "+constructionStage()+".");
+  if(state.construction&&!state.upgrades[state.construction.target||"store1"]){
+   paragraph("Chantier "+(state.construction.target==="store2"?"électronique":"magasin")+" : "+constructionPercent()+" % — "+constructionStage()+".");
    paragraph("Ouvriers de 8 h à 17 h, pendant trois journées de travail.");
   }
  }else if(activeUpgradeTab==="licences"){
@@ -177,18 +183,18 @@ function showUpgrades(tab=activeUpgradeTab){
  const upgrades=upgradeCatalog.filter(u=>upgradeCategory(u)===activeUpgradeTab);
  for(const u of upgrades){
   const owned=!!state.upgrades[u.id];
-  const underway=u.id==="store1"&&!!state.construction&&!owned;
+  const underway=!!state.construction&&(state.construction.target||"store1")===u.id&&!owned;
   paragraph(u.name+" — "+(owned?"ACQUIS":underway?"CHANTIER EN COURS":euro(u.cost))+" | Niveau "+u.level+" requis");
   paragraph(u.description);
   if(underway){paragraph("Progression : "+constructionPercent()+" % — "+constructionStage());continue;}
   if(owned)continue;
-  const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires]);
+  const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires])&&(!(u.id==="store1"||u.id==="store2")||!state.construction);
   const b=button(panel,eligible?"Acheter — "+euro(u.cost):"Verrouillé — niveau "+u.level,()=>{
    if(!eligible)return;
    if(state.money<u.cost){toast("Trésorerie insuffisante");return;}
    state.money-=u.cost;
-   if(u.id==="store1"){
-    state.construction={progress:0,units:"days"};
+   if(u.id==="store1"||u.id==="store2"){
+    state.construction={progress:0,units:"days",target:u.id};
     sync();updateConstructionUI();showUpgrades(activeUpgradeTab);toast("Chantier lancé : les ouvriers arrivent !");
    }else{
     state.upgrades[u.id]=true;sync();showUpgrades(activeUpgradeTab);toast("Amélioration débloquée : "+u.name);
@@ -213,10 +219,11 @@ function load(){
    if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
    if(Number.isInteger(current.lastNotifiedLevel)&&current.lastNotifiedLevel>=1)s.lastNotifiedLevel=current.lastNotifiedLevel;
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
-   if(!current.upgrades?.store1&&current.construction&&Number.isFinite(current.construction.progress)){
+   if(current.construction&&Number.isFinite(current.construction.progress)){
     // Anciennes sauvegardes V0.10.5 : l'avancement 0-90 s est migré.
     const progress=current.construction.units==="days"?current.construction.progress:current.construction.progress/90*CONSTRUCTION_DAYS;
-    s.construction={progress:Math.max(0,Math.min(CONSTRUCTION_DAYS,progress)),units:"days"};
+    const target=current.construction.target==="store2"?"store2":"store1";
+    if(!current.upgrades?.[target])s.construction={progress:Math.max(0,Math.min(CONSTRUCTION_DAYS,progress)),units:"days",target};
    }
    if(typeof current.workerName==="string")s.workerName=current.workerName.slice(0,24);
    if(typeof current.stockerName==="string")s.stockerName=current.stockerName.slice(0,24);
@@ -1411,7 +1418,7 @@ createBuilder(-2.85,-8.75,0xf97316);
 createBuilder(2.85,-8.75,0xfacc15);
 let constructionAnimation=0,constructionAutosave=0;
 function updateConstructionUI(){
- const active=!!state.construction&&!state.upgrades.store1;
+ const active=!!state.construction&&!state.upgrades[state.construction.target||"store1"];
  const ui=$("constructionHud");
  if(ui){
   ui.style.display=active?"block":"none";
@@ -1419,18 +1426,21 @@ function updateConstructionUI(){
    const pct=constructionPercent();
    $("constructionProgress").textContent=pct+" %";
    $("constructionBar").style.width=pct+"%";
+   const title=$("constructionHud").querySelector("span");
+   if(title)title.textContent=state.construction.target==="store2"?"CHANTIER — ÉLECTRONIQUE":"CHANTIER — EXTENSION";
    $("constructionStage").textContent=constructionOnShift()?constructionStage()+" · Ouvriers 8 h–17 h":
      state.hour<CONSTRUCTION_START_HOUR?"Reprise des travaux à 8 h":
      "Travaux arrêtés à 17 h — reprise demain à 8 h";
   }
  }
  for(const w of constructionCrew){
+  w.group.position.z=active&&state.construction.target==="store2"?-20.1:-8.75;
   w.group.visible=active&&constructionOnShift();
   if(!constructionOnShift()){w.arm.rotation.x=0;w.group.position.y=0;}
  }
 }
 function updateConstruction(dt){
- if(!state.construction||state.upgrades.store1)return;
+ if(!state.construction||state.upgrades[state.construction.target||"store1"])return;
  // Chantier actif uniquement de 08 h à 17 h : neuf heures de travail par journée.
  // 450 secondes réelles = une journée complète d'ouvriers dans le temps du jeu.
  if(constructionOnShift()){
@@ -1444,9 +1454,10 @@ function updateConstruction(dt){
  constructionAutosave+=dt;
  if(constructionAutosave>=5){constructionAutosave=0;save();}
  if(state.construction.progress>=CONSTRUCTION_DAYS){
-  state.construction=null;state.upgrades.store1=true;
+  const target=state.construction.target||"store1";
+  state.construction=null;state.upgrades[target]=true;
   updateConstructionUI();sync();
-  toast("Travaux terminés ! Extension et nouvelle réserve accessibles.");
+  toast(target==="store2"?"Zone électronique ouverte ! Cinq rayons disponibles.":"Travaux terminés ! Extension et nouvelle réserve accessibles.");
  }else updateConstructionUI();
 }
 updateConstructionUI();
@@ -1614,7 +1625,7 @@ let freezerLid=null,freezerOpen=false;
 let fridgeDoor=null,fridgeOpen=false;
 for(const p of catalog){
  displays[p.id]=[];
- if(p.kind==="extension"||p.kind==="wall")continue;
+ if(p.kind==="extension"||p.kind==="electronics"||p.kind==="wall")continue;
  for(const z of (p.z!==undefined?[p.z]:[-4,1])){
   const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
   const mat=new THREE.MeshStandardMaterial({color:p.color});
@@ -1772,7 +1783,8 @@ function addShelfGuide(p,x,z){
 function updateShelfGuides(){
  for(const guide of Object.values(shelfGuides)){
   const active=!!held&&held.id===guide.p.id&&productAvailable(guide.p);
-  guide.group.visible=productAvailable(guide.p)&&(guide.p.kind!=="extension"||!!state.upgrades.store1);
+  guide.group.visible=productAvailable(guide.p)&&(guide.p.kind!=="extension"||!!state.upgrades.store1)&&
+   (guide.p.kind!=="electronics"||!!state.upgrades.store2);
   guide.highlight.visible=active;
   guide.sign.visible=guide.group.visible;
  }
@@ -2663,7 +2675,8 @@ document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=fal
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;joystickPointer=null;joyX=0;joyY=0;stick.style.transform="translate(0px,0px)";});
 function blocked(x,z,r=.4){
  // Entrée clientèle au sud (z positif), quai logistique à l'arrière (z négatif).
- const shop=x>=-9.45+r&&x<=9.45-r&&z>=(state.upgrades.store1?-21.45:-9.45)+r&&z<=9.45-r;
+ const depth=state.upgrades.store2?-33.45:state.upgrades.store1?-21.45:-9.45;
+ const shop=x>=-9.45+r&&x<=9.45-r&&z>=depth+r&&z<=9.45-r;
  // Le volume accessible suit les extensions physiques de la réserve.
  const reserveDepth=state.upgrades.store1?30.45:23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
@@ -2855,6 +2868,10 @@ function makeCustomer(){
    else route.push({x:-3.4,z:6.55},{x:-5.2,z:6.55,shop:p.id},{x:-3.4,z:6.55});
    continue;
   }
+  if(p.kind==="electronics"){
+   route.push({x:0,z:-19.5},{x:0,z:-24.5},{x:p.x,z:p.z+2.0,shop:p.id},{x:0,z:-24.5},{x:0,z:-19.5});
+   continue;
+  }
   const aisleX=p.level?(p.x<0?-7.2:7.2):(p.x===5?2.5:p.x-2.5);
   const targetZ=p.z??-1.5;
   route.push({x:aisleX,z:8},{x:aisleX,z:targetZ,shop:p.id},{x:aisleX,z:8});
@@ -2904,7 +2921,7 @@ function customerBlocked(x,z,r=.28){
  return x+r>4.7&&x-r<9.45&&z+r>7.25&&z-r<9.95;
 }
 // Navigation A* sur grille invisible : évite les collisions avec les rayons et la caisse.
-const NAV_STEP=.35,NAV_MIN_X=-9.1,NAV_MIN_Z=-21.1,NAV_W=69,NAV_H=99;
+const NAV_STEP=.35,NAV_MIN_X=-9.1,NAV_MIN_Z=-33.3,NAV_W=69,NAV_H=135;
 function navNode(x,z){
  return {i:Math.max(0,Math.min(NAV_W-1,Math.round((x-NAV_MIN_X)/NAV_STEP))),
  j:Math.max(0,Math.min(NAV_H-1,Math.round((z-NAV_MIN_Z)/NAV_STEP)))};
