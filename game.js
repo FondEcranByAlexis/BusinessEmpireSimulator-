@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.7 — version synchronisée
+// Business Empire Simulator V0.10.8 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -149,6 +149,7 @@ function load(){
    if(Number.isFinite(current.devLevel))s.devLevel=current.devLevel;
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
+   if(Number.isInteger(current.lastNotifiedLevel)&&current.lastNotifiedLevel>=1)s.lastNotifiedLevel=current.lastNotifiedLevel;
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
    if(!current.upgrades?.store1&&current.construction&&Number.isFinite(current.construction.progress)){
     // Anciennes sauvegardes V0.10.5 : l'avancement 0-90 s est migré.
@@ -199,6 +200,13 @@ function load(){
  return s;
 }
 const state=load();
+// Les niveaux déjà acquis ne déclenchent aucune notification rétroactive.
+if(!Number.isInteger(state.lastNotifiedLevel)){
+ let achieved=1;
+ if(DEV_MODE)achieved=Math.max(1,Math.floor(Number(state.devLevel)||1));
+ else while(achieved<50&&state.finance.revenue>=revenueThreshold(achieved+1))achieved++;
+ state.lastNotifiedLevel=achieved;
+}
 state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
 state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
 if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
@@ -264,6 +272,70 @@ function openPanel(title){
 }
 function paragraph(t){
  const p=document.createElement("p");p.textContent=t;p.style.marginTop="12px";p.style.fontSize="13px";panel.appendChild(p);
+}
+// V0.10.8 — nouvelles possibilités annoncées une fois par niveau gagné.
+const levelModal=document.createElement("div");
+Object.assign(levelModal.style,{position:"fixed",inset:"0",zIndex:"110",display:"none",
+ alignItems:"center",justifyContent:"center",padding:"12px",background:"rgba(0,0,0,.76)",
+ color:"#fff",touchAction:"pan-y"});
+const levelModalCard=document.createElement("section");
+Object.assign(levelModalCard.style,{width:"min(94vw,460px)",maxHeight:"88dvh",
+ overflowY:"auto",padding:"16px",borderRadius:"15px",border:"2px solid #fbbf24",
+ background:"#0f172a",boxShadow:"0 12px 40px #0009"});
+levelModal.appendChild(levelModalCard);document.body.appendChild(levelModal);
+const pendingLevelNotices=[];
+let levelModalShowing=false;
+function closeLevelNotice(){
+ levelModal.style.display="none";levelModalShowing=false;
+ if(pendingLevelNotices.length)showNextLevelNotice();
+}
+function showNextLevelNotice(){
+ if(levelModalShowing||!pendingLevelNotices.length)return;
+ const level=pendingLevelNotices.shift();
+ levelModalShowing=true;levelModal.style.display="flex";levelModalCard.replaceChildren();
+ const heading=document.createElement("h2");
+ heading.textContent="NIVEAU "+level+" ATTEINT !";
+ Object.assign(heading.style,{textAlign:"center",fontSize:"23px",color:"#fbbf24",marginBottom:"9px"});
+ levelModalCard.appendChild(heading);
+ const intro=document.createElement("p");
+ intro.textContent="Bravo ! Voici les nouvelles possibilités de ton supermarché.";
+ Object.assign(intro.style,{fontSize:"13px",color:"#cbd5e1",textAlign:"center",marginBottom:"14px"});
+ levelModalCard.appendChild(intro);
+ function section(title,entries){
+  if(!entries.length)return;
+  const h=document.createElement("h3");h.textContent=title;
+  Object.assign(h.style,{color:"#7dd3fc",fontSize:"14px",margin:"13px 0 7px"});
+  levelModalCard.appendChild(h);
+  for(const line of entries){
+   const p=document.createElement("p");p.textContent="• "+line;
+   Object.assign(p.style,{fontSize:"13px",lineHeight:"1.45",margin:"6px 0"});
+   levelModalCard.appendChild(p);
+  }
+ }
+ const newProducts=catalog.filter(p=>(p.level||1)===level);
+ section("NOUVEAUX PRODUITS",newProducts.map(p=>{
+  const required=p.license||(["fromage","surgeles"].includes(p.id)?"freshLicense":p.id==="pommes"?"fruitLicense":null);
+  const license=upgradeCatalog.find(u=>u.id===required);
+  return p.name+(license&&!state.upgrades[license.id]?" — nécessite : "+license.name:" — disponible");
+ }));
+ const newUpgrades=upgradeCatalog.filter(u=>u.level===level);
+ section("AMÉLIORATIONS ET COMPÉTENCES",newUpgrades.map(u=>{
+  const prerequisite=upgradeCatalog.find(item=>item.id===u.requires);
+  const restriction=prerequisite&&!state.upgrades[prerequisite.id]?" — nécessite d'abord : "+prerequisite.name:"";
+  return u.name+" ("+euro(u.cost)+")"+restriction+(state.upgrades[u.id]?" — déjà acquis":"");
+ }));
+ if(!newProducts.length&&!newUpgrades.length)section("PROGRESSION",["Nouveau niveau atteint ! Les prochaines améliorations seront annoncées dès leur déblocage."]);
+ const cont=button(levelModalCard,"Continuer à jouer",closeLevelNotice);
+ cont.style.background="#16a34a";
+ button(levelModalCard,"Voir les améliorations",()=>{closeLevelNotice();showUpgrades();});
+}
+function checkLevelUp(){
+ const current=playerLevel();
+ const previous=state.lastNotifiedLevel||1;
+ if(current<=previous)return;
+ for(let level=previous+1;level<=current;level++)pendingLevelNotices.push(level);
+ state.lastNotifiedLevel=current;save();
+ showNextLevelNotice();
 }
 // Panier fournisseurs : paiement groupé, délai normal 30 s ou express 5 s.
 const supplierCart={};
@@ -785,6 +857,7 @@ function completeCheckoutPayment(c,count){
  c.paid=true;
  if(count>0)changeSatisfaction(c.waitPenalty?1:3);
  sync();finishCheckout(c);
+ checkLevelUp();
  toast("Paiement accepté : +"+euro(c.total));
 }
 function showPayment(c,count){
@@ -3020,4 +3093,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.10.7 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.10.8 !");
