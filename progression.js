@@ -5,7 +5,7 @@ export const LEVEL_REWARDS = [
   ["Biscuits", "", "", "Réserve agrandie I · 900 € · +30, jusqu’à 60 cartons", ""],
   ["Fromage et pizza surgelée après licence. Café, jus, chocolat et 11 autres références après licence d’épicerie.", "Frais et surgelés · 650 €. Épicerie de l’extension · 800 €, après Extension I.", "Extension I · 1 800 € · chantier de 3 services", "Extension I · +40, jusqu’à 100 cartons en réserve sèche", ""],
   ["Céréales et neuf références électroniques après ouverture de l’Extension II.", "", "Extension Électronique II · 3 000 € · après Extension I · chantier de 3 services en partie normale", "Réserve sèche · +60, jusqu’à 160 cartons. Réserve électronique · 60 cartons.", ""],
-  ["Pommes et téléphones après acquisition des licences et ouverture des rayons concernés.", "Fruits et légumes · 450 €. Licence Téléphonie · 1 200 €, après ouverture de l’Extension II.", "Rayon Téléphones · 2 400 €, après la licence Téléphonie et l’ouverture de l’Extension II.", "", ""],
+  ["Pommes et téléphones après acquisition des licences et ouverture des rayons concernés. Déplacement rapide · 500 € · vitesse de déplacement +10 %.", "Fruits et légumes · 450 €. Licence Téléphonie · 1 200 €, après ouverture de l’Extension II.", "Rayon Téléphones · 2 400 €, après la licence Téléphonie et l’ouverture de l’Extension II.", "", ""],
   ["Proposition · mise de côté des marchandises proches de leur date pour préparer une démarque", "", "", "", ""],
   ["Compétence Jeux vidéo · 1 600 €", "", "", "", ""],
   ["Proposition · tableau des ventes par produit sur les sept derniers jours", "", "", "", ""],
