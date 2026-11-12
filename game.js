@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.8 — version synchronisée
+// Business Empire Simulator V0.10.9 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -108,18 +108,79 @@ function constructionStage(){
 function constructionPercent(){
  return Math.min(100,Math.floor((state.construction?.progress??0)/CONSTRUCTION_DAYS*100));
 }
-function showUpgrades(){
+// Organisation du bureau des améliorations : navigation adaptée au téléphone.
+const UPGRADE_TABS=[
+ {id:"licences",label:"Licences"},
+ {id:"extensions",label:"Extensions"},
+ {id:"stock",label:"Stockage"},
+ {id:"froid",label:"Chambre froide"},
+ {id:"competences",label:"Compétences"},
+ {id:"employes",label:"Employés"}
+];
+let activeUpgradeTab="licences";
+function upgradeCategory(u){
+ if(u.id==="store1")return "extensions";
+ if(u.id==="reserve1"||u.id==="handtruck")return "stock";
+ if(u.id==="freshLicense"||u.id==="fruitLicense"||u.id==="extensionLicense")return "licences";
+ if(u.id.endsWith("Skill")||u.id==="phones"||u.id==="consoles")return "competences";
+ return "extensions";
+}
+function showUpgrades(tab=activeUpgradeTab){
+ activeUpgradeTab=UPGRADE_TABS.some(t=>t.id===tab)?tab:"licences";
  openPanel("Améliorations du magasin");
- paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue())+" de CA");
- paragraph("Objectif : "+unlockedShelves()+" étagères au niveau actuel. Rayons supplémentaires installés : "+extraShelves.filter(e=>e.level<=playerLevel()).length+". Première extension aménagée avec six gondoles ; futurs agrandissements en préparation.");
- paragraph("Trésorerie : "+euro(state.money)+" | Réserve sèche : "+storageBoxes("dry")+"/"+reserveLimit()+" cartons | Chambre froide : "+storageBoxes("cold")+"/"+coldLimit()+" cartons");
- paragraph("Licences commerciales : les produits concernés ne sont vendables qu’après achat de leur licence.");
- for(const u of upgradeCatalog){
+ paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue()));
+ paragraph("Trésorerie : "+euro(state.money));
+ const tabs=document.createElement("div");
+ Object.assign(tabs.style,{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:"6px",marginTop:"14px"});
+ panel.appendChild(tabs);
+ for(const t of UPGRADE_TABS){
+  const b=document.createElement("button");b.textContent=t.label;
+  Object.assign(b.style,{fontSize:"12px",fontWeight:"bold",padding:"10px 6px",
+   borderRadius:"8px",color:"#fff",background:t.id===activeUpgradeTab?"#2563eb":"#334155",
+   border:t.id===activeUpgradeTab?"1px solid #7dd3fc":"1px solid #475569",
+   touchAction:"manipulation"});
+  b.addEventListener("click",()=>showUpgrades(t.id));tabs.appendChild(b);
+ }
+ const note=document.createElement("p");
+ Object.assign(note.style,{fontSize:"12px",color:"#94a3b8",lineHeight:"1.4",marginTop:"12px"});
+ panel.appendChild(note);
+ if(activeUpgradeTab==="stock"){
+  note.textContent="Réserve sèche : capacité et transport des cartons.";
+  paragraph("Stockage actuel : "+storageBoxes("dry")+"/"+reserveLimit()+" cartons.");
+  paragraph("La première extension du magasin ajoute 40 places à la réserve sèche lorsqu'elle est terminée.");
+ }else if(activeUpgradeTab==="froid"){
+  note.textContent="Zone frigorifique indépendante de la réserve sèche.";
+  paragraph("Chambre froide : "+storageBoxes("cold")+"/"+coldLimit()+" cartons (10 produits par carton).");
+  paragraph("Capacité actuelle : 20 cartons. L'agrandissement sera proposé lorsque de nouveaux produits frais seront disponibles.");
+  const products=catalog.filter(p=>coldStorageProduct(p)&&p.level<=playerLevel());
+  if(products.length)paragraph("Références : "+products.map(p=>p.name).join(", ")+".");
+  button(panel,"Consulter les stocks",showStocks);
+ }else if(activeUpgradeTab==="extensions"){
+  note.textContent="Agrandissements du magasin et suivi des chantiers.";
+  if(state.construction&&!state.upgrades.store1){
+   paragraph("Chantier en cours : "+constructionPercent()+" % — "+constructionStage()+".");
+   paragraph("Ouvriers de 8 h à 17 h, pendant trois journées de travail.");
+  }
+ }else if(activeUpgradeTab==="licences"){
+  note.textContent="Licences commerciales : elles doivent être achetées pour vendre les produits concernés.";
+ }else if(activeUpgradeTab==="competences"){
+  note.textContent="Formations et nouveaux rayons spécialisés : acquiers les prérequis avant d'investir.";
+ }else if(activeUpgradeTab==="employes"){
+  note.textContent="Gestion des employés : embauche, planning et affectations.";
+  paragraph("Manutentionnaire — "+(state.workerHired?"Recruté":"Non recruté")+".");
+  button(panel,"Gérer "+state.workerName+" — manutention",showWorkerManagement);
+  paragraph("Mise en rayon — "+(state.stockerHired?"Recruté":"Non recruté")+".");
+  button(panel,"Gérer "+state.stockerName+" — mise en rayon",showStockerManagement);
+  button(panel,"Planning du personnel",showWorkerPlanning);
+  paragraph("D'autres postes pourront être ajoutés dans une future mise à jour.");
+ }
+ const upgrades=upgradeCatalog.filter(u=>upgradeCategory(u)===activeUpgradeTab);
+ for(const u of upgrades){
   const owned=!!state.upgrades[u.id];
   const underway=u.id==="store1"&&!!state.construction&&!owned;
   paragraph(u.name+" — "+(owned?"ACQUIS":underway?"CHANTIER EN COURS":euro(u.cost))+" | Niveau "+u.level+" requis");
   paragraph(u.description);
-  if(underway){paragraph("Ouvriers : "+constructionPercent()+" % — "+constructionStage()+" (3 jours de travail)");continue;}
+  if(underway){paragraph("Progression : "+constructionPercent()+" % — "+constructionStage());continue;}
   if(owned)continue;
   const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires]);
   const b=button(panel,eligible?"Acheter — "+euro(u.cost):"Verrouillé — niveau "+u.level,()=>{
@@ -128,14 +189,15 @@ function showUpgrades(){
    state.money-=u.cost;
    if(u.id==="store1"){
     state.construction={progress:0,units:"days"};
-    sync();updateConstructionUI();showUpgrades();toast("Chantier lancé : les ouvriers arrivent !");
+    sync();updateConstructionUI();showUpgrades(activeUpgradeTab);toast("Chantier lancé : les ouvriers arrivent !");
    }else{
-    state.upgrades[u.id]=true;sync();showUpgrades();toast("Amélioration débloquée : "+u.name);
+    state.upgrades[u.id]=true;sync();showUpgrades(activeUpgradeTab);toast("Amélioration débloquée : "+u.name);
    }
   });
   b.disabled=!eligible;b.style.opacity=eligible?"1":".5";
  }
 }
+
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
