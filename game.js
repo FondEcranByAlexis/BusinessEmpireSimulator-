@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.5";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.5";
-// Business Empire Simulator V0.13.5 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.6";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.6";
+// Business Empire Simulator V0.13.6 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -768,6 +768,7 @@ function showMainMenu(){
   if(paused){showMainMenu();toast("Partie en pause");}
   else{panel.style.display="none";toast("Partie reprise");}
  });
+ button(panel,"Paramètres",showSettings);
  button(panel,"Profil",showProfile);
  button(panel,"Progression des niveaux",showProgression);
  if(openDepartmentCount())button(panel,"Plan de la galerie",showMallMap);
@@ -3652,6 +3653,34 @@ let yaw=0,pitch=0,targetYaw=0,targetPitch=0,lookPointer=null,lastX=0,lastY=0;
 const keys={forward:false,backward:false,left:false,right:false};
 const canvas=renderer.domElement;canvas.style.touchAction="none";
 const pressedMovement=new Map();
+const MOUSE_SENSITIVITY_KEY="fba-mouse-sensitivity";
+const DEFAULT_MOUSE_SENSITIVITY=60;
+const savedMouseSensitivity=Number(localStorage.getItem(MOUSE_SENSITIVITY_KEY));
+let mouseSensitivity=savedMouseSensitivity>=10&&savedMouseSensitivity<=150?savedMouseSensitivity:DEFAULT_MOUSE_SENSITIVITY;
+function showSettings(){
+ openPanel("Paramètres");
+ const label=document.createElement("label");
+ const value=document.createElement("span");
+ const slider=document.createElement("input");
+ slider.type="range";slider.min="10";slider.max="150";slider.step="5";
+ slider.value=String(mouseSensitivity);
+ slider.style.cssText="display:block;width:100%;margin:12px 0;accent-color:#38bdf8;touch-action:pan-y";
+ label.append(value,slider);
+ panel.appendChild(label);
+ function displaySensitivity(){value.textContent="Sensibilité de la souris · "+mouseSensitivity+" %";}
+ function saveSensitivity(){
+  mouseSensitivity=slider.valueAsNumber;
+  localStorage.setItem(MOUSE_SENSITIVITY_KEY,String(mouseSensitivity));
+  displaySensitivity();
+ }
+ displaySensitivity();
+ slider.addEventListener("input",saveSensitivity);
+ button(panel,"Réinitialiser la sensibilité",()=>{
+  slider.value=String(DEFAULT_MOUSE_SENSITIVITY);
+  saveSensitivity();
+ });
+ button(panel,"Retour au menu",showMainMenu);
+}
 let mouseLookRequested=false,mouseLookFallback=false,mousePosition=null;
 function canLookAround(){
  return !paused&&!seatedAtCheckout&&!levelModalShowing&&panel.style.display==="none"&&checkoutUI.style.display==="none";
@@ -3696,12 +3725,12 @@ document.addEventListener("pointerlockchange",()=>{
  mousePosition=null;updateMouseHelp();
 });
 document.addEventListener("pointerlockerror",useMouseLookFallback);
-function turnCamera(dx,dy){
- targetYaw-=dx*.0025;
- targetPitch=THREE.MathUtils.clamp(targetPitch-dy*.0025,-1.15,1.15);
+function turnCamera(dx,dy,sensitivity=.0025){
+ targetYaw-=dx*sensitivity;
+ targetPitch=THREE.MathUtils.clamp(targetPitch-dy*sensitivity,-1.15,1.15);
 }
 document.addEventListener("mousemove",e=>{
- if(document.pointerLockElement===canvas&&canLookAround())turnCamera(e.movementX,e.movementY);
+ if(document.pointerLockElement===canvas&&canLookAround())turnCamera(e.movementX,e.movementY,.0025*mouseSensitivity/100);
 });
 canvas.addEventListener("pointerleave",()=>{mousePosition=null;});
 
@@ -3730,7 +3759,7 @@ canvas.addEventListener("pointerdown",e=>{
 canvas.addEventListener("pointermove",e=>{
  if(e.pointerType==="mouse"){
   if(!mouseLookFallback||!canLookAround())return;
-  if(mousePosition)turnCamera(e.clientX-mousePosition.x,e.clientY-mousePosition.y);
+  if(mousePosition)turnCamera(e.clientX-mousePosition.x,e.clientY-mousePosition.y,.0025*mouseSensitivity/100);
   mousePosition={x:e.clientX,y:e.clientY};
   return;
  }
@@ -4468,4 +4497,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.5 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.6 !");
