@@ -1319,7 +1319,33 @@ threshold.position.set(0,.028,-10);scene.add(threshold);
 extensionCube(0,5.1,-16,20,.2,12,0xf1f5f9);
 extensionCube(-10,2.5,-16,.3,5,12,0xe2e8f0);
 extensionCube(10,2.5,-16,.3,5,12,0xe2e8f0);
-extensionCube(0,2.5,-22,20,5,.3,0xe2e8f0);
+// Passage central vers l'électronique, fermé tant que la deuxième extension n'est pas terminée.
+extensionCube(-6,2.5,-22,8,5,.3,0xe2e8f0);
+extensionCube(6,2.5,-22,8,5,.3,0xe2e8f0);
+extensionCube(0,4.17,-22,4,1.66,.3,0xe2e8f0);
+for(const [minX,maxX] of [[-10,-2],[2,10]])
+ colliders.push({minX,maxX,minZ:-22.2,maxZ:-21.8,requiresUpgrade:"store1"});
+const electronicsGate=cube(0,1.67,-22,3.95,3.34,.25,0x334155);
+const electronicsGateCollider={minX:-2,maxX:2,minZ:-22.2,maxZ:-21.8,disabled:false};
+colliders.push(electronicsGateCollider);
+// Hall supplémentaire de 20 × 12 m.
+const electronicsMeshes=[];
+function electronicsCube(x,y,z,w,h,d,color){
+ const mesh=cube(x,y,z,w,h,d,color);electronicsMeshes.push(mesh);return mesh;
+}
+electronicsCube(0,-.15,-28,20,.3,12,0xb0bccd);
+const electronicsTiles=tileFloor(19.65,11.7,0,-28);electronicsMeshes.push(electronicsTiles);
+electronicsCube(0,5.1,-28,20,.2,12,0xe2e8f0);
+electronicsCube(-10,2.5,-28,.3,5,12,0xdbeafe);
+electronicsCube(10,2.5,-28,.3,5,12,0xdbeafe);
+electronicsCube(0,2.5,-34,20,5,.3,0xdbeafe);
+for(const x of [-6,0,6])for(const z of [-26,-31]){
+ electronicsCube(x,4.94,z,2.8,.05,.55,0xf8fafc);
+ const lamp=ceilingLamp(x,z);lamps.push({light:lamp,requiresUpgrade:"store2"});
+}
+for(const x of [-9.7,9.7])electronicsCube(x,.12,-28,.08,.24,11.5,0x64748b);
+electronicsCube(0,.12,-33.74,19.2,.24,.08,0x64748b);
+electronicsCube(0,.035,-22,3.8,.015,.2,0x94a3b8);
 for(const x of [-6,0,6])for(const z of [-14,-19])extensionCube(x,4.94,z,2.8,.05,.5,0xffffff);
 // Rayonnages muraux, avec tablettes inclinées et bordures.
 const wallProductRacks=[];
@@ -1353,7 +1379,7 @@ function addWallRack(x,z,rotation=0,extension=true,assignedProduct=null){
   minZ:z-(alongX?.42:1.3),maxZ:z+(alongX?.42:1.3),
   ...(extension?{requiresUpgrade:"store1"}:{})});
 }
-for(const x of [-7,-3.5,3.5,7])addWallRack(x,-21.1,0,true);
+for(const x of [-7,7])addWallRack(x,-21.1,0,true);
 for(const z of [-13.5,-17,-20]){addWallRack(-9.15,z,Math.PI/2,true);addWallRack(9.15,z,-Math.PI/2,true);}
 addWallRack(-8.9,5.9,Math.PI/2,false,catalog.find(p=>p.id==="conserves"));
 addWallRack(-5.2,7.8,Math.PI,false,catalog.find(p=>p.id==="papier"));
@@ -1379,9 +1405,13 @@ for(const x of [-5,0,5])for(const z of [-19]){
 }
 function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
+ const electronicsUnlocked=!!state.upgrades.store2;
  extensionGate.visible=!unlocked;
  extensionGateCollider.disabled=unlocked;
  for(const mesh of extensionMeshes)mesh.visible=unlocked;
+ electronicsGate.visible=unlocked&&!electronicsUnlocked;
+ electronicsGateCollider.disabled=electronicsUnlocked||!unlocked;
+ for(const mesh of electronicsMeshes)mesh.visible=electronicsUnlocked;
  // La même amélioration agrandit aussi la surface exploitable du stockage.
  oldReserveEndWall.visible=!unlocked;
  oldReserveWallCollider.disabled=unlocked;
@@ -1478,6 +1508,8 @@ function brandPanel(title,subtitle,width=5.6,height=1.0){
  const m=new THREE.Mesh(new THREE.PlaneGeometry(width,height),new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide,depthTest:true}));
  return m;
 }
+const electronicsBrand=brandPanel("FBA ÉLECTRONIQUE","TÉLÉPHONES · AUDIO · INFORMATIQUE · DRONES",4.5,.9);
+electronicsBrand.position.set(0,4.14,-21.78);scene.add(electronicsBrand);electronicsMeshes.push(electronicsBrand);
 const entranceBrand=brandPanel("FBA SUPERMARKET","BUSINESS EMPIRE SIMULATOR",5.6,1.25);
 // Face extérieure du mur d’entrée (z positif), texte orienté vers le visiteur.
 entranceBrand.position.set(0,4.24,10.20);scene.add(entranceBrand);
