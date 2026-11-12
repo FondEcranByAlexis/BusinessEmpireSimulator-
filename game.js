@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.19";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.19";
-// Business Empire Simulator V0.13.19 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.20";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.20";
+// Business Empire Simulator V0.13.20 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1513,20 +1513,30 @@ function clearCheckoutVisual(){
  for(const m of checkoutVisual.models){scene.remove(m);m.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
  checkoutVisual=null;
 }
-// Les articles non scannés restent individualisés : le clic doit retirer le produit réellement touché.
-function checkoutRemaining(c){
- if(!Array.isArray(c.checkoutRemaining)){
-  c.checkoutRemaining=Object.entries(c.basket).flatMap(([id,q])=>Array(Math.max(0,q)).fill(id));
- }
- return c.checkoutRemaining;
-}
 function checkoutSlotCount(){return playerLevel()>=10?6:5;}
-function renderCheckoutVisual(c){
+function fillCheckoutSlots(belt){
+ for(let slot=0;slot<belt.items.length&&belt.waiting.length;slot++){
+  if(!belt.items[slot])belt.items[slot]=belt.waiting.shift();
+ }
+}
+function checkoutBelt(c){
+ const belt=c.belt??={items:[],waiting:Object.entries(c.basket).flatMap(([id,q])=>Array(Math.max(0,q)).fill(id)),refillDelay:0};
  const slots=checkoutSlotCount();
- if(checkoutVisual?.customer===c&&checkoutVisual.scanned===c.scanned&&checkoutVisual.slots===slots)return;
+ if(belt.items.length!==slots){
+  if(belt.items.length>slots)belt.waiting.unshift(...belt.items.splice(slots).filter(Boolean));
+  while(belt.items.length<slots)belt.items.push(null);
+  if(!belt.refillDelay)fillCheckoutSlots(belt);
+ }
+ return belt;
+}
+function renderCheckoutVisual(c){
+ const {items}=checkoutBelt(c),slots=items.length;
+ if(checkoutVisual?.customer===c&&checkoutVisual.items.length===slots&&
+  checkoutVisual.items.every((id,index)=>id===items[index]))return;
  clearCheckoutVisual();
  const models=[];
- checkoutRemaining(c).slice(0,slots).forEach((id,i)=>{
+ items.forEach((id,i)=>{
+  if(!id)return;
   const p=catalog.find(x=>x.id===id);if(!p)return;
   const m=productModel(p);m.scale.setScalar(.7);
   if(slots===6){
@@ -1534,20 +1544,20 @@ function renderCheckoutVisual(c){
    m.position.set(6.05-Math.floor(i/2)*.36+backRow*.15,1.28,backRow?6.16:6.75);
   }
   else m.position.set(6.16-i*.23,1.28,6.44);
-  // L'index correspond à la position dans la file, pas au type de produit.
+  // L’index désigne une place fixe sur le tapis.
   m.traverse(o=>{o.userData.checkoutArticle=true;o.userData.checkoutSlot=i;});
   scene.add(m);models.push(m);
  });
- checkoutVisual={customer:c,scanned:c.scanned,slots,models};
+ checkoutVisual={customer:c,items:items.slice(),models};
 }
 function scanCheckoutArticle(slot){
  const c=cashier;if(!c||c.phase!=="checkout")return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(c.scanned>=count)return;
- const remaining=checkoutRemaining(c);
- // Seuls les articles visibles sur le tapis peuvent être scannés.
- if(!Number.isInteger(slot)||slot<0||slot>=Math.min(remaining.length,checkoutSlotCount()))return;
- remaining.splice(slot,1);
+ const belt=checkoutBelt(c);
+ if(!Number.isInteger(slot)||!belt.items[slot])return;
+ belt.items[slot]=null;
+ if(belt.waiting.length)belt.refillDelay=.25;
  c.scanned++;
  renderCheckoutVisual(c);
  toast(c.scanned===count?"Tous les articles sont scannés":"Bip ! Article scanné");
@@ -4538,8 +4548,16 @@ function updateCustomers(dt){
     }else c.l.rotation.x=c.r.rotation.x=0;
    }
   }else if(c.phase==="checkout"){
+   const belt=c.belt;
+   if(belt?.refillDelay>0){
+    belt.refillDelay=Math.max(0,belt.refillDelay-dt);
+    if(belt.refillDelay===0){
+     fillCheckoutSlots(belt);
+     if(checkoutVisual?.customer===c)renderCheckoutVisual(c);
+    }
+   }
    if(c===cashier&&seatedAtCheckout&&panel.style.display==="none"&&checkoutUI.style.display==="none"&&
-    (checkoutVisual?.customer!==c||checkoutVisual.models.length===0))showCheckout();
+    (checkoutVisual?.customer!==c||(!checkoutVisual.models.length&&!belt?.refillDelay)))showCheckout();
    c.checkoutElapsed+=dt;
    if(c.checkoutElapsed>45&&!c.waitPenalty){c.waitPenalty=true;changeSatisfaction(-3);}
    c.l.rotation.x=c.r.rotation.x=0;
@@ -4661,4 +4679,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.19 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.20 !");
