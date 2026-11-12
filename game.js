@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.15";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.15";
-// Business Empire Simulator V0.13.15 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.16";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.16";
+// Business Empire Simulator V0.13.16 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -701,8 +701,8 @@ function showPrices(){
  openPanel("Prix de vente");
  catalog.forEach(p=>{
   const a=state.inventory[p.id];paragraph(p.name+" : "+a.price+" €");
-  button(panel,"− 1 €",()=>{a.price=Math.max(1,a.price-1);save();showPrices();});
-  button(panel,"+ 1 €",()=>{a.price++;save();showPrices();});
+  button(panel,"− 1 €",()=>{a.price=Math.max(1,a.price-1);updatePriceLabel(p);save();showPrices();});
+  button(panel,"+ 1 €",()=>{a.price++;updatePriceLabel(p);save();showPrices();});
  });
 }
 $("restock").textContent="Commander";
@@ -2440,26 +2440,37 @@ function productModel(p){
 }
 // Réglettes de prix en euros, visibles sur le bord avant des rayons.
 const priceLabelTextures={};
-function addPriceRail(parent,p,y,width,front){
+function updatePriceLabel(p){
+ const label=priceLabelTextures[p.id],price=state.inventory[p.id].price;
+ if(!label||label.price===price)return;
+ const {ctx,texture}=label;
+ ctx.fillStyle="#ffffff";ctx.fillRect(0,0,512,192);
+ ctx.strokeStyle="#cbd5e1";ctx.lineWidth=5;ctx.strokeRect(3,3,506,186);
+ ctx.fillStyle="#0f172a";ctx.textAlign="left";ctx.textBaseline="middle";
+ ctx.font="bold 40px Arial";ctx.fillText(p.name,22,51,468);
+ ctx.font="bold 83px Arial";ctx.fillText(price.toFixed(2).replace(".",",")+" €",22,131,468);
+ label.price=price;texture.needsUpdate=true;
+}
+function priceLabel(p,width=.52){
  const key=p.id;
  if(!priceLabelTextures[key]){
   const canvas=document.createElement("canvas");
   const scale=p.department?.5:1;
   canvas.width=512*scale;canvas.height=192*scale;
   const ctx=canvas.getContext("2d");ctx.scale(scale,scale);
-  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,512,192);
-  ctx.strokeStyle="#cbd5e1";ctx.lineWidth=5;ctx.strokeRect(3,3,506,186);
-  ctx.fillStyle="#0f172a";ctx.textAlign="left";ctx.textBaseline="middle";
-  ctx.font="bold 40px Arial";ctx.fillText(p.name,22,51,468);
-  ctx.font="bold 83px Arial";ctx.fillText(p.price.toFixed(2).replace(".",",")+" €",22,131,468);
-  const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
-  tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-  priceLabelTextures[key]=tex;
+  const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
+  texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  priceLabelTextures[key]={ctx,texture};
+  updatePriceLabel(p);
  }
+ return new THREE.Mesh(new THREE.PlaneGeometry(width,width*192/512),
+  new THREE.MeshBasicMaterial({map:priceLabelTextures[key].texture,side:THREE.DoubleSide}));
+}
+function addPriceRail(parent,p,y,width,front){
  // Réglette discrète au bord du plateau, avec un seul petit porte-prix.
  const rail=new THREE.Mesh(new THREE.BoxGeometry(width,.065,.025),new THREE.MeshStandardMaterial({color:0xcbd5e1,roughness:.6}));
  rail.position.set(0,y,front);parent.add(rail);
- const sign=new THREE.Mesh(new THREE.PlaneGeometry(.52,.195),new THREE.MeshBasicMaterial({map:priceLabelTextures[key],side:THREE.DoubleSide}));
+ const sign=priceLabel(p);
  sign.position.set(0,y-.018,front+.016);parent.add(sign);
 }
 function addShelfDividers(parent,y,width){
@@ -2469,7 +2480,7 @@ function addShelfDividers(parent,y,width){
   divider.position.set(x,y+.115,0);parent.add(divider);
  }
 }
-const displays={},departmentDisplays=new Map(),extraShelves=[];
+const displays={},departmentDisplays=new Map(),extraShelves=[],coldPriceLabels={};
 let freezerLid=null,freezerOpen=false;
 let fridgeDoor=null,fridgeOpen=false;
 for(const p of catalog){
@@ -2541,6 +2552,9 @@ for(const p of catalog){
    for(const y of [-1.02,1.02])add(.07,.07,1.58,0,y,.775,trim,door);
    add(.13,.48,.055,.10,0,1.46,trim,door);
    group.add(door);fridgeDoor=door;
+   const sign=priceLabel(p,.82);
+   sign.position.set(.63,2.23,0);sign.rotation.y=Math.PI/2;
+   group.add(sign);coldPriceLabels[p.id]=sign;
    // Fromages disposés sur trois étagères, visibilité synchronisée au stock.
    for(let i=0;i<CAPACITY;i++){
     const shelf=Math.floor(i/10),slot=i%10;
@@ -2579,6 +2593,9 @@ for(const p of catalog){
    for(const z2 of [-1.7,1.7])add(1.35,.07,.06,-.675,0,z2,trim,lid);
    add(.09,.06,.65,-1.36,.065,0,trim,lid);
    group.add(lid);freezerLid=lid;
+   const sign=priceLabel(p,.92);
+   sign.position.set(-.79,1.03,0);sign.rotation.y=-Math.PI/2;sign.rotateX(-Math.PI/7);
+   group.add(sign);coldPriceLabels[p.id]=sign;
    // Les pizzas sont réellement dans la cuve et non sur un plateau extérieur.
    const pizzaMat=new THREE.MeshStandardMaterial({color:0x60a5fa,roughness:.75});
    for(let i=0;i<CAPACITY;i++){
@@ -2851,7 +2868,10 @@ for(const [index,department] of DEPARTMENTS.entries()){
 }
 function refreshDisplays(){
  for(const p of catalog){
-  const stock=productAvailable(p)?state.inventory[p.id].shelf:0;
+  const available=productAvailable(p);
+  const stock=available?state.inventory[p.id].shelf:0;
+  updatePriceLabel(p);
+  if(coldPriceLabels[p.id])coldPriceLabels[p.id].visible=available;
   const batches=departmentDisplays.get(p.id);
   if(batches){
    for(const mesh of batches){
@@ -4622,4 +4642,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.15 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.16 !");
