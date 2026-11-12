@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.20";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.20";
-// Business Empire Simulator V0.13.20 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.0";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.0";
+// Business Empire Simulator V0.14.0 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -51,6 +51,13 @@ const catalog=[
  {id:"enceintes",name:"Enceintes Bluetooth",cost:32,price:69,color:0xf97316,x:8.9,z:-30.1,level:5,kind:"electronics",rotation:-1,license:"store2"},
  {id:"claviers",name:"Claviers sans fil",cost:23,price:49,color:0xa3e635,x:-4.5,z:-23.05,level:5,kind:"electronics",rotation:2,license:"store2"}
 ];
+for(const [id,name,cost,price,color,z] of [
+ ["energie_classique","Énergie classique",2,5,0x0891b2,-1],
+ ["energie_agrumes","Énergie agrumes",2,6,0xf97316,-4],
+ ["energie_sans_sucre","Énergie sans sucre",3,7,0x7c3aed,-7],
+]){
+ catalog.push({id,name,cost,price,color,x:-27,z,rotation:1,level:16,kind:"wall",license:"energyLicense",requiresShelf:"checkoutHall",can:true});
+}
 const departmentColors=[0x0e7490,0xb45309,0x15803d,0x7c3aed,0xbe123c,0x0369a1];
 for(const [id,name,cost,price,level,x,z,rotation] of EARLY_PRODUCTS){
  catalog.push({id,name,cost,price,level,x,z,rotation,color:departmentColors[level%departmentColors.length],kind:"wall",license:"extensionLicense"});
@@ -70,10 +77,23 @@ DEPARTMENTS.forEach((department,index)=>{
  });
 });
 const CAPACITY=30, BOX_UNITS=10;
+const FRONT_HALL="checkoutHall", AUTO_SHOWROOM="autoShowroom";
+const STAFF_PLANS={
+ shelf:{label:"Mise en rayon",levels:[12,14,17,20,23,27,31,36,42,48],wage:60,training:"shelfTraining"},
+ dock:{label:"Manutention",levels:[13,18,24,32,40],wage:65,training:"dockTraining"},
+ security:{label:"Sécurité",levels:[22,30,38,46],wage:75},
+};
 const FAST_RESTOCK_LIMIT=15;
 // Six gondoles : une par produit de départ, 30 emplacements chacune.
 function shelfCapacity(p){return CAPACITY;}
 const upgradeCatalog=[
+ {id:FRONT_HALL,name:"Hall des caisses",level:15,cost:7500,requires:"store1",category:"extensions",construction:true,description:"Agrandit le magasin côté ouest. Accueille les caisses supplémentaires, les bornes libre-service et le rayon boissons énergisantes."},
+ {id:"energyLicense",name:"Licence boissons énergisantes",level:16,cost:850,requires:FRONT_HALL,category:"licences",description:"Autorise trois boissons énergisantes dans le hall ouest."},
+ {id:"shelfTraining",name:"Formation au réassort",level:18,cost:1400,category:"competences",description:"L’équipe de mise en rayon se déplace 10 % plus vite."},
+ {id:"dockTraining",name:"Formation à la manutention",level:20,cost:1800,category:"competences",description:"Les manutentionnaires se déplacent 15 % plus vite avec un carton."},
+ {id:"checkoutTraining",name:"Formation à l’encaissement",level:28,cost:2400,category:"competences",description:"Les caissiers employés terminent leurs transactions 20 % plus vite."},
+ {id:AUTO_SHOWROOM,name:"Showroom FBA Automobile",level:45,cost:18000,requires:FRONT_HALL,category:"extensions",construction:true,description:"Ouvre un showroom pour exposer, commander et vendre des voitures."},
+ {id:"autoLicense",name:"Licence Automobile",level:46,cost:3500,requires:AUTO_SHOWROOM,category:"licences",description:"Autorise la vente de voitures électriques et thermiques."},
  {id:"handtruck",name:"Diable de manutention",level:1,cost:125,description:"Transporte jusqu’à 3 cartons du quai vers les trois zones de stockage."},
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
  {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Agrandit le magasin et la réserve sèche : +40 places de stockage, jusqu’à 100 cartons après l’amélioration du niveau 3."},
@@ -271,6 +291,7 @@ function showUpgrades(tab=activeUpgradeTab){
   paragraph("Mise en rayon — "+(state.stockerHired?"Recruté":"Non recruté")+".");
   button(panel,"Gérer "+state.stockerName+" — mise en rayon",showStockerManagement);
   button(panel,"Planning du personnel",showWorkerPlanning);
+  button(panel,"Recrutement et équipes",()=>showTeamManagement());
   paragraph("D'autres postes pourront être ajoutés dans une future mise à jour.");
  }
  const upgrades=upgradeCatalog.filter(u=>upgradeCategory(u)===activeUpgradeTab).sort((a,b)=>a.level-b.level);
@@ -386,7 +407,21 @@ state.playerName=state.playerName||"Joueur";
 state.workerName=state.workerName||"George";
 state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSentHomeDay:0;
 const finance=state.finance;
-function save(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch(e){console.warn(e);}}
+function save(){
+ try{
+  const inTransit=teamUnits.filter(unit=>unit.cargo);
+  const snapshot=inTransit.length?{...state,inventory:{...state.inventory},deliveryDock:[...state.deliveryDock]}:state;
+  for(const unit of inTransit){
+   const {product,quantity}=unit.cargo;
+   if(unit.role==="dock")snapshot.deliveryDock.push({id:product.id,qty:quantity});
+   else{
+    const inventory={...snapshot.inventory[product.id]};
+    inventory.reserve+=quantity;snapshot.inventory[product.id]=inventory;
+   }
+  }
+  localStorage.setItem(SAVE,JSON.stringify(snapshot));
+ }catch(e){console.warn(e);}
+}
 function total(){return catalog.reduce((n,p)=>{const a=state.inventory[p.id];return n+a.shelf+a.reserve+a.boxes*BOX_UNITS;},0);}
 // Une clientèle satisfaite revient plus souvent ; un plafond protège la fluidité mobile.
 function customerTraffic(){
@@ -398,7 +433,13 @@ function customerTraffic(){
 }
 function nextCustomerDelay(){
  const traffic=customerTraffic();
- return traffic.min+Math.random()*(traffic.max-traffic.min);
+ const lanes=state.upgrades[FRONT_HALL]?activeRegisters().filter(r=>r.self||cashierOnDuty(r.id)).length:0;
+ return (traffic.min+Math.random()*(traffic.max-traffic.min))/Math.min(2.5,1+lanes*.18);
+}
+function customerLimit(){
+ if(!state.upgrades[FRONT_HALL])return MAX_CUSTOMERS;
+ const lanes=activeRegisters().filter(r=>r.self||cashierOnDuty(r.id)).length;
+ return Math.min(graphicsMode==="fluid"?14:22,8+lanes*2);
 }
 function updateSatisfactionDisplay(){
  const rating=Math.max(0,Math.min(100,Math.round(state.satisfaction??80)));
@@ -458,9 +499,20 @@ levelModal.appendChild(levelModalCard);document.body.appendChild(levelModal);
 function implementedMilestone(level){
  return [1,2,3,4,5,6,7,8,9,10,11,14,16,18,19,20,24,25,31,49,59,66,72,77,86,88,94,104,109,110,112,138,154,172,174,179,199,200].includes(level);
 }
+function staffMilestones(level){
+ const notes=Object.values(STAFF_PLANS).flatMap(plan=>{
+  const index=plan.levels.indexOf(level);
+  return index<0?[]:[plan.label+" · poste "+(index+1)+" disponible au recrutement"];
+ });
+ if(level===20)notes.push("Recrutement aux caisses 1 et 2");
+ for(const register of extraRegisters){
+  if(register.hall&&register.level===level)notes.push(register.label+" · après ouverture du hall des caisses");
+ }
+ return notes;
+}
 function milestoneEntries(level){
  const entries=LEVEL_REWARDS[level-1];
- return entries.map((description,index)=>{
+ const planned=entries.map((description,index)=>{
   if(!description)return "";
   if(level<=10&&index>0)return description;
   if(index===0)return (implementedMilestone(level)?"":"Programme · ")+description.replace(/^Proposition · /,"");
@@ -468,6 +520,9 @@ function milestoneEntries(level){
   const offers=upgradeCatalog.filter(u=>u.level===level&&upgradeCategory(u)===categories[index]);
   return offers.length?offers.map(u=>u.name+" ("+euro(u.cost)+")").join(" · "):(level===1?"":"Programme · ")+description;
  }).filter(Boolean);
+ const additions=upgradeCatalog.filter(u=>u.level===level&&
+  [FRONT_HALL,AUTO_SHOWROOM,"energyLicense","autoLicense","shelfTraining","dockTraining","checkoutTraining"].includes(u.id));
+ return [...planned,...staffMilestones(level),...additions.map(u=>u.name+" · "+euro(u.cost)+" · "+u.description)];
 }
 function showProgression(first){
  if(!Number.isInteger(first)||first<1||first>MAX_LEVEL)first=Math.floor((playerLevel()-1)/10)*10+1;
@@ -539,6 +594,7 @@ function showNextLevelNotice(){
   const restriction=prerequisites.length?" — nécessite d’abord : "+prerequisites.join(" et "):"";
   return u.name+" ("+euro(u.cost)+")"+restriction+(state.upgrades[u.id]?" — déjà acquis":"");
  }));
+ section("RECRUTEMENT ET CAISSES",staffMilestones(level));
  const milestone=LEVEL_REWARDS[level-1]?.[0];
  if(milestone)section(implementedMilestone(level)?"DÉBLOCAGE":"PROGRAMME",[milestone.replace(/^Proposition · /,"")]);
  const cont=button(levelModalCard,"Continuer à jouer",closeLevelNotice);
@@ -803,6 +859,8 @@ function showMainMenu(){
  if(DEV_MODE)button(panel,"OUTILS DÉVELOPPEUR",showDevTools);
  else if(DEV_AUTHORIZED)button(panel,"Activer le mode test FBA Games",()=>switchDevMode(true));
  button(panel,"Améliorations et compétences",showUpgrades);
+ if(playerLevel()>=12)button(panel,"Recrutement et équipes",()=>showTeamManagement());
+ if(state.upgrades[AUTO_SHOWROOM])button(panel,"Service automobile",showAutoService);
  button(panel,"Stocks",showStocks);
  button(panel,"Réserve",showReserve);
  button(panel,"Commandes fournisseurs",showOrders);
@@ -847,11 +905,14 @@ function showComputer(){
  button(panel,"Progression des niveaux",showProgression);
  if(openDepartmentCount())button(panel,"Accès aux départements",showDepartmentTravel);
  if(playerLevel()>=7)button(panel,"Gestion commerciale",showCommercialManagement);
+ else button(panel,"Remarques des clients",showCustomerFeedback);
  if(playerLevel()>=24)button(panel,"Fournil et boulanger",showBakery);
  if(playerLevel()>=40)button(panel,"Commandes des clients",showOrderServices);
  button(panel,"Calendrier et horaires",showCalendar);
  button(panel,"Personnaliser les prénoms",showNames);
  button(panel,"État de l’équipe — présence et tâches",showEmployeeOverview);
+ button(panel,"Recrutement et équipes",()=>showTeamManagement());
+ if(state.upgrades[AUTO_SHOWROOM])button(panel,"Service automobile",showAutoService);
  button(panel,"Personnel — manutentionnaire",showWorkerManagement);
  button(panel,"Personnel — mise en rayon",showStockerManagement);
  button(panel,"Planning des employés",showWorkerPlanning);
@@ -1014,6 +1075,7 @@ function updateBakery(){
 function showCommercialManagement(){
  openPanel("Gestion commerciale");
  button(panel,"Produits à démarquer",showMarkdowns);
+ button(panel,"Remarques des clients",showCustomerFeedback);
  if(playerLevel()>=9)button(panel,"Ventes des sept derniers jours",showRecentSales);
  if(playerLevel()>=14)button(panel,"Alertes de rupture",showStockAlerts);
  if(playerLevel()>=18)button(panel,"Commandes récurrentes",showStandingOrders);
@@ -1575,14 +1637,14 @@ function showCheckout(){
  if(c.scanned>=count)showPayment(c,count);
  else{closeCheckoutUI();toast("Touche directement les articles sur le tapis pour les scanner");}
 }
-function completeCheckoutPayment(c,count){
+function completeCheckoutPayment(c,count,staffed=false){
  if(c!==cashier)return;
  state.money+=c.total;state.sales+=count;
  finance.revenue+=c.total;finance.transactions++;
  trackSale(c.basket,c.prices);
  c.paid=true;
  if(count>0)changeSatisfaction(c.waitPenalty?1:3);
- sync();finishCheckout(c);
+ sync();finishCheckout(c,staffed);
  checkLevelUp();
  toast("Paiement accepté : +"+euro(c.total));
 }
@@ -1709,19 +1771,26 @@ function showCashPayment(c,count){
  }
  draw();
 }
-function finishCheckout(c){
+function finishCheckout(c,staffed=false){
  if(c!==cashier)return;
  closeCheckoutUI();clearCheckoutVisual();cashier=null;
  sendToExit(c);
- panel.style.display="none";
+ if(!staffed)panel.style.display="none";
 }
 // Scène et éclairage léger
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc9e8);
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,100);
 camera.position.set(0,1.7,7.5);camera.rotation.order="YXZ";
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
-const basePixelRatio=Math.min(devicePixelRatio||1,1.25);
-renderer.setPixelRatio(basePixelRatio);
+const GRAPHICS_KEY="fba-graphics";
+const graphicsPresets={fluid:.78,balanced:1,detail:1.35};
+const savedGraphics=localStorage.getItem(GRAPHICS_KEY);
+let graphicsMode=Object.hasOwn(graphicsPresets,savedGraphics)?savedGraphics:"balanced";
+function updatePixelRatio(){
+ const limit=graphicsPresets[graphicsMode];
+ renderer.setPixelRatio(Math.min(devicePixelRatio||1,renderingDeepGallery?Math.min(limit,1):limit));
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,graphicsPresets[graphicsMode]));
 renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=false;
 $("game").appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xffffff,0x718096,2.2));
@@ -1802,7 +1871,8 @@ function ceilingPanel(x,z,extension=false){
 cube(0,-.15,0,20,.3,20,0xb9c1c8);
 tileFloor(19.65,19.65,0,0);
 // Plinthes du magasin principal : couvrir tout le mur gauche jusqu'à l'entrée.
-wallBaseboard(-9.78,0,.07,19.5);
+wallBaseboard(-9.78,-3.6,.07,12.3);
+wallBaseboard(-9.78,8.7,.07,2.3);
 // Mur droit segmenté autour de l'accès à la réserve.
 wallBaseboard(9.78,-3,.07,13.7);
 wallBaseboard(9.78,8.5,.07,2.7);
@@ -1814,7 +1884,11 @@ wallBaseboard(-6,-9.78,7.7,.07);
 wallBaseboard(6,-9.78,7.7,.07);
 for(const x of [-6,0,6])for(const z of [-6,0,6])ceilingPanel(x,z);
 cube(0,5.1,0,20,.2,20,0xf1f5f9);
-cube(-10,2.5,0,.3,5,20,0xe2e8f0,true);
+cube(-10,2.5,-3.75,.3,5,12.5,0xe2e8f0,true);
+cube(-10,2.5,8.75,.3,5,2.5,0xe2e8f0,true);
+cube(-10,4.3,5,.3,1.4,5,0xe2e8f0);
+const hallGate=cube(-10,1.8,5,.3,3.6,5,0xe2e8f0,true);
+colliders.at(-1).lockedBy=FRONT_HALL;
 cube(10,2.5,-3,.3,5,14,0xe2e8f0,true);
 cube(10,2.5,8.5,.3,5,3,0xe2e8f0,true);
 cube(10,4.2,5.5,.3,1.6,3,0xe2e8f0);
@@ -2121,7 +2195,7 @@ function addWallRack(product){
  const alongX=Math.abs(Math.cos(rotation))>.5;
  colliders.push({minX:x-(alongX?1.3:.42),maxX:x+(alongX?1.3:.42),
   minZ:z-(alongX?.42:1.3),maxZ:z+(alongX?.42:1.3),
-  ...(extension?{requiresUpgrade:"store1"}:{})});
+  ...(extension?{requiresUpgrade:"store1"}:product.requiresShelf===FRONT_HALL?{requiresUpgrade:FRONT_HALL,level:product.level,requiresLicense:product.license}:{})});
 }
 for(const p of catalog.filter(p=>p.kind==="wall"))addWallRack(p);
 function buildStorageWings(){
@@ -2154,6 +2228,10 @@ function buildStorageWings(){
 buildStorageWings();
 function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
+ hallGate.visible=!state.upgrades[FRONT_HALL];
+ hallGroup.visible=!!state.upgrades[FRONT_HALL];
+ showroomGroup.visible=!!state.upgrades[AUTO_SHOWROOM];
+ showroomGate.visible=!!state.upgrades[FRONT_HALL]&&!state.upgrades[AUTO_SHOWROOM];
  const electronicsUnlocked=!!state.upgrades.store2;
  extensionGate.visible=!unlocked;
  extensionGateCollider.disabled=unlocked;
@@ -2352,7 +2430,7 @@ function productModel(p){
   );
   curvedLabel.position.y=.02;
   g.add(curvedLabel);
- }else if(p.id==="conserves"){
+ }else if(p.id==="conserves"||p.can){
   add(new THREE.CylinderGeometry(.15,.15,.32,16),base,0,0,0);
   add(new THREE.CylinderGeometry(.152,.152,.022,16),white,0,.16,0);
   add(new THREE.CylinderGeometry(.152,.152,.022,16),white,0,-.16,0);
@@ -2497,7 +2575,7 @@ function addShelfDividers(parent,y,width){
   divider.position.set(x,y+.115,0);parent.add(divider);
  }
 }
-const displays={},departmentDisplays=new Map(),extraShelves=[],coldPriceLabels={};
+const displays={},shelfDisplayBatches=new Map(),extraShelves=[],coldPriceLabels={};
 let freezerLid=null,freezerOpen=false;
 let fridgeDoor=null,fridgeOpen=false;
 for(const p of catalog){
@@ -2756,9 +2834,92 @@ function mallSign(group,title,subtitle,x,z,rotation=0,width=6){
  sign.position.set(x,3.55,z);sign.rotation.y=rotation;group.add(sign);
  return sign;
 }
+const mallWallMaterial=new THREE.MeshStandardMaterial({color:0xcbd5e1});
+const hallGroup=new THREE.Group(),showroomGroup=new THREE.Group();
+scene.add(hallGroup,showroomGroup);
+hallGroup.add(tileFloor(19.7,21.6,-20,-1.2));
+showroomGroup.add(tileFloor(19.7,9.9,-20,-16.95));
+const hallTrim=new THREE.MeshStandardMaterial({color:0x29465b});
+const hallLight=new THREE.MeshBasicMaterial({color:0xfff7db});
+const hallStripe=new THREE.MeshBasicMaterial({color:0x258691});
+const laneStripe=new THREE.MeshBasicMaterial({color:0xe4c261});
+mallPart(hallGroup,-19.6,.017,5,18.9,.009,.11,hallStripe);
+mallPart(hallGroup,-27.95,.017,-1.8,.11,.009,13.1,hallStripe);
+mallPart(hallGroup,-17.3,2.48,9.38,14,.21,.045,hallTrim);
+for(const x of [-25,-20,-15])mallPart(hallGroup,x,.15,9.37,4.45,.24,.12,hallTrim);
+for(const [x,z,title] of [[-4.6,7.95,"ÉPICERIE"],[4,-7.9,"FRAIS & SURGELÉS"]]){
+ mallSign(hallGroup,title,"FBA SUPERMARKET",x-11,z,0,3.2);
+}
+mallPart(hallGroup,-20,5.1,-1.2,20,.2,21.6,mallWallMaterial);
+mallPart(hallGroup,-30,2.5,-1.2,.24,5,21.6,mallWallMaterial);
+mallPart(hallGroup,-20,2.5,9.55,20,5,.24,mallWallMaterial);
+mallPart(hallGroup,-10,2.5,-11,.24,5,2,mallWallMaterial);
+for(const x of [-26,-14])mallPart(hallGroup,x,2.5,-12,8,5,.24,mallWallMaterial);
+const showroomGate=mallPart(hallGroup,-20,2.5,-12,4,5,.24,hallTrim);
+mallPart(showroomGroup,-20,5.1,-17,20,.2,10,mallWallMaterial);
+mallPart(showroomGroup,-20,2.5,-22,20,5,.24,mallWallMaterial);
+for(const x of [-30,-10])mallPart(showroomGroup,x,2.5,-17,.24,5,10,mallWallMaterial);
+for(const x of [-26,-20,-14])for(const z of [-8,-2,4]){
+ mallPart(hallGroup,x,4.91,z,2.4,.065,.32,hallLight);
+}
+for(const x of [-26,-20,-14])mallPart(showroomGroup,x,4.91,-17,2.4,.065,.32,hallLight);
+mallSign(hallGroup,"CAISSES","← LIBRE-SERVICE · RAYONS →",-17,4.2,Math.PI,6.6);
+mallSign(hallGroup,"BOISSONS ÉNERGISANTES","ALLÉE OUEST",-26,-4,Math.PI/2,4.7);
+mallSign(hallGroup,"FBA AUTOMOBILE","SHOWROOM · ÉLECTRIQUE & THERMIQUE",-20,-11.85,0,5.4);
+mallSign(showroomGroup,"FBA AUTOMOBILE","COMMANDES ET VENTES · INTERAGIR AU COMPTOIR",-20,-19.6,0,7);
+mallPart(showroomGroup,-20,.54,-17,2.1,1.08,.74,hallTrim);
+mallPart(showroomGroup,-20,1.1,-17,2.2,.1,.84,mallWallMaterial);
+colliders.push({minX:-21.1,maxX:-18.9,minZ:-17.42,maxZ:-16.58,requiresUpgrade:AUTO_SHOWROOM});
+const AUTO_MODELS=[
+ {id:"city",name:"FBA City",fuel:"Électrique",cost:12500,price:15900,x:-25.4,z:-18.3,color:0x0e7490},
+ {id:"touring",name:"FBA Touring",fuel:"Thermique",cost:14200,price:17900,x:-14.6,z:-18.3,color:0xb91c1c},
+];
+const tireMaterial=new THREE.MeshStandardMaterial({color:0x17191f,roughness:.86});
+const carGlass=new THREE.MeshStandardMaterial({color:0x20394d,metalness:.65,roughness:.18});
+for(const model of AUTO_MODELS){
+ const {x,z,color}=model,paint=new THREE.MeshStandardMaterial({color,metalness:.6,roughness:.24});
+ mallPart(showroomGroup,x,.62,z,1.82,.53,4.12,paint);
+ mallPart(showroomGroup,x,.99,z-.14,1.54,.32,2.23,paint);
+ mallPart(showroomGroup,x,1.27,z-.26,1.43,.39,1.8,carGlass);
+ mallPart(showroomGroup,x,1.49,z-.27,1.43,.07,1.63,paint);
+ for(const dx of [-.87,.87])for(const dz of [-1.22,1.22]){
+  const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,.19,16),tireMaterial);
+  wheel.rotation.z=Math.PI/2;wheel.position.set(x+dx,.33,z+dz);showroomGroup.add(wheel);
+ }
+ for(const dx of [-.58,.58])mallPart(showroomGroup,x+dx,.7,z+2.065,.44,.12,.035,hallLight);
+ mallSign(showroomGroup,model.name,model.fuel,x,z-2.5,0,3.2);
+ colliders.push({minX:x-1,maxX:x+1,minZ:z-2.1,maxZ:z+2.1,requiresUpgrade:AUTO_SHOWROOM});
+}
+function showAutoService(){
+ if(!state.upgrades[AUTO_SHOWROOM])return;
+ openPanel("FBA Automobile");
+ if(!state.upgrades.autoLicense){paragraph("Licence Automobile requise au niveau 46.");return;}
+ const orders=state.management.autoOrders??={};
+ const autoSales=state.management.autoSales??=0;
+ paragraph("Ventes automobiles · "+autoSales+" | Trésorerie · "+euro(state.money));
+ for(const model of AUTO_MODELS){
+  const order=orders[model.id];
+  paragraph(model.name+" · "+model.fuel+" · achat "+euro(model.cost)+" · vente "+euro(model.price));
+  if(!order){
+   button(panel,"Commander "+model.name,()=>{
+    if(orders[model.id]||state.money<model.cost){toast("Commande indisponible ou trésorerie insuffisante");return;}
+    state.money-=model.cost;finance.supplies+=model.cost;
+    orders[model.id]={delivery:state.day+1,appointment:state.day+2};
+    save();hud();showAutoService();
+   });
+  }else if(state.day<order.delivery)paragraph("Livraison prévue au jour "+order.delivery);
+  else if(state.day<order.appointment)paragraph("En stock · rendez-vous client au jour "+order.appointment);
+  else button(panel,"Finaliser la vente · "+euro(model.price),()=>{
+   if(orders[model.id]!==order||state.day<order.appointment)return;
+   delete orders[model.id];state.management.autoSales++;state.money+=model.price;
+   finance.revenue+=model.price;finance.transactions++;state.sales++;
+   sync();checkLevelUp();showAutoService();
+  });
+ }
+}
+
 const mallCenter=(ANNEX_ENTRY+MALL_MIN_Z)/2;
 const mallSize=ANNEX_ENTRY-MALL_MIN_Z;
-const mallWallMaterial=new THREE.MeshStandardMaterial({color:0xcbd5e1});
 const mallFloorMaterial=new THREE.MeshStandardMaterial({color:0xaabacb});
 const plazaMaterial=new THREE.MeshStandardMaterial({color:0xd2e4e6});
 const guideMaterial=new THREE.MeshBasicMaterial({color:0x69b8b4});
@@ -2805,7 +2966,7 @@ function departmentProductBatch(parent,product){
   batch.computeBoundingSphere();
   parent.add(batch);result.push(batch);
  }
- departmentDisplays.set(product.id,result);
+ shelfDisplayBatches.set(product.id,[result]);
 }
 let bakeryScene=null;
 for(const [index,department] of DEPARTMENTS.entries()){
@@ -2883,21 +3044,57 @@ for(const [index,department] of DEPARTMENTS.entries()){
   addShelfGuide(p,p.x,p.z,p.rotation*Math.PI/2);
  }
 }
+// Une série d’articles identiques sur le même meuble partage ses appels de dessin.
+function batchShelfDisplays(){
+ for(const [id,items] of Object.entries(displays)){
+  if(!items.length)continue;
+  const byShelf=new Map();
+  for(const item of items){
+   if(!byShelf.has(item.parent))byShelf.set(item.parent,[]);
+   byShelf.get(item.parent).push(item);
+  }
+  const groups=[];
+  for(const [parent,models] of byShelf){
+   const sample=models[0],parts=sample.isMesh?[sample]:sample.children;
+   const batches=parts.map((part,index)=>{
+    const batch=new THREE.InstancedMesh(part.geometry,part.material,models.length);
+    const matrix=new THREE.Matrix4();
+    for(const [slot,model] of models.entries()){
+     model.updateMatrix();
+     matrix.copy(model.matrix);
+     if(!model.isMesh){const piece=model.children[index];piece.updateMatrix();matrix.multiply(piece.matrix);}
+     batch.setMatrixAt(slot,matrix);
+    }
+    batch.computeBoundingSphere();parent.add(batch);
+    return batch;
+   });
+   const retained=new Set(parts.map(part=>part.geometry));
+   for(const model of models){
+    parent.remove(model);
+    model.traverse(piece=>{if(piece.geometry&&!retained.has(piece.geometry))piece.geometry.dispose();});
+   }
+   groups.push(batches);
+  }
+  displays[id]=[];
+  shelfDisplayBatches.set(id,groups);
+ }
+}
 function refreshDisplays(){
  for(const p of catalog){
   const available=productAvailable(p);
   const stock=available?state.inventory[p.id].shelf:0;
   updatePriceLabel(p);
   if(coldPriceLabels[p.id])coldPriceLabels[p.id].visible=available;
-  const batches=departmentDisplays.get(p.id);
+  const batches=shelfDisplayBatches.get(p.id);
   if(batches){
-   for(const mesh of batches){
+   for(const group of batches)for(const mesh of group){
     mesh.count=Math.min(stock,CAPACITY);
     mesh.visible=mesh.count>0;
    }
   }else displays[p.id].forEach((mesh,index)=>mesh.visible=index<stock);
  }
  for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
+ for(const {rack,product} of wallProductRacks)if(product.requiresShelf===FRONT_HALL)rack.visible=productAvailable(product);
  for(const p of catalog.filter(p=>p.kind==="extension")){const g=extensionProductGroups[p.id];if(g)g.visible=!!state.upgrades.store1;}
  for(const p of catalog.filter(p=>p.kind==="electronics")){const g=electronicsProductGroups[p.id];if(g)g.visible=!!state.upgrades.store2;}
  updateShelfGuides();
@@ -3033,7 +3230,7 @@ function refreshBoxes(){
 function sync(){
  hud();refreshDisplays();refreshBoxes();refreshExtension();updateLighting();
  if(checkoutVisual)renderCheckoutVisual(checkoutVisual.customer);
- for(const register of extraRegisters)for(const mesh of register.meshes)mesh.visible=playerLevel()>=register.level;
+ for(const register of extraRegisters)for(const mesh of register.meshes)mesh.visible=registerUnlocked(register);
  save();
 }
 // V0.4.2 — transport de cartons entiers, remplissage en lot
@@ -3509,7 +3706,7 @@ function updateStocker(dt){
  }
  if(!stockerTarget)return;
  const dx=stockerTarget[0]-stockerGroup.position.x,dz=stockerTarget[1]-stockerGroup.position.z;
- const dist=Math.hypot(dx,dz),step=dt*(stockerCarton.visible?1.55:1.9);
+ const dist=Math.hypot(dx,dz),step=dt*(stockerCarton.visible?1.55:1.9)*(state.upgrades.shelfTraining?1.1:1);
  if(dist>step){
   stockerGroup.position.x+=dx/dist*step;stockerGroup.position.z+=dz/dist*step;
   faceNpc(stockerGroup,dx,dz,dt);
@@ -3566,7 +3763,7 @@ function updateWorker(dt){
  const target=workerRoute[workerWaypoint];
  if(target){
   const dx=target.x-workerGroup.position.x,dz=target.z-workerGroup.position.z;
-  const dist=Math.hypot(dx,dz),step=dt*(workerCargo?1.65:2.05);
+  const dist=Math.hypot(dx,dz),step=dt*(workerCargo?1.65*(state.upgrades.dockTraining?1.15:1):2.05);
   if(dist<=step){workerGroup.position.x=target.x;workerGroup.position.z=target.z;workerWaypoint++;}
   else{workerGroup.position.x+=dx/dist*step;workerGroup.position.z+=dz/dist*step;}
   if(dist>.01){
@@ -3730,6 +3927,7 @@ function interact(){
  if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
  if(near(10.2,7.8,1.45)&&camera.position.x>10.2){toggleStockroomLights();return;}
  if(currentStorageKind()){showReserve();return;}
+ if(state.upgrades[AUTO_SHOWROOM]&&near(-20,-15.5,2.6)){showAutoService();return;}
  if(openDepartmentCount()&&near(0,MALL_PLAZA_Z,3)){showMallMap();return;}
  const register=activeRegisters().find(r=>near(r.x,r.z,1.65));
  if(register){showAuxiliaryCheckout(register);return;}
@@ -3757,6 +3955,13 @@ const savedMouseSensitivity=Number(localStorage.getItem(MOUSE_SENSITIVITY_KEY));
 let mouseSensitivity=savedMouseSensitivity>=10&&savedMouseSensitivity<=150?savedMouseSensitivity:DEFAULT_MOUSE_SENSITIVITY;
 function showSettings(){
  openPanel("Paramètres");
+ paragraph("Qualité graphique");
+ for(const [mode,name] of [["fluid","Fluide"],["balanced","Équilibrée"],["detail","Détaillée"]]){
+  const b=button(panel,name+(graphicsMode===mode?" · Active":""),()=>{
+   graphicsMode=mode;localStorage.setItem(GRAPHICS_KEY,mode);updatePixelRatio();showSettings();
+  });
+  b.disabled=graphicsMode===mode;
+ }
  const label=document.createElement("label");
  const value=document.createElement("span");
  const slider=document.createElement("input");
@@ -3899,6 +4104,7 @@ document.addEventListener("keydown",e=>{
   releaseMouseLook();return;
  }
  if(e.target?.closest?.("input, textarea, select, [contenteditable]")||e.ctrlKey||e.altKey||e.metaKey)return;
+ if(e.code==="Escape"&&panel.style.display!=="none"){panel.style.display="none";e.preventDefault();return;}
  if(!levelModalShowing&&panel.style.display==="none"&&checkoutUI.style.display==="block"&&terminalKeyHandler?.(e)){
   e.preventDefault();return;
  }
@@ -3948,11 +4154,15 @@ function blocked(x,z,r=.4){
   const wing=STORAGE_WINGS[kind];
   return inStorageWing(kind,x,z)&&x>wing.minX+.7+r&&x<wing.maxX-.7-r;
  });
- if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor))return true;
+ const hall=state.upgrades[FRONT_HALL]&&x>-29.8+r&&x<-9.45&&z>-11.8+r&&z<9.45-r;
+ const hallDoor=state.upgrades[FRONT_HALL]&&Math.abs(x+10)<1.35&&z>2.5+r&&z<7.5-r;
+ const auto=state.upgrades[AUTO_SHOWROOM]&&x>-29.8+r&&x<-10.2-r&&z>-21.8+r&&z<-11.45;
+ const autoDoor=state.upgrades[AUTO_SHOWROOM]&&Math.abs(x+20)<2-r&&Math.abs(z+12)<1.1;
+ if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor))return true;
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  return candidates?.some(c=>x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ&&
   !c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&
-  (!c.lockedBy||!state.upgrades[c.lockedBy])&&(!c.level||playerLevel()>=c.level)&&
+  (!c.lockedBy||!state.upgrades[c.lockedBy])&&(!c.requiresLicense||state.upgrades[c.requiresLicense])&&(!c.level||playerLevel()>=c.level)&&
   (!c.storageGate||!storageBayCount(c.storageGate)))??false;
 }
 // Trajets employés sur la carte du bâtiment, sans traverser murs, rayons ni meubles.
@@ -4085,7 +4295,11 @@ const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTime
 const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
 const PREOPEN_HOUR=7,PREOPEN_SECONDS=45; // Préparation matinale de 7 h à 8 h
 let preopenTimer=0;
+let lastHudMinute=-1,lastHudDay=0;
 function updateTime(){
+ const minute=Math.floor(state.hour*60);
+ if(minute===lastHudMinute&&state.day===lastHudDay)return;
+ lastHudMinute=minute;lastHudDay=state.day;
  updateLighting();
  $("day").textContent=state.day+" — "+dateLabel();
  $("hour").textContent=formatHour(state.hour);
@@ -4174,7 +4388,7 @@ function makeCustomer(){
  group.position.set(0,0,12.5);scene.add(group);
  customers.push({
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
-  speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,
+  speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,priceTolerance:1.12+Math.random()*.33,
   visualClock:Math.random()*6,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
   stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:0,lastNavZ:12.5
  });
@@ -4332,22 +4546,215 @@ function removeCustomer(c){
  const i=customers.indexOf(c);if(i!==-1)customers.splice(i,1);
 }
 // La file est un état indépendant : personne ne contourne la caisse côté personnel.
+function teamAvatar(role,x,z){
+ const group=new THREE.Group();
+ const uniform=new THREE.MeshStandardMaterial({color:{shelf:0x168258,dock:0xe79b2f,security:0x263c56,checkout:0x185aa0}[role]});
+ const skin=new THREE.MeshStandardMaterial({color:0xc89471});
+ const dark=new THREE.MeshStandardMaterial({color:0x222936});
+ const badge=new THREE.MeshStandardMaterial({color:role==="security"?0xf2bb49:0xe2e8f0});
+ mallPart(group,0,1.22,0,.47,.63,.27,uniform);
+ mallPart(group,0,1.72,0,.28,.34,.28,skin);
+ mallPart(group,0,1.89,.015,.30,.12,.31,dark);
+ mallPart(group,.13,1.38,-.14,.12,.065,.02,badge);
+ const legs=[-.12,.12].map(dx=>{
+  const leg=new THREE.Group();leg.position.set(dx,.82,0);group.add(leg);
+  mallPart(leg,0,-.35,0,.15,.69,.17,dark);mallPart(leg,0,-.73,-.045,.16,.13,.25,dark);
+  return leg;
+ });
+ const arms=[-.29,.29].map(dx=>mallPart(group,dx,1.13,0,.13,.50,.15,uniform));
+ const carton=mallPart(group,0,1,-.32,.51,.32,.30,new THREE.MeshStandardMaterial({color:0xa77543}));
+ group.position.set(x,0,z);group.visible=false;scene.add(group);
+ return {group,legs,arms,carton,stride:0};
+}
+const teamUnits=Object.entries(STAFF_PLANS).flatMap(([role,plan])=>plan.levels.map((level,index)=>{
+ const start=role==="dock"?[25.65+(index%3)*.48,-23.8-index*.38]:
+  role==="shelf"?[12.3+(index%3)*.58,4.8+Math.floor(index/3)*.7]:
+  [index%2?1.3:-1.3,7.4-index*.65];
+ return {role,id:role+(index+1),name:plan.label+" "+(index+1),level,wage:plan.wage,
+  ...teamAvatar(role,...start),route:[],delay:index*.44,patrol:index,cargo:null,target:null};
+}));
+function markTeamWorked(role,id,wage){
+ const worked=state.management.teamWorked??={};
+ const key=role+":"+id;
+ if(worked[key]?.day!==state.day){worked[key]={day:state.day,wage};save();}
+}
+function showTeamManagement(role="shelf"){
+ openPanel("Recrutement et équipes");
+ for(const [id,label] of [["shelf","Mise en rayon"],["dock","Manutention"],["checkout","Caissiers"],["security","Sécurité"]]){
+  button(panel,label,()=>showTeamManagement(id));
+ }
+ if(role==="checkout"){
+  const roster=[{id:"main",label:"Caisse 1",level:20},...extraRegisters.filter(r=>!r.self&&!r.legacy)];
+  const hired=roster.filter(r=>cashierHired(r.id)).length;
+  paragraph(hired+" / 10 caissiers recrutés · 65 € par journée de service");
+  for(const register of roster){
+   const available=registerUnlocked(register),employed=cashierHired(register.id);
+   paragraph(register.label+" · "+(employed?"Recruté":available?"Poste disponible":"Niveau "+register.level+(register.hall?" et hall des caisses":"")));
+   if(!available)continue;
+   button(panel,employed?"Libérer le poste":"Recruter · "+register.label,()=>{
+    if(register.id==="second")state.management.extraCashier=false;
+    (state.management.cashiers??={})[register.id]=!employed;
+    save();showTeamManagement(role);
+   });
+  }
+  return;
+ }
+ const roster=teamUnits.filter(unit=>unit.role===role),employees=state.management.team??={};
+ paragraph(roster.filter(unit=>employees[unit.id]).length+" / "+roster.length+" recrutés · "+euro(STAFF_PLANS[role].wage)+" par journée de service");
+ if(role==="shelf")button(panel,"Gérer Camille",showStockerManagement);
+ if(role==="dock")button(panel,"Gérer George",showWorkerManagement);
+ for(const unit of roster){
+  const hired=!!employees[unit.id];
+  const status=unit.cargo?"Transporte "+unit.cargo.product.name:unit.role==="security"?"En ronde":unit.route.length?"En déplacement":"Disponible";
+  paragraph(unit.name+" · "+(hired?(unit.group.visible?status:"Hors service"):"Niveau "+unit.level));
+  if(playerLevel()<unit.level)continue;
+  button(panel,hired?"Libérer le poste":"Recruter · "+unit.name,()=>{
+   employees[unit.id]=!hired;
+   if(hired){returnTeamCargo(unit);unit.route=[];unit.target=null;}
+   save();showTeamManagement(role);
+  });
+ }
+}
+function returnTeamCargo(unit){
+ if(!unit.cargo)return;
+ const {product,quantity}=unit.cargo;
+ if(unit.role==="dock")state.deliveryDock.push({id:product.id,qty:quantity});
+ else state.inventory[product.id].reserve+=quantity;
+ unit.cargo=null;sync();refreshDeliveryDock();
+}
+function walkTeamRoute(unit,dt,speed){
+ const target=unit.route[0],position=unit.group.position;
+ if(!target)return;
+ const dx=target.x-position.x,dz=target.z-position.z,dist=Math.hypot(dx,dz);
+ const step=Math.min(dist,dt*speed);
+ if(dist<=step){position.x=target.x;position.z=target.z;unit.route.shift();}
+ else{position.x+=dx/dist*step;position.z+=dz/dist*step;}
+ faceNpc(unit.group,dx,dz,dt);unit.stride+=step*5.3;
+ const swing=Math.sin(unit.stride)*.33;
+ unit.legs[0].rotation.x=swing;unit.legs[1].rotation.x=-swing;
+}
+function teamRouteTo(unit,point){
+ unit.route=staffRoute(unit.group,point);
+ return unit.route.length>0;
+}
+function updateTeamJob(unit){
+ if(unit.role==="security"){
+  const points=[[-2.4,7.6],[-2.7,3.4],[2.75,3.4],[2.75,-2.65],[-2.8,-2.65]];
+  if(state.upgrades[FRONT_HALL])points.splice(1,0,[-10.2,6.7],[-19,7.9],[-27,3.5],[-26,-9.4],[-12,5.1]);
+  const point=points[unit.patrol++%points.length];
+  teamRouteTo(unit,point);
+  return;
+ }
+ if(unit.cargo){
+  const {product,quantity}=unit.cargo,a=state.inventory[product.id];
+  if(unit.role==="dock"){
+   if(a.boxes>=MAX_BOXES_PER_PRODUCT||storageBoxes(storageKind(product))>=storageLimit(storageKind(product))){
+    returnTeamCargo(unit);return;
+   }
+   a.boxes++;
+  }else{
+   const placed=Math.max(0,Math.min(quantity,shelfCapacity(product)-a.shelf));
+   a.shelf+=placed;a.reserve+=quantity-placed;
+  }
+  unit.cargo=null;sync();refreshDeliveryDock();return;
+ }
+ if(unit.role==="dock"){
+  const position=unit.group.position;
+  if(Math.hypot(position.x-WORKER_DOCK[0],position.z-WORKER_DOCK[1])>.35){
+   teamRouteTo(unit,WORKER_DOCK);return;
+  }
+  const index=state.deliveryDock.findIndex(item=>{
+   const p=catalog.find(product=>product.id===item.id);
+   return p&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&storageBoxes(storageKind(p))<storageLimit(storageKind(p));
+  });
+  if(index<0)return;
+  const product=catalog.find(p=>p.id===state.deliveryDock[index].id);
+  if(!teamRouteTo(unit,storageWorkPoint(product)))return;
+  const [item]=state.deliveryDock.splice(index,1);
+  unit.cargo={product,quantity:item.qty};save();refreshDeliveryDock();
+  return;
+ }
+ if(unit.target){
+  const product=unit.target;unit.target=null;
+  const quantity=Math.min(BOX_UNITS,productStoredUnits(product),shelfCapacity(product)-state.inventory[product.id].shelf);
+  if(quantity<=0||!teamRouteTo(unit,stockerShelfPosition(product)))return;
+  removeReserveUnits(state.inventory[product.id],quantity);
+  unit.cargo={product,quantity};save();return;
+ }
+ const product=unlockedProducts().filter(p=>state.inventory[p.id].shelf<shelfCapacity(p)&&productStoredUnits(p)>0&&
+  stockerCargo!==p.id&&!teamUnits.some(other=>other.target===p||other.cargo?.product===p&&other.role==="shelf"))
+  .sort((a,b)=>state.inventory[a.id].shelf-state.inventory[b.id].shelf)[0];
+ if(product&&teamRouteTo(unit,storageWorkPoint(product)))unit.target=product;
+}
+function updateExpandedTeam(dt){
+ for(const unit of teamUnits){
+  const shift=unit.role==="security"?[8,20]:unit.role==="dock"?workerShift():stockerShift();
+  const active=!!state.management.team?.[unit.id]&&playerLevel()>=unit.level&&employeeWorking(shift);
+  unit.group.visible=active;unit.carton.visible=!!unit.cargo;
+  if(!active)continue;
+  markTeamWorked(unit.role,unit.id,unit.wage);
+  if(unit.route.length){
+   const trained=unit.role==="shelf"&&state.upgrades.shelfTraining?1.1:
+    unit.role==="dock"&&unit.cargo&&state.upgrades.dockTraining?1.15:1;
+   walkTeamRoute(unit,dt,(unit.cargo?1.55:1.85)*trained);
+  }else{
+   for(const leg of unit.legs)leg.rotation.x=0;
+   unit.delay-=dt;
+   if(unit.delay<=0){unit.delay=unit.role==="security"?1:2.5;updateTeamJob(unit);}
+  }
+ }
+ for(const register of extraRegisters){
+  if(!register.staff)continue;
+  register.staff.group.visible=registerUnlocked(register)&&cashierOnDuty(register.id);
+  if(register.staff.group.visible)markTeamWorked("checkout",register.id,65);
+  register.staff.carton.visible=false;
+ }
+ mainCashierAvatar.group.visible=cashierOnDuty("main")&&!seatedAtCheckout;
+ if(mainCashierAvatar.group.visible)markTeamWorked("checkout","main",65);
+ mainCashierAvatar.carton.visible=false;
+}
+
 const extraRegisters=[
- {id:"second",level:20,x:-2.4,z:5.05,queueX:-1.15,queueZ:5.25,express:false,queue:[],client:null},
- {id:"express",level:110,x:2.1,z:3.9,queueX:1.05,queueZ:4.05,express:true,queue:[],client:null},
+ {id:"second",label:"Caisse 2",level:20,x:-2.4,z:5.05,queueX:-1.15,queueZ:5.25,queue:[],client:null},
+ {id:"legacyExpress",label:"Caisse 3 · express",level:110,x:2.1,z:3.9,queueX:1.05,queueZ:4.05,legacy:true,queue:[],client:null},
+ ...[21,24,27,30,33,36,39,42].map((level,index)=>{
+  const x=-25+index%4*3.65,z=index<4?-6:1.2;
+  return {id:"lane"+(index+3),label:"Caisse "+(index+3),level,x,z,queueX:x+1.2,queueZ:z+.2,hall:true,queue:[],client:null};
+ }),
+ ...[26,34].map((level,index)=>{
+  const x=-25+index*3.65,z=6.5;
+  return {id:"self"+index,label:"Libre-service "+(index+1),level,x,z,queueX:x+1.2,queueZ:z+.2,hall:true,self:true,queue:[],client:null};
+ }),
 ];
 for(const register of extraRegisters){
  const {x,z,level}=register;
  register.meshes=[
-  cube(x,.54,z,1.1,1.08,1.45,0x475569),
+  cube(x,.54,z,1.1,1.08,1.45,register.self?0x0e7490:0x475569),
   cube(x,1.11,z,1.19,.11,1.54,0x172033),
-  cube(x,1.29,z-.45,.35,.25,.16,0x22c55e),
+  cube(x,1.32,z-.42,register.self?.49:.35,.31,.16,0x22c55e),
+  cube(x+.48,1.23,z+.35,.10,.14,.49,0x94a3b8),
  ];
- const sign=shelfSign(register.express?"CAISSE 3 · EXPRESS":"CAISSE 2");
- sign.position.set(x,2.05,z);scene.add(sign);register.meshes.push(sign);
- colliders.push({minX:x-.59,maxX:x+.59,minZ:z-.77,maxZ:z+.77,level});
+ const sign=shelfSign(register.label.toUpperCase());
+ sign.position.set(x,2.25,z);scene.add(sign);register.meshes.push(sign);
+ if(register.hall){
+  const stripe=mallPart(hallGroup,register.queueX,.02,z-.95,.78,.012,.10,laneStripe);
+  register.meshes.push(stripe);
+ }
+ if(!register.self&&!register.legacy)register.staff=teamAvatar("checkout",x-.96,z+.15);
+ colliders.push({minX:x-.59,maxX:x+.59,minZ:z-.77,maxZ:z+.77,level,
+  requiresUpgrade:register.hall?FRONT_HALL:undefined,lockedBy:register.legacy?FRONT_HALL:undefined});
 }
-function activeRegisters(){return extraRegisters.filter(r=>playerLevel()>=r.level);}
+function registerUnlocked(register){return playerLevel()>=register.level&&(!register.hall||state.upgrades[FRONT_HALL])&&(!register.legacy||!state.upgrades[FRONT_HALL]);}
+function activeRegisters(){return extraRegisters.filter(registerUnlocked);}
+function cashierHired(id){return !!state.management.cashiers?.[id]||(id==="second"&&!!state.management.extraCashier);}
+function cashierOnDuty(id){
+ const offset=id==="main"?0:Number(id.replace("lane",""))||2;
+ const lunch=offset%2===0?12:13;
+ return cashierHired(id)&&state.hour>=8&&state.hour<20&&(state.hour<lunch||state.hour>=lunch+1);
+}
+function autoCheckoutSeconds(count){return (2+count*.55)*(state.upgrades.checkoutTraining?.8:1);}
+const mainCashierAvatar=teamAvatar("checkout",7.42,7.48);
+
 function approachingCustomerCount(register){
  return customers.filter(c=>c.phase==="approachingQueue"&&c.auxRegister===register).length;
 }
@@ -4357,19 +4764,19 @@ function auxiliaryCustomerCount(register){
 function showAuxiliaryRegisters(){
  openPanel("Caisses supplémentaires");
  for(const register of activeRegisters()){
-  const label=register.express?"Caisse 3 · petits paniers":"Caisse 2";
-  button(panel,label+" · "+auxiliaryCustomerCount(register)+" client(s)",()=>showAuxiliaryCheckout(register));
+  button(panel,register.label+" · "+auxiliaryCustomerCount(register)+" client(s)",()=>showAuxiliaryCheckout(register));
  }
- if(playerLevel()>=49){
-  const hired=!!state.management.extraCashier;
-  button(panel,hired?"Suspendre le caissier de la caisse 2":"Recruter le caissier de la caisse 2 · 65 € par journée travaillée",()=>{
-   state.management.extraCashier=!hired;save();showAuxiliaryRegisters();
-  });
- }
+ button(panel,"Recruter des caissiers",()=>showTeamManagement("checkout"));
 }
 function showAuxiliaryCheckout(register){
  if(!activeRegisters().includes(register))return;
- openPanel(register.express?"Caisse 3 · express":"Caisse 2");
+ openPanel(register.label);
+ if(register.self){
+  paragraph("Borne autonome · 5 articles maximum.");
+  paragraph(auxiliaryCustomerCount(register)+" client(s) à cette borne.");
+  button(panel,"Actualiser",()=>showAuxiliaryCheckout(register));
+  return;
+ }
  const client=register.client;
  paragraph(register.queue.length+" client(s) dans la file.");
  if(!client){paragraph("Aucun client au comptoir.");button(panel,"Actualiser",()=>showAuxiliaryCheckout(register));return;}
@@ -4401,12 +4808,11 @@ function updateAuxiliaryQueue(client,dt){
  const register=client.auxRegister;
  if(!register)return;
  if(client.phase==="auxCheckout"){
-  if(register.id==="second"&&state.management.extraCashier&&state.hour>=8&&state.hour<20&&
-   (state.hour<12||state.hour>=13)&&state.money>=65){
+  if(register.self||cashierOnDuty(register.id)||closing&&cashierHired(register.id)){
    client.timer-=dt;
    if(client.timer<=0){
     client.scanned=Object.values(client.basket).reduce((n,q)=>n+q,0);
-    state.management.cashierWorkedDay=state.day;
+    if(!register.self)markTeamWorked("checkout",register.id,65);
     payAuxiliaryCheckout(register,client);
    }
   }
@@ -4425,21 +4831,22 @@ function updateAuxiliaryQueue(client,dt){
  client.queueStall=moved||arrived?0:(client.queueStall||0)+dt;
  if(i===0&&!register.client&&arrived){
   register.queue.shift();register.client=client;client.phase="auxCheckout";client.scanned=0;
-  client.timer=2+Object.values(client.basket).reduce((n,q)=>n+q,0)*.55;
+  const count=Object.values(client.basket).reduce((n,q)=>n+q,0);
+  client.timer=register.self?3+count*.8:autoCheckoutSeconds(count);
   client.navTarget=null;client.navRoute=null;
-  toast(register.express?"Client à la caisse express":"Client à la caisse 2");
+  if(near(register.x,register.z,5))toast("Client · "+register.label);
  }else if(client.queueStall>10)sendToExit(client);
 }
 const CHECKOUT_APPROACH_FALLBACK={x:3.35,z:6.5};
 function queueSpot(i,register){
- if(register)return {x:register.queueX,z:register.queueZ-Math.min(i+Number(!!register.client),4)*.65};
+ if(register)return {x:register.queueX,z:register.queueZ-Math.min(i+Number(!!register.client),register.hall?2:4)*.65};
  return {x:3.65,z:6.25-Math.min(i+Number(!!cashier),4)*.78};
 }
 function sendToQueue(c){
  if(c.phase==="approachingQueue"||c.phase==="queue"||c.phase==="checkout"||c.phase==="auxQueue"||c.phase==="auxCheckout")return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(count===0){sendToExit(c);return;}
- const register=activeRegisters().filter(r=>!r.express||count<=5)
+ const register=activeRegisters().filter(r=>r.self||r.legacy?count<=5:cashierOnDuty(r.id)||r.id==="second"&&!state.upgrades[FRONT_HALL])
   .sort((a,b)=>auxiliaryCustomerCount(a)-auxiliaryCustomerCount(b))[0];
  if(register&&auxiliaryCustomerCount(register)<queue.length+Number(!!cashier)+approachingCustomerCount()){
   c.auxRegister=register;
@@ -4491,6 +4898,23 @@ function sendToExit(c){
 function updateCustomers(dt){
  for(const c of [...customers]){
   updateCustomerVisual(c,dt);
+  const inLine=c.phase==="queue"||c.phase==="auxQueue";
+  if(inLine||c.phase==="checkout"||c.phase==="auxCheckout"){
+   c.queueElapsed+=dt;
+   if(!inLine)c.checkoutElapsed+=dt;
+   if(!c.waitPenalty&&(inLine?c.queueElapsed>25:c.checkoutElapsed>40)){
+    c.waitPenalty=true;customerComplaint(c,"wait",inLine?"C’est long, cette file n’avance pas !":"Ça fait un moment que j’attends pour payer.",-3);
+   }
+   if(inLine&&c.queueElapsed>75){sendToExit(c);continue;}
+   if(c.checkoutElapsed>100){
+    if(c.phase==="auxCheckout"&&c.auxRegister&&!c.auxRegister.self&&!cashierOnDuty(c.auxRegister.id)){
+     sendToExit(c);continue;
+    }
+    if(c===cashier&&!seatedAtCheckout&&checkoutUI.style.display==="none"&&!cashierOnDuty("main")&&!(closing&&cashierHired("main"))){
+     finishCheckout(c,true);continue;
+    }
+   }
+  }
   if(c.phase==="shopping"){
    c.shoppingTime=(c.shoppingTime||0)+dt;
    if(c.shoppingTime>c.shoppingTimeLimit){sendToQueue(c);continue;}
@@ -4503,7 +4927,10 @@ function updateCustomers(dt){
    if(arrived||c.shoppingStall>6){
     c.shoppingStall=0;c.waypoint++;c.navTarget=null;c.navRoute=null;
     if(arrived&&t.shop){c.phase="choosing";c.timer=.85+Math.random()*1.6;c.productId=t.shop;}
-    else if(c.waypoint>=c.route.length)sendToQueue(c);
+    else{
+     if(t.shop)customerComplaint(c,"search","Je ne trouve pas le rayon "+catalog.find(p=>p.id===t.shop).name+".");
+     if(c.waypoint>=c.route.length)sendToQueue(c);
+    }
    }
   }else if(c.phase==="choosing"){
    c.timer-=dt;
@@ -4511,12 +4938,15 @@ function updateCustomers(dt){
     const a=state.inventory[c.productId];
     if(a){
      const quantity=Math.min(a.shelf,1+Math.floor(Math.random()*3));
-     if(quantity>0){
+     const product=catalog.find(p=>p.id===c.productId);
+     if(quantity>0&&a.price>product.price*c.priceTolerance){
+      customerComplaint(c,"price",product.name+" à "+euro(a.price)+" ? C’est trop cher.",-2);
+     }else if(quantity>0){
       a.shelf-=quantity;c.basket[c.productId]=(c.basket[c.productId]||0)+quantity;
       c.prices[c.productId]=a.price;c.total+=quantity*a.price;sync();
      }else{
       c.missingProducts++;
-      changeSatisfaction(-2);
+      customerComplaint(c,"stock","Je ne trouve plus de "+product.name.toLowerCase()+".",-2);
      }
     }
     c.phase="shopping";
@@ -4526,8 +4956,7 @@ function updateCustomers(dt){
   }else if(c.phase==="auxQueue"||c.phase==="auxCheckout"){
    updateAuxiliaryQueue(c,dt);
   }else if(c.phase==="queue"){
-   c.queueElapsed+=dt;
-   if(c.queueElapsed>25&&!c.waitPenalty){c.waitPenalty=true;changeSatisfaction(-3);}
+
    const i=queue.indexOf(c);
    if(i<0){sendToExit(c);continue;}
    const target=i===0&&!cashier&&c.checkoutApproach?c.checkoutApproach:queueSpot(i),p=c.group.position;
@@ -4538,6 +4967,7 @@ function updateCustomers(dt){
    c.queueStall=moved||arrived?0:(c.queueStall||0)+dt;
    if(i===0&&!cashier&&(arrived||Math.hypot(p.x-target.x,p.z-target.z)<.45)){
     queue.shift();cashier=c;c.phase="checkout";c.scanned=0;c.queueStall=0;
+    c.timer=autoCheckoutSeconds(Object.values(c.basket).reduce((n,q)=>n+q,0));
     c.navTarget=null;c.navRoute=null;
     if(seatedAtCheckout)showCheckout();else toast("Client en caisse : assieds-toi au poste");
    }else if(c.queueStall>5){
@@ -4548,6 +4978,14 @@ function updateCustomers(dt){
     }else c.l.rotation.x=c.r.rotation.x=0;
    }
   }else if(c.phase==="checkout"){
+   if(c===cashier&&!seatedAtCheckout&&!checkoutVisual&&(cashierOnDuty("main")||closing&&cashierHired("main"))){
+    c.timer-=dt;
+    if(c.timer<=0){
+     markTeamWorked("checkout","main",65);
+     completeCheckoutPayment(c,Object.values(c.basket).reduce((n,q)=>n+q,0),true);
+     continue;
+    }
+   }
    const belt=c.belt;
    if(belt?.refillDelay>0){
     belt.refillDelay=Math.max(0,belt.refillDelay-dt);
@@ -4558,8 +4996,7 @@ function updateCustomers(dt){
    }
    if(c===cashier&&seatedAtCheckout&&panel.style.display==="none"&&checkoutUI.style.display==="none"&&
     (checkoutVisual?.customer!==c||(!checkoutVisual.models.length&&!belt?.refillDelay)))showCheckout();
-   c.checkoutElapsed+=dt;
-   if(c.checkoutElapsed>45&&!c.waitPenalty){c.waitPenalty=true;changeSatisfaction(-3);}
+
    c.l.rotation.x=c.r.rotation.x=0;
   }else if(c.phase==="leaving"){
    const t=c.route[c.waypoint];
@@ -4610,7 +5047,7 @@ function business(dt){
   state.hour=OPEN_HOUR+(dayTimer/DAY_SECONDS)*(CLOSE_HOUR-OPEN_HOUR);
   if(shopOpen&&state.hour<closingHour()){
    spawnTimer-=dt;
-   if(spawnTimer<=0&&customers.length<MAX_CUSTOMERS){
+   if(spawnTimer<=0&&customers.length<customerLimit()){
     makeCustomer();spawnTimer=nextCustomerDelay();
    }
   }
@@ -4628,7 +5065,8 @@ function business(dt){
   }
   if(state.stockerHired&&state.stockerEnabled&&stockerShift()&&state.stockerSentHomeDay!==state.day){state.stockerWageDue+=STOCKER_DAILY_WAGE;state.stockerDaysWorked++;}
   if(finishedDate.getUTCDate()===new Date(Date.UTC(finishedDate.getUTCFullYear(),finishedDate.getUTCMonth()+1,0)).getUTCDate()){settleWorkerPayroll();const paid=Math.min(Math.max(0,state.money),state.stockerWageDue);state.money-=paid;state.stockerWageDue-=paid;state.stockerPaidTotal+=paid;}
-  if(state.management.cashierWorkedDay===state.day){state.money-=65;finance.charges+=65;}
+  const wages=Object.values(state.management.teamWorked??{}).reduce((sum,entry)=>sum+(entry.day===state.day?entry.wage:0),0);
+  state.money-=wages;finance.charges+=wages;
   dayTimer=0;preopenTimer=0;state.hour=PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
   processStandingOrders();
@@ -4660,15 +5098,58 @@ function updateGalleryRendering(){
  renderingDeepGallery=deep;
  ceilingLights.visible=!deep;
  coldLightGlow.visible=!deep;
- renderer.setPixelRatio(deep?Math.min(basePixelRatio,1):basePixelRatio);
+ updatePixelRatio();
+}
+const feedbackBubble=document.createElement("div");
+Object.assign(feedbackBubble.style,{display:"none",position:"fixed",zIndex:"18",pointerEvents:"none",transform:"translate(-50%,-100%)",
+ maxWidth:"min(240px,42vw)",padding:"7px 10px",borderRadius:"10px",background:"#f8fafc",color:"#172033",
+ boxShadow:"0 2px 8px #0005",font:"600 13px system-ui",textAlign:"center"});
+document.body.appendChild(feedbackBubble);
+let nearbyComplaint=null;
+const feedbackPosition=new THREE.Vector3();
+function customerComplaint(c,reason,message,penalty=0){
+ c.complaints??=new Set();
+ if(c.complaints.has(reason))return;
+ c.complaints.add(reason);
+ const log=state.management.customerFeedback??=[];
+ log.unshift({message,day:state.day,hour:state.hour});
+ log.length=Math.min(log.length,16);
+ if(penalty)changeSatisfaction(penalty);
+ else save();
+ if(near(c.group.position.x,c.group.position.z,13)){
+  nearbyComplaint={c,time:3.6};feedbackBubble.textContent=message;
+ }
+}
+function showCustomerFeedback(){
+ openPanel("Remarques des clients");
+ const log=state.management.customerFeedback??[];
+ if(!log.length)paragraph("Aucune remarque enregistrée.");
+ for(const entry of log)paragraph("Jour "+entry.day+" · "+formatHour(entry.hour)+" · "+entry.message);
+}
+function renderCustomerFeedback(dt){
+ if(nearbyComplaint){
+  nearbyComplaint.time-=dt;
+  if(nearbyComplaint.time<=0||!customers.includes(nearbyComplaint.c))nearbyComplaint=null;
+ }
+ feedbackBubble.style.display="none";
+ if(!nearbyComplaint||panel.style.display!=="none")return;
+ const position=nearbyComplaint.c.group.position;
+ camera.updateMatrixWorld();
+ feedbackPosition.copy(position);feedbackPosition.y+=2.25;feedbackPosition.project(camera);
+ if(Math.abs(feedbackPosition.x)>.92||Math.abs(feedbackPosition.y)>.9||feedbackPosition.z<0||feedbackPosition.z>1)return;
+ feedbackBubble.style.display="block";
+ feedbackBubble.style.left=(50+50*feedbackPosition.x)+"%";
+ feedbackBubble.style.top=(50-50*feedbackPosition.y)+"%";
 }
 const clock=new THREE.Clock();
 function animate(){
  requestAnimationFrame(animate);
- const dt=Math.min(clock.getDelta(),.05),smooth=1-Math.exp(-14*dt);
+ const dt=Math.min(clock.getDelta(),.05);
+ if(document.hidden)return;
+ const smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
- if(!paused){movePlayer(dt);updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);}
+ if(!paused){movePlayer(dt);updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);updateExpandedTeam(dt);}
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
  updateGalleryRendering();
@@ -4677,6 +5158,7 @@ function animate(){
   const batch=state.management.bakery?.batch;
   bakeryScene.glass.emissiveIntensity=batch&&state.day*1440+state.hour*60<batch.ready ? .9 : 0;
  }
+ renderCustomerFeedback(dt);
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.20 !");
+batchShelfDisplays();indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.14.0 !");
