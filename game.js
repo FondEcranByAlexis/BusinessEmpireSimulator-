@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.11.2 — version synchronisée
+// Business Empire Simulator V0.12.0 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -17,8 +17,8 @@ const catalog=[
  {id:"sucre",name:"Sucre",cost:3,price:7,color:0x93c5fd,x:0,z:1,starter:true},
  {id:"farine",name:"Farine",cost:3,price:7,color:0xfde68a,x:5,z:1,starter:true},
  {id:"riz",name:"Riz",cost:4,price:8,color:0xfde68a,x:-8.5,z:-7,level:2,kind:"sec"},
- {id:"conserves",name:"Conserves",cost:4,price:9,color:0xf97316,x:-8.9,z:5.9,level:2,kind:"wall"},
- {id:"papier",name:"Papier toilette",cost:5,price:11,color:0xe2e8f0,x:-5.2,z:7.8,level:2,kind:"wall"},
+ {id:"conserves",name:"Conserves",cost:4,price:9,color:0xf97316,x:-8.9,z:5.9,level:2,kind:"wall",rotation:1},
+ {id:"papier",name:"Papier toilette",cost:5,price:11,color:0xe2e8f0,x:-5.2,z:7.8,level:2,kind:"wall",rotation:2},
  {id:"biscuits",name:"Biscuits",cost:5,price:11,color:0xf59e0b,x:8.5,z:-7,level:3,kind:"sec"},
  {id:"fromage",name:"Fromage",cost:8,price:17,color:0xfef08a,x:-8.5,z:-3.5,level:4,kind:"froid"},
  {id:"surgeles",name:"Pizza surgelée",cost:9,price:20,color:0x60a5fa,x:8.5,z:-3.5,level:4,kind:"congelateur"},
@@ -27,27 +27,43 @@ const catalog=[
  {id:"cafe",name:"Café",cost:7,price:15,color:0x92400e,x:-5,z:-15,level:4,kind:"extension",license:"extensionLicense"},
  {id:"jus",name:"Jus de fruits",cost:4,price:9,color:0xfb923c,x:0,z:-15,level:4,kind:"extension",license:"extensionLicense"},
  {id:"chocolat",name:"Chocolat",cost:5,price:12,color:0x78350f,x:5,z:-15,level:4,kind:"extension",license:"extensionLicense"},
+ {id:"the",name:"Thé",cost:4,price:9,color:0x65a30d,x:-7,z:-21.1,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
+ {id:"miel",name:"Miel",cost:6,price:12,color:0xd97706,x:7,z:-21.1,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
+ {id:"huile",name:"Huile d’olive",cost:7,price:14,color:0x84cc16,x:-9.15,z:-13.5,level:4,kind:"wall",rotation:1,license:"extensionLicense"},
+ {id:"vinaigre",name:"Vinaigre",cost:3,price:7,color:0xa16207,x:9.15,z:-13.5,level:4,kind:"wall",rotation:-1,license:"extensionLicense"},
+ {id:"lentilles",name:"Lentilles",cost:3,price:7,color:0xb45309,x:-9.15,z:-17,level:4,kind:"wall",rotation:1,license:"extensionLicense"},
+ {id:"sel",name:"Sel",cost:2,price:5,color:0xa5b4fc,x:9.15,z:-17,level:4,kind:"wall",rotation:-1,license:"extensionLicense"},
+ {id:"poivre",name:"Poivre",cost:3,price:7,color:0x52525b,x:-9.15,z:-20,level:4,kind:"wall",rotation:1,license:"extensionLicense"},
+ {id:"chips",name:"Chips",cost:4,price:9,color:0xf59e0b,x:9.15,z:-20,level:4,kind:"wall",rotation:-1,license:"extensionLicense"},
+ {id:"semoule",name:"Semoule",cost:3,price:7,color:0xeab308,x:-5,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
+ {id:"graines",name:"Graines de tournesol",cost:4,price:9,color:0xc084fc,x:0,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
+ {id:"sauce_tomate",name:"Sauce tomate",cost:4,price:8,color:0xef4444,x:5,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
  {id:"smartphones",name:"Téléphones",cost:65,price:125,color:0x2563eb,x:-7,z:-29,level:6,kind:"electronics",license:"phones"},
  {id:"ecouteurs",name:"Écouteurs",cost:12,price:29,color:0x38bdf8,x:-3.5,z:-29,level:6,kind:"electronics",license:"store2"},
  {id:"casques",name:"Casques audio",cost:25,price:59,color:0xa78bfa,x:0,z:-29,level:6,kind:"electronics",license:"store2"},
  {id:"ordinateurs",name:"Ordinateurs",cost:135,price:279,color:0x94a3b8,x:3.5,z:-29,level:6,kind:"electronics",license:"store2"},
- {id:"drones",name:"Drones",cost:85,price:179,color:0x22c55e,x:7,z:-29,level:6,kind:"electronics",license:"store2"}
+ {id:"drones",name:"Drones",cost:85,price:179,color:0x22c55e,x:7,z:-29,level:6,kind:"electronics",license:"store2"},
+ {id:"tablettes",name:"Tablettes",cost:80,price:159,color:0x0891b2,x:-7,z:-32.4,level:6,kind:"electronics",license:"store2"},
+ {id:"montres",name:"Montres connectées",cost:42,price:89,color:0xf472b6,x:-3.5,z:-32.4,level:6,kind:"electronics",license:"store2"},
+ {id:"appareils_photo",name:"Appareils photo",cost:95,price:189,color:0x6366f1,x:0,z:-32.4,level:6,kind:"electronics",license:"store2"},
+ {id:"enceintes",name:"Enceintes Bluetooth",cost:32,price:69,color:0xf97316,x:3.5,z:-32.4,level:6,kind:"electronics",license:"store2"},
+ {id:"claviers",name:"Claviers sans fil",cost:23,price:49,color:0xa3e635,x:7,z:-32.4,level:6,kind:"electronics",license:"store2"}
 ];
 const CAPACITY=30, BOX_UNITS=10;
 // Six gondoles : une par produit de départ, 30 emplacements chacune.
 function shelfCapacity(p){return CAPACITY;}
 const upgradeCatalog=[
- {id:"handtruck",name:"Diable de manutention",level:1,cost:125,description:"Transporte jusqu’à 3 cartons du quai vers la réserve sèche et la chambre froide."},
+ {id:"handtruck",name:"Diable de manutention",level:1,cost:125,description:"Transporte jusqu’à 3 cartons du quai vers les trois zones de stockage."},
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
  {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Agrandit le magasin et la réserve sèche : +40 places de stockage, jusqu’à 100 cartons après l’amélioration du niveau 3."},
- {id:"store2",name:"Extension Électronique II",level:6,cost:3000,requires:"store1",description:"Hall électronique avec cinq rayons. Réserve sèche : +40 cartons."},
+ {id:"store2",name:"Extension Électronique II",level:6,cost:3000,requires:"store1",description:"Hall électronique avec dix rayons et réserve électronique de 60 cartons. Réserve sèche : +60 cartons."},
  {id:"phoneSkill",name:"Compétence Téléphonie",level:5,cost:1200,description:"Formation préalable à la vente de téléphones."},
  {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:"phoneSkill",description:"Débloque la spécialisation téléphones."},
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
  {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",description:"Débloque la spécialisation consoles."},
  {id:"freshLicense",name:"Licence produits frais et surgelés",level:4,cost:650,description:"Autorise la vente de fromage et de pizzas surgelées."},
  {id:"fruitLicense",name:"Licence fruits et légumes",level:6,cost:450,description:"Autorise la vente de pommes et les futurs fruits."},
- {id:"extensionLicense",name:"Licence épicerie de l'extension",level:4,cost:800,requires:"store1",description:"Autorise les nouveaux rayons de l'extension : café, jus de fruits et chocolat."}
+ {id:"extensionLicense",name:"Licence épicerie de l'extension",level:4,cost:800,requires:"store1",description:"Autorise les nouveaux rayons de l'extension : 14 références, dont le café, le jus de fruits et le chocolat."}
 ];
 // Chaque euro de chiffre d'affaires encaissé compte pour la progression.
 function revenueThreshold(level){
@@ -63,13 +79,18 @@ function playerLevel(){
  return level;
 }
 function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
-// Deux capacités logistiques indépendantes ; la chambre froide sera agrandie plus tard.
-function reserveLimit(){return 30+(state.upgrades.reserve1?30:0)+(state.upgrades.store1?40:0)+(state.upgrades.store2?40:0);}
+// Capacités logistiques indépendantes pour les produits secs, frais et électroniques.
+function reserveLimit(){return 30+(state.upgrades.reserve1?30:0)+(state.upgrades.store1?40:0)+(state.upgrades.store2?60:0);}
 function coldLimit(){return 20;}
 function coldStorageProduct(p){return p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits";}
-function storageKind(p){return coldStorageProduct(p)?"cold":"dry";}
-function storageName(kind){return kind==="cold"?"Chambre froide":"Réserve sèche";}
-function storageLimit(kind){return kind==="cold"?coldLimit():reserveLimit();}
+const STORAGE_NAMES={dry:"Réserve sèche",cold:"Chambre froide",electronics:"Réserve électronique"};
+const STORAGE_KINDS=Object.keys(STORAGE_NAMES);
+function storageKind(p){return p.kind==="electronics"?"electronics":coldStorageProduct(p)?"cold":"dry";}
+function storageName(kind){return STORAGE_NAMES[kind];}
+function storageLimit(kind){
+ if(kind==="electronics")return state.upgrades.store2?60:0;
+ return kind==="cold"?coldLimit():reserveLimit();
+}
 function storageBoxes(kind){
  return catalog.filter(p=>storageKind(p)===kind).reduce((n,p)=>n+state.inventory[p.id].boxes+
   Math.ceil(state.inventory[p.id].reserve/BOX_UNITS),0);
@@ -82,7 +103,7 @@ function stockAlert(p){
  return available===0?"RUPTURE":available<=10?"STOCK FAIBLE":"OK";
 }
 function canOrderBox(p){
- if(!p)return storageBoxes("dry")<reserveLimit()||storageBoxes("cold")<coldLimit();
+ if(!p)return STORAGE_KINDS.some(kind=>storageBoxes(kind)<storageLimit(kind));
  const kind=storageKind(p);
  return storageBoxes(kind)<storageLimit(kind)&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT;
 }
@@ -97,7 +118,8 @@ function hasProductLicense(p){
  if(p.id==="pommes")return !!state.upgrades.fruitLicense;
  return true;
 }
-function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p)&&(p.kind!=="electronics"||!!state.upgrades.store2);}
+function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p)&&(p.kind!=="electronics"||!!state.upgrades.store2)&&
+ (p.license!=="extensionLicense"||!!state.upgrades.store1);}
 function unlockedProducts(){return catalog.filter(productAvailable);}
 function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=2?2:0);}
 const CONSTRUCTION_DAYS=3;
@@ -154,7 +176,8 @@ function showUpgrades(tab=activeUpgradeTab){
  if(activeUpgradeTab==="stock"){
   note.textContent="Réserve sèche : capacité et transport des cartons.";
   paragraph("Stockage actuel : "+storageBoxes("dry")+"/"+reserveLimit()+" cartons.");
-  paragraph("Chaque extension achevée ajoute 40 cartons et une nouvelle zone de rayonnages à la réserve sèche.");
+  paragraph("La première extension ajoute 40 places en réserve sèche. La zone Électronique en ajoute 60.");
+  if(state.upgrades.store2)paragraph(storageName("electronics")+" : "+storageBoxes("electronics")+"/"+storageLimit("electronics")+" cartons.");
  }else if(activeUpgradeTab==="froid"){
   note.textContent="Zone frigorifique indépendante de la réserve sèche.";
   paragraph("Chambre froide : "+storageBoxes("cold")+"/"+coldLimit()+" cartons (10 produits par carton).");
@@ -416,7 +439,11 @@ function checkLevelUp(){
 }
 // Panier fournisseurs : paiement groupé, délai normal 30 s ou express 5 s.
 const supplierCart={};
-function pendingBoxes(id){return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+(it.id===id?it.qty:0),0),0)+state.deliveryDock.filter(it=>it.id===id).length;}
+function pendingBoxes(id){
+ return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+(it.id===id?it.qty:0),0),0)
+  +state.deliveryDock.filter(it=>it.id===id).length+state.trolleyCargo.filter(it=>it.id===id).length
+  +Number(workerCargo?.id===id)+Number(held?.source==="delivery"&&held.id===id);
+}
 function pendingTotal(kind){
  return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>{
   const p=catalog.find(p=>p.id===it.id);
@@ -425,7 +452,8 @@ function pendingTotal(kind){
   const p=catalog.find(p=>p.id===it.id);return p&&(!kind||storageKind(p)===kind);
  }).length+state.trolleyCargo.filter(it=>{
   const p=catalog.find(p=>p.id===it.id);return p&&(!kind||storageKind(p)===kind);
- }).length+(held&&held.source==="delivery"&&(!kind||storageKind(catalog.find(p=>p.id===held.id))===kind)?1:0);
+ }).length+(held?.source==="delivery"&&(!kind||storageKind(catalog.find(p=>p.id===held.id))===kind)?1:0)
+ +Number(!!workerCargo&&(!kind||storageKind(catalog.find(p=>p.id===workerCargo.id))===kind));
 }
 function cartCount(kind){
  return Object.entries(supplierCart).reduce((n,[id,qty])=>{
@@ -444,7 +472,8 @@ function stockCapacityStatus(kind,includeCart=true){
 }
 function renderStockCapacity(parent,includeCart=true){
  const result={};
- for(const kind of ["dry","cold"]){
+ for(const kind of STORAGE_KINDS){
+  if(!storageLimit(kind))continue;
   const data=stockCapacityStatus(kind,includeCart);result[kind]=data;
   const container=document.createElement("section");
   Object.assign(container.style,{padding:"12px",borderRadius:"11px",background:"#142336",border:"1px solid "+data.color,margin:"12px 0",color:"#fff"});
@@ -466,7 +495,7 @@ function renderStockCapacity(parent,includeCart=true){
   Object.assign(details.style,{fontSize:"12px",margin:"8px 0 0",color:"#cbd5e1"});container.appendChild(details);
   if(data.free===0){
    const warning=document.createElement("p");
-   warning.textContent=storageName(kind)+" pleine : impossible d'y ajouter de nouveaux cartons. L'autre zone reste indépendante.";
+   warning.textContent=storageName(kind)+" pleine : impossible d'y ajouter de nouveaux cartons. Les autres zones restent accessibles.";
    Object.assign(warning.style,{fontSize:"12px",fontWeight:"bold",color:"#fca5a5",margin:"8px 0 0"});
    container.appendChild(warning);
   }
@@ -503,7 +532,7 @@ function checkoutSupplier(express){
   const p=catalog.find(p=>p.id===it.id);
   if(state.inventory[it.id].boxes+pendingBoxes(it.id)+it.qty>MAX_BOXES_PER_PRODUCT){toast("Limite atteinte : "+p.name);return;}
  }
- for(const kind of ["dry","cold"]){
+ for(const kind of STORAGE_KINDS){
   const count=items.reduce((n,it)=>{const p=catalog.find(p=>p.id===it.id);return n+(p&&storageKind(p)===kind?it.qty:0);},0);
   if(count>cartCapacity(kind)){toast(storageName(kind)+" pleine — commande refusée");return;}
  }
@@ -519,7 +548,7 @@ function showOrders(){
  openPanel("FOURNISSEURS — Mon panier");
  const capacity=renderStockCapacity(panel);
  paragraph("Chaque zone possède sa capacité indépendante. Limite : 5 cartons par produit, commandes en attente comprises.");
- if(capacity.dry.free===0||capacity.cold.free===0)paragraph("Une zone pleine n'empêche pas de commander des produits pour l'autre zone.");
+ if(Object.values(capacity).some(zone=>zone.free===0))paragraph("Tu peux commander pour les zones qui ont encore de la place.");
  for(const p of unlockedProducts()){
   const a=state.inventory[p.id],qty=supplierCart[p.id]||0,pending=pendingBoxes(p.id);
   const perProductRemaining=MAX_BOXES_PER_PRODUCT-a.boxes-pending-qty;
@@ -550,7 +579,7 @@ function showStocks(){
  renderStockCapacity(panel,false);
  unlockedProducts().forEach(p=>{
   const a=state.inventory[p.id];
-  paragraph(p.name+" — "+stockAlert(p)+" | Rayon "+a.shelf+"/"+shelfCapacity(p)+" | "+(p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits"?"Chambre froide":"Réserve sèche")+" : "+a.boxes+"/5 cartons + "+a.reserve+" en vrac | "+a.price+" €");
+  paragraph(p.name+" — "+stockAlert(p)+" | Rayon "+a.shelf+"/"+shelfCapacity(p)+" | "+storageName(storageKind(p))+" : "+a.boxes+"/5 cartons + "+a.reserve+" en vrac | "+a.price+" €");
  });
 }
 function showPrices(){
@@ -1247,7 +1276,18 @@ function reserve2Part(x,y,z,w,h,d,color,solid=false){
 reserve2Part(12.65,-.15,34.0,5.3,.3,7.0,0xb9c1c8);
 reserve2Part(12.65,5.1,34.0,5.3,.2,7.0,0xf1f5f9);
 reserve2Part(10,2.5,34.0,.3,5,7.0,0xe2e8f0,true);
-reserve2Part(15.3,2.5,34.0,.3,5,7.0,0xe2e8f0,true);
+reserve2Part(15.3,2.5,32.25,.3,5,3.5,0xe2e8f0,true);
+reserve2Part(15.3,2.5,36.65,.3,5,1.7,0xe2e8f0,true);
+reserve2Part(15.3,4.2,35,.3,1.6,2,0xe2e8f0);
+reserve2Part(17.95,-.15,37.25,5.3,.3,13.5,0xa8b9c9);
+reserve2Part(17.95,5.1,37.25,5.3,.2,13.5,0xf1f5f9);
+reserve2Part(15.3,2.5,40.75,.3,5,6.5,0xdbeafe,true);
+reserve2Part(20.6,2.5,37.25,.3,5,13.5,0xdbeafe,true);
+for(const z of [30.5,44])reserve2Part(17.95,2.5,z,5.3,5,.3,0xdbeafe,true);
+for(const z of [32,35,38,41.5]){
+ reserve2Part(17.95,4.88,z,1.6,.05,.5,0xe0f2fe);
+ lamps.push({light:ceilingLamp(17.95,z),stockroom:true,requiresUpgrade:"store2"});
+}
 reserve2Part(12.65,2.5,37.4,5.3,5,.3,0xe2e8f0,true);
 for(const x of [11.6,13.8])for(const z of [32.4,35.4]){
  reserve2Part(x,4.905,z,1.62,.055,.58,0x94a3b8);
@@ -1266,9 +1306,8 @@ for(const x of [10.2,15.08])wallBaseboard(x,20.05,.07,7.0);
 // L’extension utilise désormais les mêmes plafonniers LED que l’ancienne réserve.
 // Réserve V3 : deux rangées murales uniquement. Aucun meuble au milieu de
 // l'allée, de l'accès magasin (x=10,z=5.5) ou devant l'interrupteur (z=7.8).
-const dryStorageSlots=[];
-function storageRack(x,z,face,expansion=false){
- const upgrade=expansion==="store2"?"store2":expansion?"store1":null;
+const dryStorageSlots=[],electronicsStorageSlots=[];
+function storageRack(x,z,face,upgrade=null,slots=dryStorageSlots){
  const put=(px,py,pz,w,h,d,col)=>{
   const m=cube(px,py,pz,w,h,d,col);
   if(upgrade==="store2")reserve2Meshes.push(m);
@@ -1278,7 +1317,7 @@ function storageRack(x,z,face,expansion=false){
  for(const y of [.62,1.62,2.62]){
   put(x,y,z,.84,.075,1.65,0x94a3b8);
   put(x,y+.062,z+.80,.84,.07,.035,0x64748b);
-  for(const dz of [-.37,.37])dryStorageSlots.push({x,y:y+.367,z:z+dz,face,requiresUpgrade:upgrade});
+  for(const dz of [-.37,.37])slots.push({x,y:y+.367,z:z+dz,face,requiresUpgrade:upgrade});
  }
  for(const dx of [-.38,.38])for(const dz of [-.78,.78])
   put(x+dx,1.66,z+dz,.055,3.32,.055,0x64748b);
@@ -1298,13 +1337,13 @@ for(const z of [3.2,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
  storageRack(14.55,z,-1);
 // Deux rangées supplémentaires, toujours sans étagère au milieu du passage.
 for(const z of [25.2,27.35,29.5]){
- storageRack(10.75,z,1,true);
- storageRack(14.55,z,-1,true);
+ storageRack(10.75,z,1,"store1");
+ storageRack(14.55,z,-1,"store1");
 }
-for(const z of [32.4,34.6,36.5]){
- storageRack(10.75,z,1,"store2");
- storageRack(14.55,z,-1,"store2");
-}
+for(const z of [32.4,34.6,36.5])storageRack(10.75,z,1,"store2");
+for(const z of [31.5,33.18,36.5])storageRack(14.55,z,-1,"store2");
+for(const z of [31.6,33.4,37.6,39.7,41.8])storageRack(16.05,z,1,"store2",electronicsStorageSlots);
+for(const z of [31.6,34.1,36.6,39.1,41.6])storageRack(19.85,z,-1,"store2",electronicsStorageSlots);
 // Ouverture rectangulaire de 3 m, du sol jusqu’à 3,4 m, sans panneau suspendu.
 // Mur arrière avec passage central réservé à la première extension.
 cube(-6,2.5,-10,8,5,.3,0xe2e8f0,true);
@@ -1385,7 +1424,9 @@ electronicsCube(0,.035,-22,3.8,.015,.2,0x94a3b8);
 for(const x of [-6,0,6])for(const z of [-14,-19])extensionCube(x,4.94,z,2.8,.05,.5,0xffffff);
 // Rayonnages muraux, avec tablettes inclinées et bordures.
 const wallProductRacks=[];
-function addWallRack(x,z,rotation=0,extension=true,assignedProduct=null){
+function addWallRack(product){
+ const {x,z}=product,rotation=product.rotation*Math.PI/2;
+ const extension=product.license==="extensionLicense";
  const rack=new THREE.Group();rack.position.set(x,0,z);rack.rotation.y=rotation;
  const steel=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
  for(const y of [.45,1.15,1.85]){
@@ -1398,16 +1439,9 @@ function addWallRack(x,z,rotation=0,extension=true,assignedProduct=null){
   const post=new THREE.Mesh(new THREE.BoxGeometry(.055,2.3,.055),steel);
   post.position.set(px,1.15,pz);rack.add(post);
  }
- // Chaque étagère vide possède son propre repère.
- const sign=shelfSign("Rayon disponible");
- sign.position.set(0,2.65,0);rack.add(sign);
- if(assignedProduct){
-  const productSign=shelfSign(assignedProduct.name);
-  productSign.position.set(0,2.65,0);rack.add(productSign);
-  sign.visible=!productAvailable(assignedProduct);
-  productSign.visible=productAvailable(assignedProduct);
-  wallProductRacks.push({rack,product:assignedProduct,availableSign:sign,productSign,rotation});
- }
+ const productSign=shelfSign(product.name);
+ productSign.position.set(0,2.65,0);rack.add(productSign);
+ wallProductRacks.push({rack,product,rotation});
  scene.add(rack);
  if(extension)extensionMeshes.push(rack);
  const alongX=Math.abs(Math.cos(rotation))>.5;
@@ -1415,30 +1449,7 @@ function addWallRack(x,z,rotation=0,extension=true,assignedProduct=null){
   minZ:z-(alongX?.42:1.3),maxZ:z+(alongX?.42:1.3),
   ...(extension?{requiresUpgrade:"store1"}:{})});
 }
-for(const x of [-7,7])addWallRack(x,-21.1,0,true);
-for(const z of [-13.5,-17,-20]){addWallRack(-9.15,z,Math.PI/2,true);addWallRack(9.15,z,-Math.PI/2,true);}
-addWallRack(-8.9,5.9,Math.PI/2,false,catalog.find(p=>p.id==="conserves"));
-addWallRack(-5.2,7.8,Math.PI,false,catalog.find(p=>p.id==="papier"));
-// Gondoles d'extension avec allées libres, uniquement visibles après achat.
-for(const x of [-5,0,5])for(const z of [-19]){
- const rack=new THREE.Group();rack.position.set(x,0,z);
- const steel=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.35});
- for(const y of [.45,1.15,1.85]){
-  const shelf=new THREE.Mesh(new THREE.BoxGeometry(2.8,.09,.95),steel);
-  shelf.position.y=y;shelf.rotation.x=.12;rack.add(shelf);
-  const rim=new THREE.Mesh(new THREE.BoxGeometry(2.8,.055,.04),steel);
-  rim.position.set(0,y+.08,.47);rack.add(rim);
- }
- for(const px of [-1.32,1.32])for(const pz of [-.43,.43]){
-  const post=new THREE.Mesh(new THREE.BoxGeometry(.06,2.25,.06),steel);
-  post.position.set(px,1.13,pz);rack.add(post);
- }
- // Panneau pour distinguer les étagères encore sans catégorie attribuée.
- const availableSign=shelfSign("Rayon disponible");
- availableSign.position.set(0,2.65,0);rack.add(availableSign);
- scene.add(rack);extensionMeshes.push(rack);
- colliders.push({minX:x-1.5,maxX:x+1.5,minZ:z-.55,maxZ:z+.55,requiresUpgrade:"store1"});
-}
+for(const p of catalog.filter(p=>p.kind==="wall"))addWallRack(p);
 function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
  const electronicsUnlocked=!!state.upgrades.store2;
@@ -1529,7 +1540,7 @@ function updateConstruction(dt){
   const target=state.construction.target||"store1";
   state.construction=null;state.upgrades[target]=true;
   updateConstructionUI();sync();
-  toast(target==="store2"?"Zone électronique ouverte ! Cinq rayons disponibles.":"Travaux terminés ! Extension et nouvelle réserve accessibles.");
+  toast(target==="store2"?"Zone électronique ouverte ! Dix rayons et une réserve dédiée.":"Travaux terminés ! Extension et nouvelle réserve accessibles.");
  }else updateConstructionUI();
 }
 updateConstructionUI();
@@ -1558,6 +1569,9 @@ entranceBrand.position.set(0,4.24,10.20);scene.add(entranceBrand);
 // Enseigne au-dessus de l’entrée de la réserve, face au magasin.
 const reserveBrand=brandPanel("ZONE STOCKAGE","RÉSERVE — PRODUITS SECS",2.9,.67);
 reserveBrand.position.set(9.78,4.15,5.5);reserveBrand.rotation.y=-Math.PI/2;scene.add(reserveBrand);
+const electronicsStorageBrand=brandPanel("RÉSERVE ÉLECTRONIQUE","STOCKAGE DES CARTONS",2.6,.62);
+electronicsStorageBrand.position.set(15.08,4.14,35);
+electronicsStorageBrand.rotation.y=-Math.PI/2;scene.add(electronicsStorageBrand);reserve2Meshes.push(electronicsStorageBrand);
 const corridorBrand=brandPanel("FBA SUPERMARKET","EXTENSION DU MAGASIN",3.75,.72);
 corridorBrand.position.set(0,4.18,-9.78);scene.add(corridorBrand);
 
@@ -1644,6 +1658,26 @@ function productModel(p){
    add(new THREE.BoxGeometry(.42,.29,.045),black,0,.09,0);
    add(new THREE.BoxGeometry(.38,.25,.008),screen,0,.09,.029);
    add(new THREE.BoxGeometry(.48,.025,.33),metal,0,-.08,.13);
+  }else if(p.id==="tablettes"){
+   add(new THREE.BoxGeometry(.40,.47,.038),black);
+   add(new THREE.BoxGeometry(.36,.42,.009),screen,0,0,.024);
+  }else if(p.id==="montres"){
+   add(new THREE.BoxGeometry(.105,.42,.032),base);
+   add(new THREE.BoxGeometry(.17,.18,.065),metal,0,.025,.022);
+   add(new THREE.BoxGeometry(.145,.155,.009),screen,0,.025,.06);
+  }else if(p.id==="appareils_photo"){
+   add(new THREE.BoxGeometry(.35,.23,.14),black);
+   add(new THREE.BoxGeometry(.16,.055,.11),base,-.055,.13,0);
+   const lens=add(new THREE.CylinderGeometry(.102,.113,.10,16),metal,0,0,.11);
+   lens.rotation.x=Math.PI/2;
+   add(new THREE.CircleGeometry(.077,16),screen,0,0,.163);
+  }else if(p.id==="enceintes"){
+   add(new THREE.CylinderGeometry(.115,.115,.38,16),base);
+   for(const y of [-.19,.19])add(new THREE.CylinderGeometry(.113,.113,.018,16),black,0,y,0);
+   add(new THREE.BoxGeometry(.035,.095,.014),metal,0,.095,.111);
+  }else if(p.id==="claviers"){
+   add(new THREE.BoxGeometry(.46,.16,.036),black);
+   for(const y of [-.04,.009,.058])add(new THREE.BoxGeometry(.39,.025,.013),metal,0,y,.022);
   }else if(p.id==="drones"){
    add(new THREE.BoxGeometry(.25,.085,.20),base);
    for(const x of [-.20,.20])for(const z of [-.19,.19]){
@@ -1862,7 +1896,7 @@ function addShelfGuide(p,x,z){
  const group=new THREE.Group();group.position.set(x,0,z);
  const sign=shelfSign(p.name);sign.position.set(0,2.72,0);group.add(sign);
  // Balise lumineuse sur toute la hauteur et la largeur du meuble, visible à travers les murs.
- const isCompact=!!p.level&&p.kind!=="extension"&&p.kind!=="froid"&&p.kind!=="congelateur"&&p.kind!=="wall";
+ const isCompact=!!p.level&&p.kind!=="electronics"&&p.kind!=="extension"&&p.kind!=="froid"&&p.kind!=="congelateur"&&p.kind!=="wall";
  const width=isCompact?1.3:p.kind==="froid"?1.35:p.kind==="congelateur"?1.55:2.9;
  const depth=isCompact?.95:p.kind==="congelateur"?3.6:p.kind==="froid"?1.8:1.2;
  const height=p.kind==="congelateur"?1.35:2.5;
@@ -1887,7 +1921,7 @@ function updateShelfGuides(){
   guide.group.visible=productAvailable(guide.p)&&(guide.p.kind!=="extension"||!!state.upgrades.store1)&&
    (guide.p.kind!=="electronics"||!!state.upgrades.store2);
   guide.highlight.visible=active;
-  guide.sign.visible=guide.group.visible;
+  guide.sign.visible=guide.group.visible&&guide.p.kind!=="wall"&&guide.p.kind!=="electronics";
  }
 }
 const extensionProductGroups={};
@@ -1919,10 +1953,11 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
  colliders.push({minX:p.x-1.4,maxX:p.x+1.4,minZ:p.z-.55,maxZ:p.z+.55,requiresUpgrade:"store1"});
 }
 
-// Zone électronique — cinq rayons avec 30 produits chacun.
+// Zone électronique : dix vitrines réparties sur deux rangées.
 const electronicsProductGroups={};
 for(const p of catalog.filter(p=>p.kind==="electronics")){
  const rack=new THREE.Group();rack.position.set(p.x,0,p.z);
+ const sign=shelfSign(p.name);sign.position.y=2.65;rack.add(sign);
  const steel=new THREE.MeshStandardMaterial({color:0x475569,metalness:.5,roughness:.35});
  const glass=new THREE.MeshStandardMaterial({color:0x8ecce0,transparent:true,opacity:.25,depthWrite:false});
  for(const y of [.45,1.15,1.85]){
@@ -1936,8 +1971,9 @@ for(const p of catalog.filter(p=>p.kind==="electronics")){
   const post=new THREE.Mesh(new THREE.BoxGeometry(.06,2.4,.06),steel);
   post.position.set(x,1.2,z);rack.add(post);
  }
+ const sample=productModel(p);
  for(let i=0;i<CAPACITY;i++){
-  const tier=Math.floor(i/10),slot=i%10,item=productModel(p);
+  const tier=Math.floor(i/10),slot=i%10,item=sample.clone();
   item.position.set(-1.02+(slot%5)*.51,.70+tier*.70,slot<5?-.20:.19);
   rack.add(item);displays[p.id].push(item);
  }
@@ -1945,13 +1981,14 @@ for(const p of catalog.filter(p=>p.kind==="electronics")){
  colliders.push({minX:p.x-1.35,maxX:p.x+1.35,minZ:p.z-.60,maxZ:p.z+.60,requiresUpgrade:"store2"});
  addShelfGuide(p,p.x,p.z);
 }
-// Les nouveaux produits occupent les deux étagères murales déjà installées.
+// Assortiment des rayonnages muraux et des trois gondoles du fond.
 for(const item of wallProductRacks){
  const p=item.product;
  for(const y of [.45,1.15,1.85])addPriceRail(item.rack,p,y+.025,2.55,.41);
+ const sample=productModel(p);
  for(let i=0;i<CAPACITY;i++){
   const tier=Math.floor(i/10),slot=i%10;
-  const model=productModel(p);
+  const model=sample.clone();
   model.position.set(-1.02+(slot%5)*.51,.69+tier*.70,slot<5?-.18:.18);
   item.rack.add(model);displays[p.id].push(model);
  }
@@ -1967,10 +2004,6 @@ function refreshDisplays(){
   m.visible=productAvailable(p)&&visible;
  });
  for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
- for(const item of wallProductRacks){
-  item.productSign.visible=productAvailable(item.product);
-  item.availableSign.visible=!productAvailable(item.product);
- }
  for(const p of catalog.filter(p=>p.kind==="extension")){const g=extensionProductGroups[p.id];if(g)g.visible=!!state.upgrades.store1;}
  for(const p of catalog.filter(p=>p.kind==="electronics")){const g=electronicsProductGroups[p.id];if(g)g.visible=!!state.upgrades.store2;}
  updateShelfGuides();
@@ -2054,10 +2087,14 @@ function toggleLights(){
 }
 // Chaque produit sec possède six places sur les étagères : cinq cartons et un lot ouvert.
 const boxes={},reserveModels={};
-const coldProduct=p=>coldStorageProduct(p);
-const dryProducts=catalog.filter(p=>!coldProduct(p));
-if(dryStorageSlots.length<dryProducts.length*(MAX_BOXES_PER_PRODUCT+1))
- throw Error("Capacité visuelle de la réserve insuffisante");
+const storageSlots={dry:dryStorageSlots,electronics:electronicsStorageSlots};
+const storageProductGroups={};
+for(const kind of Object.keys(storageSlots)){
+ const products=catalog.filter(p=>storageKind(p)===kind);
+ storageProductGroups[kind]=products;
+ if(storageSlots[kind].length<products.length*(MAX_BOXES_PER_PRODUCT+1))
+  throw Error("Capacité visuelle insuffisante : "+storageName(kind));
+}
 // Produits froids : conserver les emplacements des rayonnages inox.
 const coldSlots={
  fromage:{x:16.35,z:3.1},
@@ -2066,10 +2103,11 @@ const coldSlots={
 };
 for(const p of catalog){
  boxes[p.id]=[];
- const cold=coldProduct(p),slot=cold?coldSlots[p.id]:null;
- const base=cold?-1:dryProducts.findIndex(q=>q.id===p.id)*(MAX_BOXES_PER_PRODUCT+1);
+ const kind=storageKind(p),cold=kind==="cold",slot=cold?coldSlots[p.id]:null;
+ const slots=storageSlots[kind];
+ const base=cold?-1:storageProductGroups[kind].indexOf(p)*(MAX_BOXES_PER_PRODUCT+1);
  for(let j=0;j<MAX_BOXES_PER_PRODUCT;j++){
-  const pos=cold?{x:slot.x+(j%2===0?-.34:.34),y:[1.025,1.025,2.075,2.075,3.125][j],z:slot.z}:dryStorageSlots[base+j];
+  const pos=cold?{x:slot.x+(j%2===0?-.34:.34),y:[1.025,1.025,2.075,2.075,3.125][j],z:slot.z}:slots[base+j];
   const mesh=cube(pos.x,pos.y,pos.z,cold?.56:.51,.65,cold?.7:.55,0xb98246);
   const band=new THREE.Mesh(new THREE.BoxGeometry(cold?.44:.43,.085,.025),
    new THREE.MeshStandardMaterial({color:p.color,roughness:.7}));
@@ -2081,17 +2119,20 @@ for(const p of catalog){
    label.rotation.y=pos.face>0?Math.PI/2:-Math.PI/2;
    label.position.set(pos.face*.263,-.06,0);mesh.add(label);
   }
+  mesh.userData.requiresUpgrade=pos.requiresUpgrade;
   boxes[p.id].push(mesh);
  }
- const looseSlot=cold?{x:20.15,z:7.8}:dryStorageSlots[base+MAX_BOXES_PER_PRODUCT];
+ const looseSlot=cold?{x:20.15,z:7.8}:slots[base+MAX_BOXES_PER_PRODUCT];
  reserveModels[p.id]=cube(cold?looseSlot.x+(Object.keys(coldSlots).indexOf(p.id)-1)*.43:looseSlot.x,
   cold?1.05:looseSlot.y-.12,looseSlot.z,.42,.4,.45,p.color);
+ reserveModels[p.id].userData.requiresUpgrade=looseSlot.requiresUpgrade;
 }
 function refreshBoxes(){
  catalog.forEach(p=>{
   const a=state.inventory[p.id];
-  boxes[p.id].forEach((m,i)=>m.visible=i<Math.min(MAX_BOXES_PER_PRODUCT,a.boxes));
-  reserveModels[p.id].visible=a.reserve>0;
+  const visible=m=>!m.userData.requiresUpgrade||state.upgrades[m.userData.requiresUpgrade];
+  boxes[p.id].forEach((m,i)=>m.visible=visible(m)&&i<Math.min(MAX_BOXES_PER_PRODUCT,a.boxes));
+  reserveModels[p.id].visible=visible(reserveModels[p.id])&&a.reserve>0;
  });
 }
 function sync(){hud();refreshDisplays();refreshBoxes();refreshExtension();updateLighting();save();}
@@ -2115,14 +2156,24 @@ function refreshCarry(){
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
 function atReserve(){return camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<(state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45);}
 function atColdRoom(){return camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
-function atStorageFor(p){return coldProduct(p)?atColdRoom():atReserve();}
+function atElectronicsReserve(){
+ const {x,z}=camera.position;
+ return !!state.upgrades.store2&&x>=15.3&&x<20.35&&z>30.75&&z<43.7;
+}
+function currentStorageKind(){
+ if(atElectronicsReserve())return "electronics";
+ if(atColdRoom())return "cold";
+ return atReserve()?"dry":null;
+}
+function atStorageFor(p){return currentStorageKind()===storageKind(p);}
 function putBack(){
  if(!held)return;
+ const p=catalog.find(p=>p.id===held.id);
+ if(!p||!atStorageFor(p))return;
  if(held.source==="delivery"&&held.quantity===BOX_UNITS){
-  const p=catalog.find(p=>p.id===held.id);
-  if(!p||state.inventory[held.id].boxes>=MAX_BOXES_PER_PRODUCT||
+  if(state.inventory[held.id].boxes>=MAX_BOXES_PER_PRODUCT||
    storageBoxes(storageKind(p))>=storageLimit(storageKind(p))){
-   toast(p?storageName(storageKind(p))+" pleine ou limite par produit atteinte":"Produit inconnu");return;
+   toast(storageName(storageKind(p))+" pleine ou limite par produit atteinte");return;
   }
   state.inventory[held.id].boxes++;
  }
@@ -2349,6 +2400,11 @@ scene.add(workerGroup);
 const workerRouteDock=[[25.65,-23.8],[25.65,-18],[25.65,-10],[25.65,0],[25.65,5.5]];
 const workerRouteDry=[[25.65,5.5],[24.7,5.5],[22,5.5],[19,5.5],[16.2,5.5],[14.2,5.5]];
 const workerRouteCold=[[25.65,5.5],[24.7,5.5],[22,5.5],[19.5,5.5]];
+const workerRouteElectronics=[...workerRouteDry,[12.65,5.5],[12.65,35],[17.95,35]];
+function workerStorageRoute(p){
+ const kind=p?storageKind(p):"dry";
+ return kind==="electronics"?workerRouteElectronics:kind==="cold"?workerRouteCold:workerRouteDry;
+}
 let workerRoute=[],workerWaypoint=0,workerPhase="dock",workerCargo=null,workerWait=0,workerTalking=false,workerTalkTimer=0,workerWalkClock=0;
 let workerBreakJourney=null,stockerBreakJourney=null;
 const WORKER_BREAK_SEAT={x:22.2,z:-5.25},STOCKER_BREAK_SEAT={x:22.2,z:-6.75};
@@ -2444,8 +2500,11 @@ function showStockerInteraction(){
 function stockerShelfPosition(p){
  // La position du produit désigne le centre du meuble : rester côté allée.
  // Rayons centraux : accès depuis l'allée latérale, pas à travers la gondole.
- if(p.kind==="extension"||p.kind==="electronics")return [p.x,p.z+2.1];
- if(p.kind==="wall")return p.id==="conserves"?[-7.65,5.9]:[-5.2,6.55];
+ if(p.kind==="extension"||p.kind==="electronics")return [p.x,p.z+2.0];
+ if(p.kind==="wall"){
+  const angle=p.rotation*Math.PI/2;
+  return [p.x+Math.sin(angle)*1.25,p.z+Math.cos(angle)*1.25];
+ }
  if(p.kind==="froid"||p.kind==="congelateur")return [p.x,p.z+2.1];
  if(p.x<=-4)return [p.x+1.65,p.z??1];
  if(p.x>=4)return [p.x-1.65,p.z??1];
@@ -2454,6 +2513,14 @@ function stockerShelfPosition(p){
 let stockerRoute=[];
 function stockerRouteTo(point){
  const x=stockerGroup.position.x,z=stockerGroup.position.z;
+ if(z<-10||point[1]<-10||z>30||point[1]>30){
+  const path=staffBreakPath({x,z},{x:point[0],z:point[1]});
+  if(path.length){
+   stockerRoute=path.slice(1).map(({x,z})=>[x,z]);
+   stockerTarget=stockerRoute.shift();
+   return;
+  }
+ }
  const inside=x>10.3&&z>1.8,goingInside=point[0]>10.3&&point[1]>1.8;
  const route=[];
  // L'accès aux deux extensions suit les portes centrales à z=-10 et z=-22.
@@ -2511,7 +2578,11 @@ function updateStocker(dt){
    return;
   }else{
    const p=stockerNeeds();
-   if(p){stockerCargo=p.id;stockerPhase="reserve";stockerRouteTo([coldProduct(p)?19:13,5]);}
+   if(p){
+    stockerCargo=p.id;stockerPhase="reserve";
+    const kind=storageKind(p);
+    stockerRouteTo(kind==="electronics"?[17.95,35]:[kind==="cold"?19:13,5]);
+   }
    else if(Math.hypot(stockerGroup.position.x-13,stockerGroup.position.z-5)>.3){stockerPhase="idle-return";stockerRouteTo([13,5]);}
    else{stockerPhase="idle";return;}
   }
@@ -2558,7 +2629,7 @@ function updateWorker(dt){
  if(!workerRoute.length){
   if(workerCargo){
    const p=catalog.find(p=>p.id===workerCargo.id);
-   workerGo((p&&coldProduct(p)?workerRouteCold:workerRouteDry).slice().reverse(),"storage");
+   workerGo(workerStorageRoute(p),"storage");
   }else if(state.deliveryDock.length){
    workerGo(workerRouteDock.slice().reverse(),"pickup");
   }else if(Math.hypot(workerGroup.position.x-25.65,workerGroup.position.z+23.8)>.3){
@@ -2595,14 +2666,14 @@ function updateWorker(dt){
   });
   if(idx>=0){workerCargo=state.deliveryDock.splice(idx,1)[0];refreshDeliveryDock();sync();
    const p=catalog.find(p=>p.id===workerCargo.id);
-   workerGo(p&&coldProduct(p)?workerRouteCold:workerRouteDry,"storage");
+   workerGo(workerStorageRoute(p),"storage");
   }else workerGo(workerRouteDock,"dock");
  }else if(workerPhase==="storage"&&workerCargo){
   const p=catalog.find(p=>p.id===workerCargo.id);
   if(p&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&storageBoxes(storageKind(p))<storageLimit(storageKind(p))){
    state.inventory[p.id].boxes++;toast("Manutentionnaire : carton de "+p.name+" rangé");
   }else state.deliveryDock.push(workerCargo);
-  workerCargo=null;sync();refreshDeliveryDock();workerGo((p&&coldProduct(p)?workerRouteCold:workerRouteDry).slice().reverse(),"dock");
+  workerCargo=null;sync();refreshDeliveryDock();workerGo(workerStorageRoute(p).slice().reverse(),"dock");
  }else if(workerPhase==="dock")workerRoute=[];
 }
 function refreshDeliveryDock(){
@@ -2637,7 +2708,7 @@ function showDeliveryDock(){
    if(i<0||held)return;
    state.deliveryDock.splice(i,1);held={id:p.id,quantity:BOX_UNITS,source:"delivery"};
    sync();refreshDeliveryDock();refreshCarry();panel.style.display="none";
-   toast("Carton de "+p.name+" : range-le dans "+(coldProduct(p)?"la chambre froide":"la réserve sèche"));
+   toast("Carton de "+p.name+" à ranger : "+storageName(storageKind(p)));
   });
  }
 }
@@ -2648,9 +2719,9 @@ function showTrolley(){
  if(!state.trolleyCargo.length){paragraph("Diable vide. Charge-le au quai de déchargement.");return;}
  for(const [i,it] of state.trolleyCargo.entries()){
   const p=catalog.find(p=>p.id===it.id);
-  paragraph((i+1)+". "+(p?p.name:it.id)+" — "+(p&&coldProduct(p)?"chambre froide":"réserve sèche"));
-  if(atReserve()||atColdRoom()){
-   if(p&&atStorageFor(p))button(panel,"Décharger "+p.name,()=>{
+  paragraph((i+1)+". "+(p?p.name:it.id)+" — "+(p?storageName(storageKind(p)):"Produit inconnu"));
+  if(p&&atStorageFor(p)){
+   button(panel,"Décharger "+p.name,()=>{
     const a=state.inventory[p.id];
     if(a.boxes>=MAX_BOXES_PER_PRODUCT){toast("Maximum de cartons pour "+p.name);return;}
     if(storageBoxes(storageKind(p))>=storageLimit(storageKind(p))){toast(storageName(storageKind(p))+" pleine");return;}
@@ -2658,11 +2729,13 @@ function showTrolley(){
    });
   }
  }
- if(!atReserve()&&!atColdRoom())paragraph("Pour décharger, rends-toi dans la réserve sèche ou la chambre froide.");
+ if(!currentStorageKind())paragraph("Pour décharger, rends-toi dans la zone de stockage indiquée pour le carton.");
 }
 function showReserve(){
- if(!atReserve()&&!atColdRoom()){toast("Approche-toi de la réserve ou de la chambre froide");return;}
- openPanel(atColdRoom()?"Chambre froide — produits frais et surgelés":"Réserve — produits secs");
+ const kind=currentStorageKind();
+ if(!kind){toast("Approche-toi d’une zone de stockage");return;}
+ openPanel(storageName(kind));
+ paragraph(storageBoxes(kind)+" / "+storageLimit(kind)+" cartons occupés.");
  if(state.upgrades.handtruck&&state.trolleyCargo.length)button(panel,"Décharger le diable ("+state.trolleyCargo.length+" cartons)",showTrolley);
  if(held){
   const p=catalog.find(p=>p.id===held.id);
@@ -2670,7 +2743,7 @@ function showReserve(){
   button(panel,held.source==="loose"?"Reposer les produits en vrac":held.source==="delivery"?"Ranger le carton livré":"Reposer le carton",putBack);
   return;
  }
- for(const p of unlockedProducts().filter(p=>coldProduct(p)===atColdRoom())){
+ for(const p of unlockedProducts().filter(p=>storageKind(p)===kind)){
   const a=state.inventory[p.id];
   paragraph("● "+p.name+" — "+stockAlert(p)+" | Cartons : "+a.boxes+"/5 ("+(a.boxes*BOX_UNITS)+" unités) | Espace vrac : "+a.reserve+" unités | Total réserve : "+(a.reserve+a.boxes*BOX_UNITS));
   if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10,"box"));
@@ -2726,7 +2799,7 @@ function interact(){
    toast(placed+" × "+p.name+" placés"+(held?" — "+held.quantity+" restants":""));
    return;
   }
-  if(atReserve()||atColdRoom()){if(!atStorageFor(p)){toast("Ce carton appartient à "+(coldProduct(p)?"la chambre froide":"la réserve sèche"));return;}showReserve();return;}
+  if(currentStorageKind()){if(!atStorageFor(p)){toast("Zone de rangement : "+storageName(storageKind(p)));return;}showReserve();return;}
   toast("Suis le rayon "+p.name+" surligné en bleu puis appuie sur Interagir");
   return;
  }
@@ -2735,7 +2808,7 @@ function interact(){
  if(near(25.65,-24.3,3.2)){showDeliveryDock();return;}
  if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
  if(near(10.2,7.8,1.45)&&camera.position.x>10.2){toggleStockroomLights();return;}
- if(atReserve()||atColdRoom()){showReserve();return;}
+ if(currentStorageKind()){showReserve();return;}
  if(fridgeDoor&&playerLevel()>=4&&near(-8.5,-3.5,2.4)){
   fridgeOpen=!fridgeOpen;fridgeDoor.rotation.y=fridgeOpen?-1.15:0;
   toast(fridgeOpen?"Réfrigérateur ouvert":"Réfrigérateur fermé");return;
@@ -2814,6 +2887,8 @@ function blocked(x,z,r=.4){
  const reserveDepth=state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
  const cold=x>15.55&&x<23.75&&z>1.8&&z<16.8;
+ const electronicsReserve=state.upgrades.store2&&x>15.55&&x<20.35&&z>30.75&&z<43.7;
+ const electronicsReserveDoor=state.upgrades.store2&&x>=15.0-r&&x<=15.6+r&&z>34+r&&z<35.8-r;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<13.45;
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
@@ -2822,13 +2897,13 @@ function blocked(x,z,r=.4){
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
  const breakDoor=x>23.5&&x<24.65&&z>-7.25+r&&z<-4.75-r;
- if(!(shop||reserve||cold||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor))return true;
+ if(!(shop||reserve||cold||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor))return true;
  return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 // Trajets employés sur la carte du bâtiment, sans traverser murs, rayons ni meubles.
 // Les chemins parcourus sont inversés après la pause : reprise au point de travail exact.
 function staffBreakPath(from,to){
- const STEP=.5,MIN_X=-10,MIN_Z=-28,W=80,H=99;
+ const STEP=.5,MIN_X=-10,MIN_Z=-34,W=80,H=157;
  const at=(i,j)=>({x:MIN_X+i*STEP,z:MIN_Z+j*STEP});
  const node=p=>({i:Math.max(0,Math.min(W-1,Math.round((p.x-MIN_X)/STEP))),
                  j:Math.max(0,Math.min(H-1,Math.round((p.z-MIN_Z)/STEP)))});
@@ -2996,13 +3071,9 @@ function makeCustomer(){
  const choices=[...unlockedProducts()].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*catalog.length));
  const route=[{x:0,z:8}];
  for(const p of choices){
-  if(p.kind==="wall"){
-   if(p.id==="conserves")route.push({x:-7.6,z:6.55},{x:-7.6,z:5.9,shop:p.id},{x:-7.6,z:6.55});
-   else route.push({x:-3.4,z:6.55},{x:-5.2,z:6.55,shop:p.id},{x:-3.4,z:6.55});
-   continue;
-  }
-  if(p.kind==="electronics"){
-   route.push({x:0,z:-19.5},{x:0,z:-24.5},{x:p.x,z:p.z+2.0,shop:p.id},{x:0,z:-24.5},{x:0,z:-19.5});
+  if(p.kind==="wall"||p.kind==="electronics"||p.kind==="extension"){
+   const [x,z]=stockerShelfPosition(p);
+   route.push({x,z,shop:p.id});
    continue;
   }
   const aisleX=p.level?(p.x<0?-7.2:7.2):(p.x===5?2.5:p.x-2.5);
@@ -3016,7 +3087,7 @@ function makeCustomer(){
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
   speed:1.2+Math.random()*.35,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,
   visualClock:Math.random()*6,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
-  stuckTime:0,shoppingTime:0,queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:0,lastNavZ:12.5
+  stuckTime:0,shoppingTime:0,shoppingTimeLimit:choices.some(p=>p.kind==="electronics")?65:42,queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:0,lastNavZ:12.5
  });
 }
 function updateCustomerVisual(c,dt){
@@ -3158,7 +3229,7 @@ function updateCustomers(dt){
   updateCustomerVisual(c,dt);
   if(c.phase==="shopping"){
    c.shoppingTime=(c.shoppingTime||0)+dt;
-   if(c.shoppingTime>42){sendToQueue(c);continue;}
+   if(c.shoppingTime>c.shoppingTimeLimit){sendToQueue(c);continue;}
    const t=c.route[c.waypoint];
    if(!t){sendToQueue(c);continue;}
    const beforeX=c.group.position.x,beforeZ=c.group.position.z;
@@ -3305,4 +3376,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.11.2 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.12.0 !");
