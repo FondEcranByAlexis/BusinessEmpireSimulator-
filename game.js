@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.10";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.10";
-// Business Empire Simulator V0.13.10 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.11";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.11";
+// Business Empire Simulator V0.13.11 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -131,8 +131,8 @@ function inStorageWing(kind,x,z){
  return bays>0&&z<wing.start+bays*STORAGE_BAY_DEPTH-.25;
 }
 function playerLevel(){
- if(DEV_MODE)return Math.max(1,Math.min(MAX_LEVEL,Math.floor(Number(state.devLevel)||1)));
- return levelForRevenue(finance.revenue);
+ if(DEV_MODE&&Number.isFinite(state.devLevel))return Math.max(1,Math.min(MAX_LEVEL,Math.floor(state.devLevel)));
+ return levelForRevenue(state.finance.revenue);
 }
 function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
 function nextLevelLabel(){
@@ -368,17 +368,11 @@ if(DEV_MODE&&state.construction){
  state.construction=null;
 }
 // Les niveaux déjà acquis ne déclenchent aucune notification rétroactive.
-if(!Number.isInteger(state.lastNotifiedLevel)){
- let achieved=1;
- if(DEV_MODE)achieved=Math.max(1,Math.min(MAX_LEVEL,Math.floor(Number(state.devLevel)||1)));
- else achieved=levelForRevenue(state.finance.revenue);
- state.lastNotifiedLevel=achieved;
-}
+if(!Number.isInteger(state.lastNotifiedLevel))state.lastNotifiedLevel=playerLevel();
 state.progressionVersion=1;
 state.management=state.management??{};
 state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
 state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
-if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
 state.hour=7;
 state.playerName=state.playerName||"Joueur";
 state.workerName=state.workerName||"George";
@@ -739,15 +733,36 @@ function switchDevMode(enable){
  }else localStorage.setItem("fba-dev-enabled","false");
  location.reload();
 }
+function showTestReset(){
+ openPanel("Repartir au niveau 1 en mode test");
+ paragraph("Tu recommences au jour 1 avec 1 000 €, le stock de départ et aucune amélioration. Les niveaux se débloquent au fil de tes ventes.");
+ button(panel,"Confirmer la réinitialisation du test",()=>{
+  if(!DEV_MODE)return;
+  try{
+   localStorage.setItem(DEV_SAVE,JSON.stringify(initial()));
+  }catch(e){
+   console.warn("Réinitialisation du test",e);
+   toast("Impossible d’enregistrer la nouvelle partie de test.");
+   return;
+  }
+  location.reload();
+ });
+ button(panel,"Annuler",showDevTools);
+}
 function showDevTools(){
  openPanel("FBA GAMES — MODE TEST");
  paragraph("Sauvegarde de test indépendante. Ces commandes ne modifient pas ta partie normale.");
  paragraph("Niveau de test : "+playerLevel()+" | Argent : "+euro(state.money));
+ paragraph(Number.isFinite(state.devLevel)?"Progression manuelle":"Progression par chiffre d’affaires");
  const selector=inputNumber("Choisis un niveau entre 1 et "+MAX_LEVEL,playerLevel(),1,MAX_LEVEL);
  button(panel,"Appliquer le niveau",()=>{
   const level=Number(selector.value);
   if(!Number.isInteger(level)||level<1||level>MAX_LEVEL){toast("Saisis un niveau de 1 à "+MAX_LEVEL);return;}
   state.devLevel=level;state.lastNotifiedLevel=level;sync();showDevTools();toast("Niveau de test : "+level);
+ });
+ if(Number.isFinite(state.devLevel))button(panel,"Reprendre la progression par les ventes",()=>{
+  delete state.devLevel;
+  state.lastNotifiedLevel=playerLevel();sync();showDevTools();
  });
  button(panel,"Ajouter 100 000 €",()=>{state.money+=100000;sync();showDevTools();});
  button(panel,"Débloquer toutes les améliorations existantes",()=>{
@@ -758,6 +773,7 @@ function showDevTools(){
   for(const p of unlockedProducts())state.inventory[p.id].shelf=shelfCapacity(p);
   sync();showDevTools();
  });
+ button(panel,"Réinitialiser le mode test",showTestReset);
  button(panel,"Retour à la partie normale",()=>switchDevMode(false));
 }
 function showMainMenu(){
@@ -4597,4 +4613,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.10 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.11 !");
