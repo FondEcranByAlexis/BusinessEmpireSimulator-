@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.9";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.9";
-// Business Empire Simulator V0.13.9 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.10";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.10";
+// Business Empire Simulator V0.13.10 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -4274,7 +4274,12 @@ for(const register of extraRegisters){
  colliders.push({minX:x-.59,maxX:x+.59,minZ:z-.77,maxZ:z+.77,level});
 }
 function activeRegisters(){return extraRegisters.filter(r=>playerLevel()>=r.level);}
-function auxiliaryCustomerCount(register){return register.queue.length+Number(!!register.client);}
+function approachingCustomerCount(register){
+ return customers.filter(c=>c.phase==="approachingQueue"&&c.auxRegister===register).length;
+}
+function auxiliaryCustomerCount(register){
+ return register.queue.length+Number(!!register.client)+approachingCustomerCount(register);
+}
 function showAuxiliaryRegisters(){
  openPanel("Caisses supplémentaires");
  for(const register of activeRegisters()){
@@ -4336,7 +4341,7 @@ function updateAuxiliaryQueue(client,dt){
  const i=register.queue.indexOf(client);
  if(i<0){sendToExit(client);return;}
  const p=client.group.position,beforeX=p.x,beforeZ=p.z;
- const target={x:register.queueX,z:register.queueZ-Math.min(i+Number(!!register.client),4)*.65};
+ const target=queueSpot(i,register);
  const arrived=walk(client,target,dt);
  if(arrived&&register.client){
   faceNpc(client.group,register.queueX-p.x,register.queueZ-p.z,dt);
@@ -4351,19 +4356,41 @@ function updateAuxiliaryQueue(client,dt){
   toast(register.express?"Client à la caisse express":"Client à la caisse 2");
  }else if(client.queueStall>10)sendToExit(client);
 }
-function queueSpot(i){return {x:3.65,z:6.25-Math.min(i+Number(!!cashier),4)*.78};}
+const CHECKOUT_APPROACH_FALLBACK={x:3.35,z:6.5};
+function queueSpot(i,register){
+ if(register)return {x:register.queueX,z:register.queueZ-Math.min(i+Number(!!register.client),4)*.65};
+ return {x:3.65,z:6.25-Math.min(i+Number(!!cashier),4)*.78};
+}
 function sendToQueue(c){
- if(c.phase==="queue"||c.phase==="checkout"||c.phase==="auxQueue"||c.phase==="auxCheckout")return;
+ if(c.phase==="approachingQueue"||c.phase==="queue"||c.phase==="checkout"||c.phase==="auxQueue"||c.phase==="auxCheckout")return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(count===0){sendToExit(c);return;}
  const register=activeRegisters().filter(r=>!r.express||count<=5)
   .sort((a,b)=>auxiliaryCustomerCount(a)-auxiliaryCustomerCount(b))[0];
- if(register&&auxiliaryCustomerCount(register)<queue.length+Number(!!cashier)){
-  c.auxRegister=register;c.phase="auxQueue";c.queueStall=0;c.navTarget=null;c.navRoute=null;
-  register.queue.push(c);return;
+ if(register&&auxiliaryCustomerCount(register)<queue.length+Number(!!cashier)+approachingCustomerCount()){
+  c.auxRegister=register;
  }
- c.phase="queue";c.queueStall=0;c.checkoutApproach=null;c.navTarget=null;c.navRoute=null;
- if(!queue.includes(c))queue.push(c);
+ c.phase="approachingQueue";c.queueStall=0;c.checkoutApproach=null;c.navTarget=null;c.navRoute=null;
+}
+function updateQueueApproach(c,dt){
+ const register=c.auxRegister,line=register?.queue??queue;
+ const counterFree=!register&&!cashier&&line.length===0;
+ if(!counterFree)c.checkoutApproach=null;
+ const target=c.checkoutApproach??queueSpot(line.length,register);
+ const p=c.group.position,x=p.x,z=p.z;
+ const arrived=walk(c,target,dt);
+ if(arrived||(counterFree&&Math.hypot(p.x-target.x,p.z-target.z)<.45&&customerCanWalk(p,target))){
+  // Les clients prennent leur place à leur arrivée, dans l'ordre de la file visible.
+  line.push(c);c.phase=register?"auxQueue":"queue";c.queueStall=0;
+  return;
+ }
+ c.queueStall=Math.hypot(p.x-x,p.z-z)>.003?0:c.queueStall+dt;
+ if(c.queueStall>5&&counterFree&&!c.checkoutApproach){
+  c.checkoutApproach=CHECKOUT_APPROACH_FALLBACK;c.queueStall=0;
+  c.navTarget=null;c.navRoute=null;
+ }else if(c.queueStall>10){
+  changeSatisfaction(-2);sendToExit(c);
+ }
 }
 function sendToExit(c){
  if(!c.paid&&Object.keys(c.basket).length){
@@ -4420,6 +4447,8 @@ function updateCustomers(dt){
     }
     c.phase="shopping";
    }
+  }else if(c.phase==="approachingQueue"){
+   updateQueueApproach(c,dt);
   }else if(c.phase==="auxQueue"||c.phase==="auxCheckout"){
    updateAuxiliaryQueue(c,dt);
   }else if(c.phase==="queue"){
@@ -4440,7 +4469,7 @@ function updateCustomers(dt){
    }else if(c.queueStall>5){
     c.queueStall=0;c.navTarget=null;c.navRoute=null;
     if(i===0&&!cashier){
-     if(!c.checkoutApproach)c.checkoutApproach={x:3.35,z:6.5};
+     if(!c.checkoutApproach)c.checkoutApproach=CHECKOUT_APPROACH_FALLBACK;
      else{changeSatisfaction(-2);sendToExit(c);}
     }else c.l.rotation.x=c.r.rotation.x=0;
    }
@@ -4568,4 +4597,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.9 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.10 !");
