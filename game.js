@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.14";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.14";
-// Business Empire Simulator V0.13.14 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.15";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.15";
+// Business Empire Simulator V0.13.15 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -80,7 +80,7 @@ const upgradeCatalog=[
  // L’identifiant de l’ancienne compétence conserve les achats des sauvegardes existantes.
  {id:"phoneSkill",name:"Licence Téléphonie",level:6,cost:1200,requires:"store2",category:"licences",description:"Autorise la vente de téléphones après l’installation du rayon dédié."},
  {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:["store2","phoneSkill"],category:"extensions",description:"Ouvre le rayon Téléphones dans le hall électronique."},
- {id:"fastMovement",name:"Déplacement rapide",level:6,cost:500,category:"competences",description:"Augmente de 10 % ta vitesse de déplacement à pied."},
+ {id:"fastMovement",name:"Déplacement rapide",level:6,cost:500,category:"competences",description:"Augmente de 25 % ta vitesse de déplacement à pied."},
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
  {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",description:"Débloque la spécialisation consoles."},
  {id:"freshLicense",name:"Licence produits frais et surgelés",level:4,cost:650,description:"Autorise la vente de fromage et de pizzas surgelées."},
@@ -4025,7 +4025,7 @@ function movePlayer(dt){
  if(!f&&!s)return;
  const len=Math.max(1,Math.hypot(f,s));
  const baseSpeed=state.upgrades.handtruck&&state.trolleyCargo.length?3.7:5.5;
- const speed=baseSpeed*(state.upgrades.fastMovement?1.1:1)*dt;
+ const speed=baseSpeed*(state.upgrades.fastMovement?1.25:1)*dt;
  const dx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)/len*speed;
  const dz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)/len*speed;
  if(!blocked(camera.position.x+dx,camera.position.z))camera.position.x+=dx;
@@ -4622,4 +4622,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.14 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.15 !");
