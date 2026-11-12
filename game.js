@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.12";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.12";
-// Business Empire Simulator V0.13.12 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.13";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.13";
+// Business Empire Simulator V0.13.13 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -40,7 +40,7 @@ const catalog=[
  {id:"semoule",name:"Semoule",cost:3,price:7,color:0xeab308,x:-5,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
  {id:"graines",name:"Graines de tournesol",cost:4,price:9,color:0xc084fc,x:0,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
  {id:"sauce_tomate",name:"Sauce tomate",cost:4,price:8,color:0xef4444,x:5,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
- {id:"smartphones",name:"Téléphones",cost:65,price:125,color:0x2563eb,x:-8.9,z:-24.1,level:6,kind:"electronics",rotation:1,license:"phones"},
+ {id:"smartphones",name:"Téléphones",cost:65,price:125,color:0x2563eb,x:-8.9,z:-24.1,level:6,kind:"electronics",rotation:1,license:"phoneSkill",requiresShelf:"phones"},
  {id:"ecouteurs",name:"Écouteurs",cost:12,price:29,color:0x38bdf8,x:8.9,z:-24.1,level:5,kind:"electronics",rotation:-1,license:"store2"},
  {id:"casques",name:"Casques audio",cost:25,price:59,color:0xa78bfa,x:8.9,z:-27.1,level:5,kind:"electronics",rotation:-1,license:"store2"},
  {id:"ordinateurs",name:"Ordinateurs",cost:135,price:279,color:0x94a3b8,x:-6.7,z:-32.5,level:5,kind:"electronics",rotation:0,license:"store2"},
@@ -77,8 +77,9 @@ const upgradeCatalog=[
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
  {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Agrandit le magasin et la réserve sèche : +40 places de stockage, jusqu’à 100 cartons après l’amélioration du niveau 3."},
  {id:"store2",name:"Extension Électronique II",level:5,cost:3000,requires:"store1",description:"Hall électronique avec neuf rayons disponibles dès l’ouverture et un emplacement pour les téléphones au niveau 6. Réserve électronique : 60 cartons. Réserve sèche : +60 cartons."},
- {id:"phoneSkill",name:"Compétence Téléphonie",level:6,cost:1200,requires:"store2",description:"Formation préalable à la vente de téléphones."},
- {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:["store2","phoneSkill"],description:"Débloque la spécialisation téléphones."},
+ // L’identifiant de l’ancienne compétence conserve les achats des sauvegardes existantes.
+ {id:"phoneSkill",name:"Licence Téléphonie",level:6,cost:1200,requires:"store2",category:"licences",description:"Autorise la vente de téléphones après l’installation du rayon dédié."},
+ {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:["store2","phoneSkill"],category:"extensions",description:"Ouvre le rayon Téléphones dans le hall électronique."},
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
  {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",description:"Débloque la spécialisation consoles."},
  {id:"freshLicense",name:"Licence produits frais et surgelés",level:4,cost:650,description:"Autorise la vente de fromage et de pizzas surgelées."},
@@ -181,7 +182,7 @@ function hasProductLicense(p){
  return true;
 }
 function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p)&&(!p.department||state.upgrades[p.department])&&(p.kind!=="electronics"||!!state.upgrades.store2)&&
- (p.license!=="extensionLicense"||!!state.upgrades.store1);}
+ (p.license!=="extensionLicense"||!!state.upgrades.store1)&&(!p.requiresShelf||!!state.upgrades[p.requiresShelf]);}
 function unlockedProducts(){return catalog.filter(productAvailable);}
 function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=2?2:0);}
 const CONSTRUCTION_DAYS=3;
@@ -214,7 +215,7 @@ function upgradeCategory(u){
  if(u.id==="store1"||u.id==="store2")return "extensions";
  if(u.id==="reserve1"||u.id==="handtruck")return "stock";
  if(u.id==="freshLicense"||u.id==="fruitLicense"||u.id==="extensionLicense")return "licences";
- if(u.id.endsWith("Skill")||u.id==="phones"||u.id==="consoles")return "competences";
+ if(u.id.endsWith("Skill")||u.id==="consoles")return "competences";
  return "extensions";
 }
 function missingUpgradePrerequisites(upgrade){
@@ -252,7 +253,7 @@ function showUpgrades(tab=activeUpgradeTab){
   if(products.length)paragraph("Références : "+products.map(p=>p.name).join(", ")+".");
   button(panel,"Consulter les stocks",showStocks);
  }else if(activeUpgradeTab==="extensions"){
-  note.textContent=DEV_MODE?"En mode test, les extensions ouvrent dès l’achat.":"Agrandissements du magasin et suivi des chantiers.";
+  note.textContent=DEV_MODE?"Extensions et nouveaux rayons. En mode test, les extensions ouvrent dès l’achat.":"Extensions, nouveaux rayons et suivi des chantiers.";
   if(state.construction&&!state.upgrades[state.construction.target||"store1"]){
    paragraph("Chantier "+(state.construction.target==="store2"?"électronique":"magasin")+" : "+constructionPercent()+" % — "+constructionStage()+".");
    paragraph("Ouvriers de 8 h à 17 h, pendant trois journées de travail.");
@@ -527,7 +528,7 @@ function showNextLevelNotice(){
  const newProducts=catalog.filter(p=>(p.level||1)===level);
  section("NOUVEAUX PRODUITS",newProducts.map(p=>{
   const required=p.license||(["fromage","surgeles"].includes(p.id)?"freshLicense":p.id==="pommes"?"fruitLicense":null);
-  const prerequisites=[required,p.department].filter(id=>id&&!state.upgrades[id]).map(id=>upgradeCatalog.find(u=>u.id===id)?.name).filter(Boolean);
+  const prerequisites=[required,p.requiresShelf,p.department].filter(id=>id&&!state.upgrades[id]).map(id=>upgradeCatalog.find(u=>u.id===id)?.name).filter(Boolean);
   return p.name+(prerequisites.length?" — nécessite : "+prerequisites.join(" et "):" — disponible");
  }));
  const newUpgrades=upgradeCatalog.filter(u=>u.level===level);
@@ -4618,4 +4619,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.12 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.13 !");
