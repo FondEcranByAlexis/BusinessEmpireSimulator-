@@ -1,5 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.12.2 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.0";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, ANNEX_DEPTH, annexWall } from "./departments.js?v=0.13.0";
+// Business Empire Simulator V0.13.0 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -49,6 +51,24 @@ const catalog=[
  {id:"enceintes",name:"Enceintes Bluetooth",cost:32,price:69,color:0xf97316,x:8.9,z:-30.1,level:6,kind:"electronics",rotation:-1,license:"store2"},
  {id:"claviers",name:"Claviers sans fil",cost:23,price:49,color:0xa3e635,x:-4.5,z:-23.05,level:6,kind:"electronics",rotation:2,license:"store2"}
 ];
+const departmentColors=[0x0e7490,0xb45309,0x15803d,0x7c3aed,0xbe123c,0x0369a1];
+for(const [id,name,cost,price,level,x,z,rotation] of EARLY_PRODUCTS){
+ catalog.push({id,name,cost,price,level,x,z,rotation,color:departmentColors[level%departmentColors.length],kind:"wall",license:"extensionLicense"});
+}
+DEPARTMENTS.forEach((department,index)=>{
+ department.id="annex"+(index+3);
+ department.level=15+10*index;
+ department.front=annexWall(index);
+ department.cost=6000+index*4500;
+ (department.licenses??[]).forEach((license,i)=>{department.licenses[i]={id:department.id+"License"+i,level:license[0],name:"Licence "+license[1],cost:license[2],requires:license[3],category:"licences",description:"Autorise les références du département "+department.name+"."};});
+ department.products.forEach(([id,name,cost,price,license,level,storage],slot)=>{
+  const permit=typeof license==="number"?department.licenses[license]:null;
+  const side=slot%2===0?-1:1;
+  catalog.push({id,name,cost,price,level:level??permit?.level??department.level,license:permit?.id??license,storage,
+   x:side*8.8,z:department.front-1.35-Math.floor(slot/2)*2.05,rotation:-side,
+   color:departmentColors[(index+slot)%departmentColors.length],kind:"department",department:department.id});
+ });
+});
 const CAPACITY=30, BOX_UNITS=10;
 // Six gondoles : une par produit de départ, 30 emplacements chacune.
 function shelfCapacity(p){return CAPACITY;}
@@ -65,30 +85,72 @@ const upgradeCatalog=[
  {id:"fruitLicense",name:"Licence fruits et légumes",level:6,cost:450,description:"Autorise la vente de pommes et les futurs fruits."},
  {id:"extensionLicense",name:"Licence épicerie de l'extension",level:4,cost:800,requires:"store1",description:"Autorise les nouveaux rayons de l'extension : 14 références, dont le café, le jus de fruits et le chocolat."}
 ];
-// Chaque euro de chiffre d'affaires encaissé compte pour la progression.
-function revenueThreshold(level){
- if(level<=1)return 0;
- if(level===2)return 500;
- if(level===3)return 2000;
- return 4000*Math.pow(2,level-4);
+// Les capacités s'additionnent après achat. Le journal distingue les travaux
+// livrés des services spécialisés qui restent prévus dans le programme.
+DEPARTMENTS.forEach((department,index)=>{
+ upgradeCatalog.push({id:department.id,name:"Extension "+(index+3)+" · "+department.name,level:department.level,cost:department.cost,
+  requires:index===0?"store2":DEPARTMENTS[index-1].id,category:"extensions",construction:true,front:department.front,
+  description:department.products.length?"Ouvre un département relié à la galerie commerciale.":"Ouvre un espace aménageable. Le service spécialisé est prévu dans le programme."});
+ upgradeCatalog.push(...(department.licenses??[]));
+});
+LEVEL_REWARDS.forEach(([, , , stock, cold],index)=>{
+ const level=index+1;
+ if(level<=10)return;
+ if(stock){
+  const dry=Number(stock.match(/sec \+(\d+)/)?.[1]??0),electronics=Number(stock.match(/électronique \+(\d+)/)?.[1]??0);
+  upgradeCatalog.push({id:"reserveLevel"+level,name:"Agrandissement de la réserve · niveau "+level,level,cost:dry*30+electronics*45,
+   category:"stock",requires:"store2",capacity:{dry,electronics},description:stock});
+ }
+ if(cold){
+  const size=Number(cold.match(/\+(\d+)/)?.[1]??0);
+  upgradeCatalog.push({id:"coldLevel"+level,name:cold.split(" · ")[0],level,cost:size*65,
+   category:"froid",requires:"freshLicense",capacity:{cold:size},description:cold});
+ }
+});
+upgradeCatalog.push(
+ {id:"pickupService",name:"Autorisation de retrait",level:102,cost:9500,category:"licences",description:"Active la préparation des commandes avec retrait."},
+ {id:"tradeService",name:"Autorisation de vente pro",level:171,cost:22000,category:"licences",description:"Active les commandes professionnelles avec prix par volume après l’ouverture de l’espace pro."},
+ {id:"deliveryService",name:"Autorisation de livraison locale",level:181,cost:26000,category:"licences",description:"Active les commandes à livrer après l’ouverture du centre d’expédition."}
+);
+const capacityUpgrades=upgradeCatalog.filter(u=>u.capacity);
+const STORAGE_WINGS={
+ dry:{minX:10,maxX:15.3,start:37.4,wall:0xe2e8f0,floor:0xb9c1c8},
+ cold:{minX:20.65,maxX:24,start:17,wall:0xdbeafe,floor:0x9ccbdc},
+ electronics:{minX:15.3,maxX:20.6,start:44,wall:0xdbeafe,floor:0xa8b9c9}
+};
+const STORAGE_BAY_DEPTH=4.4;
+const storageWingGroups={dry:[],cold:[],electronics:[]};
+const storageWingGates={};
+function storageBayCount(kind){
+ return capacityUpgrades.reduce((count,u)=>count+Number(!!u.capacity[kind]&&!!state.upgrades[u.id]),0);
+}
+function inStorageWing(kind,x,z){
+ const wing=STORAGE_WINGS[kind];
+ if(x<=wing.minX+.34||x>=wing.maxX-.34||z<=wing.start-.7)return false;
+ const bays=storageBayCount(kind);
+ return bays>0&&z<wing.start+bays*STORAGE_BAY_DEPTH-.25;
 }
 function playerLevel(){
- if(DEV_MODE)return Math.max(1,Math.min(200,Number(state.devLevel)||1));
- let level=1;
- while(level<50&&finance.revenue>=revenueThreshold(level+1))level++;
- return level;
+ if(DEV_MODE)return Math.max(1,Math.min(MAX_LEVEL,Math.floor(Number(state.devLevel)||1)));
+ return levelForRevenue(finance.revenue);
 }
 function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
-// Capacités logistiques indépendantes pour les produits secs, frais et électroniques.
-function reserveLimit(){return 30+(state.upgrades.reserve1?30:0)+(state.upgrades.store1?40:0)+(state.upgrades.store2?60:0);}
-function coldLimit(){return 20;}
-function coldStorageProduct(p){return p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits";}
+function nextLevelLabel(){
+ const next=nextLevelRevenue();
+ return next===null?"Niveau maximum atteint":"Niveau suivant à "+euro(next)+" de CA";
+}
+function activeCapacity(kind){
+ return capacityUpgrades.reduce((total,u)=>total+(state.upgrades[u.id]?(u.capacity[kind]||0):0),0);
+}
+function reserveLimit(){return 30+(state.upgrades.reserve1?30:0)+(state.upgrades.store1?40:0)+(state.upgrades.store2?60:0)+activeCapacity("dry");}
+function coldLimit(){return 20+activeCapacity("cold");}
+function coldStorageProduct(p){return p.storage==="cold"||p.kind==="froid"||p.kind==="congelateur"||p.kind==="fruits";}
 const STORAGE_NAMES={dry:"Réserve sèche",cold:"Chambre froide",electronics:"Réserve électronique"};
 const STORAGE_KINDS=Object.keys(STORAGE_NAMES);
-function storageKind(p){return p.kind==="electronics"?"electronics":coldStorageProduct(p)?"cold":"dry";}
+function storageKind(p){return p.storage??(p.kind==="electronics"?"electronics":coldStorageProduct(p)?"cold":"dry");}
 function storageName(kind){return STORAGE_NAMES[kind];}
 function storageLimit(kind){
- if(kind==="electronics")return state.upgrades.store2?60:0;
+ if(kind==="electronics")return state.upgrades.store2?60+activeCapacity("electronics"):0;
  return kind==="cold"?coldLimit():reserveLimit();
 }
 function storageBoxes(kind){
@@ -100,7 +162,7 @@ const MAX_BOXES_PER_PRODUCT=5;
 function productStoredUnits(p){const a=state.inventory[p.id];return a.boxes*BOX_UNITS+a.reserve;}
 function stockAlert(p){
  const a=state.inventory[p.id],available=productStoredUnits(p)+a.shelf;
- return available===0?"RUPTURE":available<=10?"STOCK FAIBLE":"OK";
+ return available===0?"RUPTURE":available<=stockThreshold(p)?"STOCK FAIBLE":"OK";
 }
 function canOrderBox(p){
  if(!p)return STORAGE_KINDS.some(kind=>storageBoxes(kind)<storageLimit(kind));
@@ -118,7 +180,7 @@ function hasProductLicense(p){
  if(p.id==="pommes")return !!state.upgrades.fruitLicense;
  return true;
 }
-function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p)&&(p.kind!=="electronics"||!!state.upgrades.store2)&&
+function productAvailable(p){return playerLevel()>=(p.level||1)&&hasProductLicense(p)&&(!p.department||state.upgrades[p.department])&&(p.kind!=="electronics"||!!state.upgrades.store2)&&
  (p.license!=="extensionLicense"||!!state.upgrades.store1);}
 function unlockedProducts(){return catalog.filter(productAvailable);}
 function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=2?2:0);}
@@ -148,6 +210,7 @@ const UPGRADE_TABS=[
 ];
 let activeUpgradeTab="licences";
 function upgradeCategory(u){
+ if(u.category)return u.category;
  if(u.id==="store1"||u.id==="store2")return "extensions";
  if(u.id==="reserve1"||u.id==="handtruck")return "stock";
  if(u.id==="freshLicense"||u.id==="fruitLicense"||u.id==="extensionLicense")return "licences";
@@ -157,7 +220,7 @@ function upgradeCategory(u){
 function showUpgrades(tab=activeUpgradeTab){
  activeUpgradeTab=UPGRADE_TABS.some(t=>t.id===tab)?tab:"licences";
  openPanel("Améliorations du magasin");
- paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | Niveau suivant : "+euro(nextLevelRevenue()));
+ paragraph("Niveau "+playerLevel()+" — CA cumulé : "+euro(finance.revenue)+" | "+nextLevelLabel());
  paragraph("Trésorerie : "+euro(state.money));
  const tabs=document.createElement("div");
  Object.assign(tabs.style,{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:"6px",marginTop:"14px"});
@@ -181,7 +244,6 @@ function showUpgrades(tab=activeUpgradeTab){
  }else if(activeUpgradeTab==="froid"){
   note.textContent="Zone frigorifique indépendante de la réserve sèche.";
   paragraph("Chambre froide : "+storageBoxes("cold")+"/"+coldLimit()+" cartons (10 produits par carton).");
-  paragraph("Capacité actuelle : 20 cartons. L'agrandissement sera proposé lorsque de nouveaux produits frais seront disponibles.");
   const products=catalog.filter(p=>coldStorageProduct(p)&&p.level<=playerLevel());
   if(products.length)paragraph("Références : "+products.map(p=>p.name).join(", ")+".");
   button(panel,"Consulter les stocks",showStocks);
@@ -204,9 +266,11 @@ function showUpgrades(tab=activeUpgradeTab){
   button(panel,"Planning du personnel",showWorkerPlanning);
   paragraph("D'autres postes pourront être ajoutés dans une future mise à jour.");
  }
- const upgrades=upgradeCatalog.filter(u=>upgradeCategory(u)===activeUpgradeTab);
- for(const u of upgrades){
-  const hasConstruction=!DEV_MODE&&(u.id==="store1"||u.id==="store2");
+ const upgrades=upgradeCatalog.filter(u=>upgradeCategory(u)===activeUpgradeTab).sort((a,b)=>a.level-b.level);
+ const next=upgrades.find(u=>u.level>playerLevel());
+
+ for(const u of upgrades.filter(u=>u.level<=playerLevel()||state.upgrades[u.id]||u===next)){
+  const hasConstruction=!DEV_MODE&&(u.construction||u.id==="store1"||u.id==="store2");
   const owned=!!state.upgrades[u.id];
   const underway=!!state.construction&&(state.construction.target||"store1")===u.id&&!owned;
   paragraph(u.name+" — "+(owned?"ACQUIS":underway?"CHANTIER EN COURS":euro(u.cost))+" | Niveau "+u.level+" requis");
@@ -215,8 +279,9 @@ function showUpgrades(tab=activeUpgradeTab){
   if(underway){paragraph("Progression : "+constructionPercent()+" % — "+constructionStage());continue;}
   if(owned)continue;
   const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires])&&(!hasConstruction||!state.construction);
+  if(u.requires&&!state.upgrades[u.requires])paragraph("Prérequis · "+upgradeCatalog.find(item=>item.id===u.requires)?.name);
   const b=button(panel,eligible?"Acheter — "+euro(u.cost):"Verrouillé — niveau "+u.level,()=>{
-   if(!eligible)return;
+   if(!eligible||state.upgrades[u.id]||(hasConstruction&&state.construction))return;
    if(state.money<u.cost){toast("Trésorerie insuffisante");return;}
    state.money-=u.cost;
    if(hasConstruction){
@@ -232,7 +297,7 @@ function showUpgrades(tab=activeUpgradeTab){
 
 function initial(){
  const inventory={};
- catalog.forEach(p=>inventory[p.id]={shelf:(p.kind==="extension"||p.kind==="electronics")?0:10,reserve:0,boxes:0,price:p.price});
+ catalog.forEach(p=>inventory[p.id]={shelf:(p.kind==="extension"||p.kind==="electronics"||p.kind==="department"||p.level>=11)?0:10,reserve:0,boxes:0,price:p.price});
  return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],stockerLeaveDays:[],construction:null,stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,satisfaction:80,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
@@ -243,12 +308,13 @@ function load(){
    if(Number.isFinite(current.devLevel))s.devLevel=current.devLevel;
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
    if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
-   if(Number.isInteger(current.lastNotifiedLevel)&&current.lastNotifiedLevel>=1)s.lastNotifiedLevel=current.lastNotifiedLevel;
+   if(Number.isInteger(current.lastNotifiedLevel)&&current.lastNotifiedLevel>=1&&current.progressionVersion===1)s.lastNotifiedLevel=Math.min(current.lastNotifiedLevel,MAX_LEVEL);
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
    if(current.construction&&Number.isFinite(current.construction.progress)){
     // Anciennes sauvegardes V0.10.5 : l'avancement 0-90 s est migré.
     const progress=current.construction.units==="days"?current.construction.progress:current.construction.progress/90*CONSTRUCTION_DAYS;
-    const target=current.construction.target==="store2"?"store2":"store1";
+    const requested=upgradeCatalog.find(u=>u.id===current.construction.target);
+    const target=requested?.construction||requested?.id==="store2"?requested.id:"store1";
     if(!current.upgrades?.[target])s.construction={progress:Math.max(0,Math.min(CONSTRUCTION_DAYS,progress)),units:"days",target};
    }
    if(typeof current.workerName==="string")s.workerName=current.workerName.slice(0,24);
@@ -270,7 +336,8 @@ function load(){
    if(current.finance)for(const k of Object.keys(s.finance))if(Number.isFinite(current.finance[k])&&current.finance[k]>=0)s.finance[k]=current.finance[k];
    if(Array.isArray(current.supplierOrders))s.supplierOrders=current.supplierOrders.filter(o=>o&&Array.isArray(o.items)&&Number.isFinite(o.due));
    if(Array.isArray(current.deliveryDock))s.deliveryDock=current.deliveryDock.filter(it=>it&&typeof it.id==="string"&&Number.isFinite(it.qty));
-   // Une session rechargée démarre toujours en préparation à 08:00.
+   if(current.management&&typeof current.management==="object")s.management=current.management;
+   // Une session rechargée démarre en préparation à 07:00.
    s.hour=7;
    for(const p of catalog){
     const src=current.inventory[p.id]||{},dst=s.inventory[p.id];
@@ -280,11 +347,11 @@ function load(){
     if(Number.isFinite(src.price))dst.price=Math.max(1,Math.round(src.price));
    }
   }else{
-   const old=JSON.parse(localStorage.getItem(LEGACY));
+   const old=DEV_MODE?null:JSON.parse(localStorage.getItem(LEGACY));
    if(old){
     for(const k of ["money","day","sales"])if(Number.isFinite(old[k])&&old[k]>=0)s[k]=old[k];
     const qty=Math.max(0,Math.floor(old.stock||0));
-    catalog.forEach((p,i)=>{
+    catalog.filter(p=>(p.level||1)<11).forEach((p,i)=>{
      const count=Math.floor(qty/3)+(i<qty%3?1:0);
      s.inventory[p.id].shelf=Math.min(shelfCapacity(p),count);
      s.inventory[p.id].reserve=Math.max(0,count-shelfCapacity(p));
@@ -303,10 +370,12 @@ if(DEV_MODE&&state.construction){
 // Les niveaux déjà acquis ne déclenchent aucune notification rétroactive.
 if(!Number.isInteger(state.lastNotifiedLevel)){
  let achieved=1;
- if(DEV_MODE)achieved=Math.max(1,Math.floor(Number(state.devLevel)||1));
- else while(achieved<50&&state.finance.revenue>=revenueThreshold(achieved+1))achieved++;
+ if(DEV_MODE)achieved=Math.max(1,Math.min(MAX_LEVEL,Math.floor(Number(state.devLevel)||1)));
+ else achieved=levelForRevenue(state.finance.revenue);
  state.lastNotifiedLevel=achieved;
 }
+state.progressionVersion=1;
+state.management=state.management??{};
 state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
 state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
 if(DEV_MODE&&!Number.isFinite(state.devLevel))state.devLevel=1;
@@ -383,6 +452,48 @@ Object.assign(levelModalCard.style,{width:"min(94vw,460px)",maxHeight:"88dvh",
  overflowY:"auto",padding:"16px",borderRadius:"15px",border:"2px solid #fbbf24",
  background:"#0f172a",boxShadow:"0 12px 40px #0009"});
 levelModal.appendChild(levelModalCard);document.body.appendChild(levelModal);
+function implementedMilestone(level){
+ return [1,2,3,4,5,6,7,8,9,11,14,16,18,19,20,31,49,59,66,72,77,86,88,94,104,109,110,112,138,154,172,174,179,199,200].includes(level);
+}
+function milestoneEntries(level){
+ const entries=LEVEL_REWARDS[level-1];
+ return entries.map((description,index)=>{
+  if(!description)return "";
+  if(level<=10&&index>0)return description;
+  if(index===0)return (implementedMilestone(level)?"":"Programme · ")+description.replace(/^Proposition · /,"");
+  const categories=["","licences","extensions","stock","froid"];
+  const offers=upgradeCatalog.filter(u=>u.level===level&&upgradeCategory(u)===categories[index]);
+  return offers.length?offers.map(u=>u.name+" ("+euro(u.cost)+")").join(" · "):(level===1?"":"Programme · ")+description;
+ }).filter(Boolean);
+}
+function showProgression(first){
+ if(!Number.isInteger(first)||first<1||first>MAX_LEVEL)first=Math.floor((playerLevel()-1)/10)*10+1;
+ const last=Math.min(MAX_LEVEL,first+9);
+ openPanel("Progression · niveaux "+first+" à "+last);
+ paragraph("Niveau "+playerLevel()+" · "+euro(finance.revenue)+" de CA encaissé");
+ paragraph("Les entrées marquées « Programme » décrivent des fonctionnalités prévues.");
+ const select=document.createElement("select");
+ select.setAttribute("aria-label","Tranche de niveaux");
+ const ranges=[[1,10,"Démarrage"],...LEVEL_PHASES];
+ for(const [start,end,name] of ranges){
+  const option=document.createElement("option");
+  option.value=start;option.textContent=start+"–"+end+" · "+name;option.selected=start===first;
+  select.appendChild(option);
+ }
+ select.addEventListener("change",()=>showProgression(Number(select.value)));
+ panel.appendChild(select);
+ for(let level=first;level<=last;level++){
+  const group=document.createElement("details");
+  const title=document.createElement("summary");
+  title.textContent=(level<=playerLevel()?"✓ ":"")+"Niveau "+level+" · "+euro(revenueThreshold(level));
+  group.open=level===playerLevel();
+  group.appendChild(title);
+  for(const description of milestoneEntries(level)){
+   const line=document.createElement("p");line.textContent=description;group.appendChild(line);
+  }
+  group.style.marginTop="12px";panel.appendChild(group);
+ }
+}
 const pendingLevelNotices=[];
 let levelModalShowing=false;
 function closeLevelNotice(){
@@ -415,8 +526,8 @@ function showNextLevelNotice(){
  const newProducts=catalog.filter(p=>(p.level||1)===level);
  section("NOUVEAUX PRODUITS",newProducts.map(p=>{
   const required=p.license||(["fromage","surgeles"].includes(p.id)?"freshLicense":p.id==="pommes"?"fruitLicense":null);
-  const license=upgradeCatalog.find(u=>u.id===required);
-  return p.name+(license&&!state.upgrades[license.id]?" — nécessite : "+license.name:" — disponible");
+  const prerequisites=[required,p.department].filter(id=>id&&!state.upgrades[id]).map(id=>upgradeCatalog.find(u=>u.id===id)?.name).filter(Boolean);
+  return p.name+(prerequisites.length?" — nécessite : "+prerequisites.join(" et "):" — disponible");
  }));
  const newUpgrades=upgradeCatalog.filter(u=>u.level===level);
  section("AMÉLIORATIONS ET COMPÉTENCES",newUpgrades.map(u=>{
@@ -424,7 +535,8 @@ function showNextLevelNotice(){
   const restriction=prerequisite&&!state.upgrades[prerequisite.id]?" — nécessite d'abord : "+prerequisite.name:"";
   return u.name+" ("+euro(u.cost)+")"+restriction+(state.upgrades[u.id]?" — déjà acquis":"");
  }));
- if(!newProducts.length&&!newUpgrades.length)section("PROGRESSION",["Nouveau niveau atteint ! Les prochaines améliorations seront annoncées dès leur déblocage."]);
+ const milestone=LEVEL_REWARDS[level-1]?.[0];
+ if(milestone)section(implementedMilestone(level)?"DÉBLOCAGE":"PROGRAMME",[milestone.replace(/^Proposition · /,"")]);
  const cont=button(levelModalCard,"Continuer à jouer",closeLevelNotice);
  cont.style.background="#16a34a";
  button(levelModalCard,"Voir les améliorations",()=>{closeLevelNotice();showUpgrades();});
@@ -433,7 +545,7 @@ function checkLevelUp(){
  const current=playerLevel();
  const previous=state.lastNotifiedLevel||1;
  if(current<=previous)return;
- for(let level=previous+1;level<=current;level++)pendingLevelNotices.push(level);
+ pendingLevelNotices.push(current);
  state.lastNotifiedLevel=current;save();
  showNextLevelNotice();
 }
@@ -608,8 +720,10 @@ function showProfile(){
  paragraph("Articles vendus : "+state.sales);
  paragraph("Transactions : "+finance.transactions);
  paragraph("Niveau du magasin : "+playerLevel());
+ if(playerLevel()===MAX_LEVEL)paragraph("Statut · Hypermarché phare");
  paragraph("Chiffre d’affaires encaissé : "+euro(finance.revenue));
- paragraph("Prochain niveau à "+euro(nextLevelRevenue())+" de chiffre d’affaires");
+ paragraph(nextLevelLabel());
+ button(panel,"Progression des niveaux",showProgression);
  button(panel,"← Retour au menu",showMainMenu);
 }
 function switchDevMode(enable){
@@ -627,14 +741,11 @@ function showDevTools(){
  openPanel("FBA GAMES — MODE TEST");
  paragraph("Sauvegarde de test indépendante. Ces commandes ne modifient pas ta partie normale.");
  paragraph("Niveau de test : "+playerLevel()+" | Argent : "+euro(state.money));
- const selector=document.createElement("select");
- Object.assign(selector.style,{width:"100%",padding:"12px",background:"#1e293b",color:"white",borderRadius:"8px"});
- for(const n of [1,2,3,4,5,6,8,10,15,25,50,100,150,200]){
-  const opt=document.createElement("option");opt.value=n;opt.textContent="Niveau "+n;opt.selected=playerLevel()===n;selector.appendChild(opt);
- }
- panel.appendChild(selector);
+ const selector=inputNumber("Choisis un niveau entre 1 et "+MAX_LEVEL,playerLevel(),1,MAX_LEVEL);
  button(panel,"Appliquer le niveau",()=>{
-  state.devLevel=Number(selector.value);sync();showDevTools();toast("Niveau de test : "+state.devLevel);
+  const level=Number(selector.value);
+  if(!Number.isInteger(level)||level<1||level>MAX_LEVEL){toast("Saisis un niveau de 1 à "+MAX_LEVEL);return;}
+  state.devLevel=level;state.lastNotifiedLevel=level;sync();showDevTools();toast("Niveau de test : "+level);
  });
  button(panel,"Ajouter 100 000 €",()=>{state.money+=100000;sync();showDevTools();});
  button(panel,"Débloquer toutes les améliorations existantes",()=>{
@@ -656,6 +767,11 @@ function showMainMenu(){
   else{panel.style.display="none";toast("Partie reprise");}
  });
  button(panel,"Profil",showProfile);
+ button(panel,"Progression des niveaux",showProgression);
+ if(camera.position.z<ANNEX_ENTRY-1)button(panel,"Retour à la caisse",()=>{
+  if(held){toast("Dépose le carton avant de revenir");return;}
+  camera.position.set(5.4,1.7,7.5);panel.style.display="none";
+ });
  if(DEV_MODE)button(panel,"OUTILS DÉVELOPPEUR",showDevTools);
  else if(DEV_AUTHORIZED)button(panel,"Activer le mode test FBA Games",()=>switchDevMode(true));
  button(panel,"Améliorations et compétences",showUpgrades);
@@ -695,10 +811,15 @@ function showComputer(){
  paragraph("Trésorerie disponible : "+euro(state.money));
  renderStockCapacity(panel);
  button(panel,"Caisse — paiements",showCheckout);
+ if(activeRegisters().length)button(panel,"Caisses supplémentaires",showAuxiliaryRegisters);
  button(panel,"Fournisseurs — commander des cartons",showComputerOrders);
  button(panel,"Stocks du magasin",showStocks);
  button(panel,"Bilan financier",showFinance);
  button(panel,"Améliorations",showUpgrades);
+ button(panel,"Progression des niveaux",showProgression);
+ if(openDepartmentCount())button(panel,"Accès aux départements",showDepartmentTravel);
+ if(playerLevel()>=7)button(panel,"Gestion commerciale",showCommercialManagement);
+ if(playerLevel()>=40)button(panel,"Commandes des clients",showOrderServices);
  button(panel,"Calendrier et horaires",showCalendar);
  button(panel,"Personnaliser les prénoms",showNames);
  button(panel,"État de l’équipe — présence et tâches",showEmployeeOverview);
@@ -706,6 +827,314 @@ function showComputer(){
  button(panel,"Personnel — mise en rayon",showStockerManagement);
  button(panel,"Planning des employés",showWorkerPlanning);
 }
+function showDepartmentTravel(){
+ openPanel("Accès aux départements");
+ for(const department of DEPARTMENTS.filter(item=>state.upgrades[item.id])){
+  button(panel,department.name,()=>{
+   if(seatedAtCheckout||held){toast("Libère tes mains et relève-toi avant le déplacement");return;}
+   camera.position.set(0,1.7,department.front-1.2);
+   panel.style.display="none";
+  });
+ }
+}
+function inputNumber(label,value,min,max){
+ const wrapper=document.createElement("label");
+ wrapper.textContent=label;
+ wrapper.style.display="block";
+ const input=document.createElement("input");
+ input.type="number";input.min=min;input.max=max;input.step=1;input.value=value;
+ input.style.cssText="display:block;width:100%;padding:8px;margin:5px 0 12px;box-sizing:border-box";
+ wrapper.appendChild(input);panel.appendChild(wrapper);
+ return input;
+}
+function showCommercialManagement(){
+ openPanel("Gestion commerciale");
+ button(panel,"Produits à démarquer",showMarkdowns);
+ if(playerLevel()>=9)button(panel,"Ventes des sept derniers jours",showRecentSales);
+ if(playerLevel()>=14)button(panel,"Alertes de rupture",showStockAlerts);
+ if(playerLevel()>=18)button(panel,"Commandes récurrentes",showStandingOrders);
+ if(playerLevel()>=199)button(panel,"Bilan des départements",showDepartmentPerformance);
+}
+function managementProducts(){
+ return unlockedProducts().sort((a,b)=>a.name.localeCompare(b.name,"fr"));
+}
+function pickManagementProduct(title,products,onChoose){
+ openPanel(title);
+ const select=document.createElement("select");
+ select.setAttribute("aria-label","Produit");
+ select.style.width="100%";
+ for(const p of products){
+  const option=document.createElement("option");
+  option.value=p.id;option.textContent=p.name;select.appendChild(option);
+ }
+ panel.appendChild(select);
+ const choose=button(panel,"Configurer le produit",()=>{
+  const p=products.find(p=>p.id===select.value)||products[0];
+  if(p)onChoose(p);
+ });
+ choose.disabled=!products.length;
+ return select;
+}
+function showMarkdowns(){
+ state.management.markdowns??={};
+ pickManagementProduct("Produits à démarquer",managementProducts().filter(p=>storageKind(p)==="cold"&&state.inventory[p.id].shelf>0),p=>{
+  openPanel("Démarque · "+p.name);
+  paragraph("Sélectionne la référence dont tu as vérifié la date en rayon.");
+  const price=inputNumber("Nouveau prix en euros",Math.max(1,state.inventory[p.id].price-1),1,999999);
+  button(panel,"Mettre de côté pour démarque",()=>{
+   const amount=Number(price.value);
+   if(!Number.isInteger(amount)||amount<1||amount>=state.inventory[p.id].price){toast("Choisis un prix inférieur au prix actuel");return;}
+   state.management.markdowns[p.id]=amount;save();showMarkdowns();
+  });
+ });
+ paragraph("Les références marquées apparaissent ici avant modification du prix en rayon.");
+ for(const [id,price] of Object.entries(state.management.markdowns)){
+  const p=catalog.find(p=>p.id===id);
+  if(!p||!productAvailable(p))continue;
+  button(panel,"Appliquer "+euro(price)+" · "+p.name,()=>{
+   if(state.inventory[id].shelf>0&&price<state.inventory[id].price)state.inventory[id].price=price;
+   delete state.management.markdowns[id];sync();showMarkdowns();
+  });
+  button(panel,"Retirer de la liste · "+p.name,()=>{delete state.management.markdowns[id];save();showMarkdowns();});
+ }
+}
+function trackSale(basket,prices){
+ const history=state.management.salesHistory??={};
+ const allTime=state.management.salesTotals??={};
+ const day=history[state.day]??={};
+ for(const [id,quantity] of Object.entries(basket)){
+  const p=catalog.find(p=>p.id===id);
+  if(!p||quantity<=0)continue;
+  day[id]=(day[id]||0)+quantity;
+  const stats=allTime[id]??={revenue:0,cost:0};
+  stats.revenue+=quantity*(prices[id]??state.inventory[id].price);
+  stats.cost+=quantity*p.cost;
+ }
+ for(const key of Object.keys(history))if(Number(key)<state.day-6)delete history[key];
+}
+function showRecentSales(){
+ openPanel("Ventes · sept derniers jours");
+ const history=state.management.salesHistory??{};
+ const totals={};
+ for(const [day,sales] of Object.entries(history)){
+  if(Number(day)<state.day-6)continue;
+  for(const [id,quantity] of Object.entries(sales))totals[id]=(totals[id]||0)+quantity;
+ }
+ const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+ if(!sorted.length)paragraph("Les ventes encaissées apparaîtront ici.");
+ for(const [id,quantity] of sorted)paragraph((catalog.find(p=>p.id===id)?.name??id)+" · "+quantity+" vendu(s)");
+}
+function stockThreshold(p){
+ return state.management.alerts?.[p.id]??10;
+}
+function showStockAlerts(){
+ state.management.alerts??={};
+ pickManagementProduct("Alertes de rupture",managementProducts(),p=>{
+  openPanel("Alerte · "+p.name);
+  const threshold=inputNumber("Seuil d’alerte en unités",stockThreshold(p),0,10000);
+  button(panel,"Enregistrer le seuil",()=>{
+   const value=Number(threshold.value);
+   if(!Number.isInteger(value)||value<0||value>10000){toast("Choisis un seuil valide");return;}
+   state.management.alerts[p.id]=value;save();showStockAlerts();
+  });
+ });
+ for(const p of managementProducts().filter(p=>stockAlert(p)!=="OK")){
+  paragraph(p.name+" · "+stockAlert(p)+" · "+(state.inventory[p.id].shelf+productStoredUnits(p))+" unités, seuil "+stockThreshold(p));
+ }
+}
+function showStandingOrders(){
+ state.management.standingOrders??={};
+ pickManagementProduct("Commandes récurrentes",managementProducts(),p=>{
+  openPanel("Commande récurrente · "+p.name);
+  const rule=state.management.standingOrders[p.id];
+  const cartons=inputNumber("Cartons à commander",rule?.cartons??1,1,MAX_BOXES_PER_PRODUCT);
+  const interval=inputNumber("Nombre de jours entre deux commandes",rule?.interval??2,1,30);
+  button(panel,"Activer ou mettre à jour",()=>{
+   const qty=Number(cartons.value),days=Number(interval.value);
+   if(!Number.isInteger(qty)||qty<1||qty>MAX_BOXES_PER_PRODUCT||!Number.isInteger(days)||days<1||days>30){toast("Vérifie les quantités et la fréquence");return;}
+   state.management.standingOrders[p.id]={cartons:qty,interval:days,nextDay:state.day+1};save();showStandingOrders();
+  });
+  if(rule)button(panel,"Désactiver",()=>{delete state.management.standingOrders[p.id];save();showStandingOrders();});
+ });
+ paragraph("Le paiement et la livraison suivent le circuit fournisseur habituel.");
+ for(const [id,rule] of Object.entries(state.management.standingOrders)){
+  const p=catalog.find(p=>p.id===id);
+  if(p)paragraph(p.name+" · "+rule.cartons+" carton(s) tous les "+rule.interval+" jour(s) · prochain essai jour "+rule.nextDay);
+ }
+}
+function processStandingOrders(){
+ if(playerLevel()<18)return;
+ for(const [id,rule] of Object.entries(state.management.standingOrders??{})){
+  const p=catalog.find(p=>p.id===id);
+  if(!p||!productAvailable(p)||!Number.isInteger(rule.cartons)||rule.cartons<1||
+   !Number.isInteger(rule.interval)||rule.interval<1||rule.nextDay>state.day)continue;
+  const cost=rule.cartons*p.cost*BOX_UNITS;
+  const kind=storageKind(p);
+  if(cost>state.money||state.inventory[id].boxes+pendingBoxes(id)+rule.cartons>MAX_BOXES_PER_PRODUCT||cartCapacity(kind)<rule.cartons)continue;
+  state.money-=cost;finance.supplies+=cost;
+  state.supplierOrders.push({items:[{id,qty:rule.cartons}],due:Date.now()+30000,express:false,paid:cost});
+  rule.nextDay=state.day+rule.interval;
+ }
+}
+function showDepartmentPerformance(){
+ openPanel("Bilan des départements");
+ const totals=state.management.salesTotals??{};
+ const losses=state.management.losses??{};
+ paragraph("Le détail par référence couvre les opérations enregistrées depuis la mise à jour.");
+ for(const department of [{id:undefined,name:"Magasin principal"},...DEPARTMENTS].filter(d=>!d.id||state.upgrades[d.id])){
+  const group=catalog.filter(p=>p.department===department.id);
+  const result=group.reduce((a,p)=>{
+   const sales=totals[p.id];
+   a.revenue+=sales?.revenue??0;a.cost+=sales?.cost??0;
+   a.losses+=(losses[p.id]??0)*p.cost;
+   a.out+=Number(productAvailable(p)&&state.inventory[p.id].shelf===0);
+   return a;
+  },{revenue:0,cost:0,losses:0,out:0});
+  paragraph(department.name+" · CA "+euro(result.revenue)+" · Marge brute "+euro(result.revenue-result.cost)+" · Pertes "+euro(result.losses)+" · "+result.out+" rupture(s) en rayon");
+ }
+}
+
+const SERVICE_CHANNELS=[
+ {id:"traiteur",name:"Commandes traiteur",level:40,department:"annex5",refs:["salades","sandwichs","plats_prepares"]},
+ {id:"boucherie",name:"Réservations boucherie",level:59,department:"annex7",refs:["viandes","jambons","terrines"]},
+ {id:"precommande",name:"Précommandes de jeux",level:77,department:"annex9",refs:["consoles_jeu","jeux_video","manettes"]},
+ {id:"retrait",name:"Retrait en magasin",level:101,permit:"pickupService"},
+ {id:"pro",name:"Commandes professionnelles",level:172,permit:"tradeService"},
+ {id:"livraison",name:"Livraison locale",level:182,permit:"deliveryService"}
+];
+function availableChannels(){
+ return SERVICE_CHANNELS.filter(c=>playerLevel()>=c.level&&(!c.department||state.upgrades[c.department])&&(!c.permit||state.upgrades[c.permit]));
+}
+function serviceOrders(){
+ return state.management.serviceOrders??=[];
+}
+function showOrderServices(){
+ openPanel("Commandes des clients");
+ const channels=availableChannels();
+ if(!channels.length)paragraph("Les services de commande sont accessibles après achat de leur extension et de leur autorisation.");
+ for(const channel of channels)button(panel,channel.name,()=>showServiceChannel(channel));
+}
+function showServiceChannel(channel){
+ openPanel(channel.name);
+ paragraph("Enregistre la demande, prépare les articles puis valide la remise pour encaisser la commande.");
+ const products=managementProducts().filter(p=>!channel.refs||channel.refs.includes(p.id));
+ if(products.length)button(panel,"Enregistrer une demande",()=>pickManagementProduct("Article de la commande",products,p=>showNewServiceOrder(channel,p)));
+ const orders=serviceOrders().filter(o=>o.channel===channel.id);
+ for(const order of orders.filter(o=>o.status!=="paid")){
+  const p=catalog.find(p=>p.id===order.product);
+  if(!p)continue;
+  const status=order.status==="ready"?"Prête · "+(order.locker??"comptoir"):"À préparer";
+  paragraph("#"+order.id+" · "+order.quantity+" × "+p.name+" · "+euro(order.unitPrice*order.quantity)+" · "+status+" · jour "+order.day+" à "+order.hour+" h");
+  if(order.status==="waiting")button(panel,"Préparer #"+order.id,()=>{prepareServiceOrder(order);showServiceChannel(channel);});
+  if(order.status==="ready"){
+   button(panel,channel.id==="livraison"?"Confirmer la livraison #"+order.id:"Remettre et encaisser #"+order.id,()=>{
+    if(finishServiceOrder(order))showServiceChannel(channel);
+   });
+   if(channel.id==="retrait"&&playerLevel()>=106){
+    const cold=storageKind(p)==="cold";
+    if(!cold||playerLevel()>=108)button(panel,cold?"Mettre en casier réfrigéré":"Mettre en casier sec",()=>{
+     order.locker=cold?"casier réfrigéré":"casier sec";save();showServiceChannel(channel);
+    });
+   }
+  }
+  button(panel,"Annuler #"+order.id,()=>{cancelServiceOrder(order);showServiceChannel(channel);});
+ }
+ if(channel.id==="pro"&&playerLevel()>=179){
+  const paid=orders.filter(o=>o.status==="paid");
+  for(const order of paid.slice(-15)){
+   const p=catalog.find(p=>p.id===order.product);
+   if(p)paragraph("Contrat #"+order.id+" · CA "+euro(order.unitPrice*order.quantity)+" · marge brute "+euro((order.unitPrice-p.cost)*order.quantity));
+  }
+ }
+ if(channel.id==="retrait"&&playerLevel()>=109){
+  const hired=!!state.management.orderPicker;
+  button(panel,hired?"Suspendre le préparateur de commandes":"Recruter le préparateur · 60 € par jour avec préparation",()=>{
+   state.management.orderPicker=!hired;save();showServiceChannel(channel);
+  });
+ }
+ button(panel,"Retour aux services",showOrderServices);
+}
+function showNewServiceOrder(channel,p){
+ openPanel("Nouvelle demande · "+p.name);
+ const quantity=inputNumber("Quantité",1,1,channel.id==="pro"?50:30);
+ const day=inputNumber("Jour prévu",state.day,state.day,state.day+30);
+ const hour=inputNumber("Heure de retrait ou de livraison",Math.min(20,Math.max(8,Math.ceil(state.hour))),8,20);
+ const interval=channel.id==="pro"&&playerLevel()>=174?inputNumber("Répéter tous les X jours (0 = commande unique)",0,0,30):null;
+ button(panel,"Enregistrer",()=>{
+  const count=Number(quantity.value),dueDay=Number(day.value),dueHour=Number(hour.value),repeat=Number(interval?.value??0);
+  if(!Number.isInteger(count)||count<1||count>(channel.id==="pro"?50:30)||
+   !Number.isInteger(dueDay)||dueDay<state.day||dueDay>state.day+30||
+   !Number.isInteger(dueHour)||dueHour<8||dueHour>20||
+   !Number.isInteger(repeat)||repeat<0||repeat>30){toast("Vérifie la quantité et le créneau");return;}
+  if(serviceOrders().filter(o=>o.status!=="paid").length>=30){toast("30 commandes actives au maximum");return;}
+  const unitPrice=channel.id==="pro"&&count>=10?Math.max(1,Math.floor(state.inventory[p.id].price*.95)):state.inventory[p.id].price;
+  addServiceOrder({channel:channel.id,product:p.id,quantity:count,unitPrice,day:dueDay,hour:dueHour,repeat});
+  save();showServiceChannel(channel);
+ });
+}
+function addServiceOrder(data){
+ state.management.nextOrderId=(state.management.nextOrderId??0)+1;
+ serviceOrders().push({...data,id:state.management.nextOrderId,status:"waiting"});
+}
+function prepareServiceOrder(order,quiet=false){
+ if(order.status!=="waiting")return false;
+ const p=catalog.find(p=>p.id===order.product);
+ if(!p||!productAvailable(p))return false;
+ const a=state.inventory[p.id];
+ const canUseReserve=order.channel==="pro";
+ if(a.shelf+(canUseReserve?productStoredUnits(p):0)<order.quantity){
+  if(!quiet)toast("Quantité en stock insuffisante pour cette commande");
+  return false;
+ }
+ const fromShelf=Math.min(a.shelf,order.quantity);
+ a.shelf-=fromShelf;
+ let remaining=order.quantity-fromShelf;
+ const fromLoose=Math.min(a.reserve,remaining);
+ a.reserve-=fromLoose;remaining-=fromLoose;
+ if(remaining){
+  const cartons=Math.ceil(remaining/BOX_UNITS);
+  a.boxes-=cartons;a.reserve+=cartons*BOX_UNITS-remaining;
+ }
+ order.status="ready";sync();
+ return true;
+}
+function finishServiceOrder(order){
+ if(order.status!=="ready")return false;
+ if(order.day>state.day||(order.day===state.day&&order.hour>state.hour)){
+  toast("Le créneau de cette commande n’est pas encore arrivé");return false;
+ }
+ const payment=order.quantity*order.unitPrice;
+ state.money+=payment;finance.revenue+=payment;finance.transactions++;state.sales+=order.quantity;
+ trackSale({[order.product]:order.quantity},{[order.product]:order.unitPrice});
+ order.status="paid";
+ if(order.repeat>0)addServiceOrder({channel:order.channel,product:order.product,quantity:order.quantity,unitPrice:order.unitPrice,day:state.day+order.repeat,hour:order.hour,repeat:order.repeat});
+ const completed=serviceOrders().filter(o=>o.status==="paid");
+ if(completed.length>60)state.management.serviceOrders=serviceOrders().filter(o=>o!==completed[0]);
+ sync();checkLevelUp();toast("Commande encaissée · "+euro(payment));
+ return true;
+}
+function cancelServiceOrder(order){
+ if(order.status!=="waiting"&&order.status!=="ready")return;
+ if(order.status==="ready"){
+  const a=state.inventory[order.product];
+  if(a){
+   const put=Math.min(order.quantity,Math.max(0,CAPACITY-a.shelf));
+   a.shelf+=put;a.reserve+=order.quantity-put;
+  }
+ }
+ order.status="cancelled";
+ state.management.serviceOrders=serviceOrders().filter(o=>o!==order);
+ sync();
+}
+function processOrderPicker(){
+ if(playerLevel()<109||!state.management.orderPicker||state.money<60)return;
+ let worked=false;
+ for(const order of serviceOrders()){
+  if(order.channel==="retrait"&&order.day<=state.day&&prepareServiceOrder(order,true))worked=true;
+ }
+ if(worked){state.money-=60;finance.charges+=60;}
+}
+
 function showNames(){
  openPanel("PERSONNALISATION — Prénoms");
  paragraph("Chaque partie possède ses propres prénoms. Ils sont enregistrés dans ta sauvegarde.");
@@ -960,6 +1389,7 @@ function completeCheckoutPayment(c,count){
  if(c!==cashier)return;
  state.money+=c.total;state.sales+=count;
  finance.revenue+=c.total;finance.transactions++;
+ trackSale(c.basket,c.prices);
  c.paid=true;
  if(count>0)changeSatisfaction(c.waitPenalty?1:3);
  sync();finishCheckout(c);
@@ -1187,7 +1617,9 @@ cube(24,2.5,2.875,.3,5,2.75,0xcbd5e1,true);
 cube(24,2.5,11.825,.3,5,10.35,0xcbd5e1,true);
 cube(24,4.2,5.45,.3,1.6,2.4,0xcbd5e1);
 cube(19.65,2.5,1.5,8.7,5,.3,0xcbd5e1,true);
-cube(19.65,2.5,17,8.7,5,.3,0xcbd5e1,true);
+cube(17.975,2.5,17,5.35,5,.3,0xcbd5e1,true);
+storageWingGates.cold=cube(22.325,2.5,17,3.35,5,.3,0xcbd5e1,true);
+colliders.at(-1).storageGate="cold";
 // Extension de la chambre froide vers l'arrière et l'est.
 cube(15.3,2.5,13.25,.3,5,7.5,0xdbeafe,true);
 cube(19.65,-.15,13.25,8.7,.3,7.5,0x9ccbdc);
@@ -1205,7 +1637,7 @@ for(const x of [16.6,22.5])for(const z of [11,14.8]){
 // Revêtement continu, posé légèrement au-dessus des anciens dallages pour supprimer les démarcations.
 const coldFloor=cube(19.65,.055,9.25,8.65,.11,15.45,0xb7dce8);
 cube(19.65,.14,1.75,8.4,.23,.08,0x64748b);
-cube(19.65,.14,16.82,8.4,.23,.08,0x64748b);
+cube(18.05,.14,16.82,5.2,.23,.08,0x64748b);
 // Plinthes sanitaires le long de la cloison, de part et d’autre de la porte froide.
 cube(15.48,.14,2.9,.08,.23,2.6,0x64748b);
 cube(15.48,.14,11.75,.08,.23,10.0,0x64748b);
@@ -1283,12 +1715,15 @@ reserve2Part(17.95,-.15,37.25,5.3,.3,13.5,0xa8b9c9);
 reserve2Part(17.95,5.1,37.25,5.3,.2,13.5,0xf1f5f9);
 reserve2Part(15.3,2.5,40.75,.3,5,6.5,0xdbeafe,true);
 reserve2Part(20.6,2.5,37.25,.3,5,13.5,0xdbeafe,true);
-for(const z of [30.5,44])reserve2Part(17.95,2.5,z,5.3,5,.3,0xdbeafe,true);
+reserve2Part(17.95,2.5,30.5,5.3,5,.3,0xdbeafe,true);
+storageWingGates.electronics=reserve2Part(17.95,2.5,44,5.3,5,.3,0xdbeafe,true);
+colliders.at(-1).storageGate="electronics";
 for(const z of [32,35,38,41.5]){
  reserve2Part(17.95,4.88,z,1.6,.05,.5,0xe0f2fe);
  lamps.push({light:ceilingLamp(17.95,z),stockroom:true,requiresUpgrade:"store2"});
 }
-reserve2Part(12.65,2.5,37.4,5.3,5,.3,0xe2e8f0,true);
+storageWingGates.dry=reserve2Part(12.65,2.5,37.4,5.3,5,.3,0xe2e8f0,true);
+colliders.at(-1).storageGate="dry";
 for(const x of [11.6,13.8])for(const z of [32.4,35.4]){
  reserve2Part(x,4.905,z,1.62,.055,.58,0x94a3b8);
  reserve2Part(x,4.869,z,1.49,.024,.46,0xfff7db);
@@ -1413,7 +1848,19 @@ const electronicsTiles=tileFloor(19.65,11.7,0,-28);electronicsMeshes.push(electr
 electronicsCube(0,5.1,-28,20,.2,12,0xe2e8f0);
 electronicsCube(-10,2.5,-28,.3,5,12,0xdbeafe);
 electronicsCube(10,2.5,-28,.3,5,12,0xdbeafe);
-electronicsCube(0,2.5,-34,20,5,.3,0xdbeafe);
+electronicsCube(-6.65,2.5,ANNEX_ENTRY,6.7,5,.3,0xdbeafe);
+electronicsCube(6.65,2.5,ANNEX_ENTRY,6.7,5,.3,0xdbeafe);
+electronicsCube(0,4.2,ANNEX_ENTRY,6.6,1.6,.3,0xdbeafe);
+const annexGate=electronicsCube(0,1.7,ANNEX_ENTRY,6.6,3.4,.3,0x475569);
+const annexGroups=new Map();
+function openDepartmentCount(){
+ let count=0;
+ for(const department of DEPARTMENTS){
+  if(!state.upgrades[department.id])break;
+  count++;
+ }
+ return count;
+}
 for(const x of [-6,0,6])for(const z of [-26,-31]){
  electronicsCube(x,4.94,z,2.8,.05,.55,0xf8fafc);
  const lamp=ceilingLamp(x,z);lamps.push({light:lamp,requiresUpgrade:"store2"});
@@ -1450,6 +1897,34 @@ function addWallRack(product){
   ...(extension?{requiresUpgrade:"store1"}:{})});
 }
 for(const p of catalog.filter(p=>p.kind==="wall"))addWallRack(p);
+function buildStorageWings(){
+ for(const kind of STORAGE_KINDS){
+  const wing=STORAGE_WINGS[kind];
+  const count=capacityUpgrades.filter(u=>u.capacity[kind]).length;
+  const center=(wing.minX+wing.maxX)/2, width=wing.maxX-wing.minX;
+  const walls=new THREE.MeshStandardMaterial({color:wing.wall});
+  const flooring=new THREE.MeshStandardMaterial({color:wing.floor});
+  const racks=new THREE.MeshStandardMaterial({color:kind==="cold"?0x789cb4:0x64748b});
+  for(let i=0;i<count;i++){
+   const group=new THREE.Group(),z=wing.start+(i+.5)*STORAGE_BAY_DEPTH;
+   const part=(x,y,depth,w,h,d,material)=>{
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);m.position.set(x,y,depth);group.add(m);return m;
+   };
+   part(center,-.15,z,width,.3,STORAGE_BAY_DEPTH,flooring);
+   part(center,5.1,z,width,.2,STORAGE_BAY_DEPTH,walls);
+   const back=part(center,2.5,z+STORAGE_BAY_DEPTH/2,width,5,.3,walls);
+   for(const side of [-1,1]){
+    const x=center+side*width/2;
+    part(x,2.5,z,.25,5,STORAGE_BAY_DEPTH,walls);
+    const rack=x-side*.49;
+    for(const y of [.55,1.55,2.55])part(rack,y,z,.66,.07,3.6,racks);
+    for(const end of [-1,1])part(rack,1.55,z+end*1.76,.06,3.1,.07,racks);
+   }
+   scene.add(group);storageWingGroups[kind].push({group,back});
+  }
+ }
+}
+buildStorageWings();
 function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
  const electronicsUnlocked=!!state.upgrades.store2;
@@ -1459,6 +1934,11 @@ function refreshExtension(){
  electronicsGate.visible=unlocked&&!electronicsUnlocked;
  electronicsGateCollider.disabled=electronicsUnlocked||!unlocked;
  for(const mesh of electronicsMeshes)mesh.visible=electronicsUnlocked;
+ annexGate.visible=electronicsUnlocked&&openDepartmentCount()===0;
+ for(const [id,group] of annexGroups){
+  group.visible=!!state.upgrades[id];
+  for(const mesh of group.children)if(mesh.userData.nextDepartment)mesh.visible=!state.upgrades[mesh.userData.nextDepartment];
+ }
  // La même amélioration agrandit aussi la surface exploitable du stockage.
  oldReserveEndWall.visible=!unlocked;
  oldReserveWallCollider.disabled=unlocked;
@@ -1466,6 +1946,14 @@ function refreshExtension(){
  reserve2Gate.visible=unlocked&&!electronicsUnlocked;
  reserve2GateCollider.disabled=electronicsUnlocked||!unlocked;
  for(const mesh of reserve2Meshes)mesh.visible=electronicsUnlocked;
+ for(const kind of STORAGE_KINDS){
+  const count=storageBayCount(kind);
+  storageWingGates[kind].visible=(kind==="cold"||electronicsUnlocked)&&count===0;
+  storageWingGroups[kind].forEach(({group,back},i)=>{
+   group.visible=i<count;
+   back.visible=i===count-1;
+  });
+ }
 }
 // Équipe de chantier niveau 4 : ouvriers visibles devant le passage de l'extension.
 const constructionCrew=[];
@@ -1516,7 +2004,9 @@ function updateConstructionUI(){
   }
  }
  for(const w of constructionCrew){
-  w.group.position.z=active&&state.construction.target==="store2"?-20.1:-8.75;
+  const target=active?state.construction.target:null;
+  const front=upgradeCatalog.find(u=>u.id===target)?.front;
+  w.group.position.z=front!==undefined?front+1.6:target==="store2"?-20.1:-8.75;
   w.group.visible=active&&constructionOnShift();
   if(!constructionOnShift()){w.arm.rotation.x=0;w.group.position.y=0;}
  }
@@ -1540,7 +2030,7 @@ function updateConstruction(dt){
   const target=state.construction.target||"store1";
   state.construction=null;state.upgrades[target]=true;
   updateConstructionUI();sync();
-  toast(target==="store2"?"Zone électronique ouverte ! Dix rayons et une réserve dédiée.":"Travaux terminés ! Extension et nouvelle réserve accessibles.");
+  toast("Travaux terminés · "+upgradeCatalog.find(u=>u.id===target)?.name);
  }else updateConstructionUI();
 }
 updateConstructionUI();
@@ -1760,7 +2250,7 @@ let freezerLid=null,freezerOpen=false;
 let fridgeDoor=null,fridgeOpen=false;
 for(const p of catalog){
  displays[p.id]=[];
- if(p.kind==="extension"||p.kind==="electronics"||p.kind==="wall")continue;
+ if(p.kind==="extension"||p.kind==="electronics"||p.kind==="wall"||p.kind==="department")continue;
  for(const z of (p.z!==undefined?[p.z]:[-4,1])){
   const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
   const mat=new THREE.MeshStandardMaterial({color:p.color});
@@ -1996,7 +2486,58 @@ for(const item of wallProductRacks){
  }
  addShelfGuide(p,p.x,p.z,item.rotation);
 }
-for(const p of catalog.filter(p=>p.kind!=="extension"&&p.kind!=="electronics"&&p.kind!=="wall"))for(const z of (p.z!==undefined?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
+for(const p of catalog.filter(p=>p.kind!=="extension"&&p.kind!=="electronics"&&p.kind!=="wall"&&p.kind!=="department"))for(const z of (p.z!==undefined?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
+// La galerie part du passage laissé libre au fond de l'électronique.
+for(const [index,department] of DEPARTMENTS.entries()){
+ const group=new THREE.Group();
+ annexGroups.set(department.id,group);scene.add(group);
+ const center=department.front-ANNEX_DEPTH/2;
+ const color=departmentColors[index%departmentColors.length];
+ const part=(x,y,z,w,h,d,material)=>{
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+  mesh.position.set(x,y,z);group.add(mesh);return mesh;
+ };
+ const wall=new THREE.MeshStandardMaterial({color:0xe2e8f0});
+ const accent=new THREE.MeshStandardMaterial({color});
+ const floor=new THREE.MeshStandardMaterial({color:index%2===0?0xb5c2d1:0xc4ccd6});
+ part(0,-.15,center,20,.3,ANNEX_DEPTH,floor);
+ part(0,5.1,center,20,.2,ANNEX_DEPTH,wall);
+ for(const x of [-10,10]){
+  part(x,2.5,center,.3,5,ANNEX_DEPTH,wall);
+  part(x*.978,2.8,center,.05,.25,ANNEX_DEPTH,accent);
+ }
+ const back=part(0,2.5,center-ANNEX_DEPTH/2,20,5,.3,wall);
+ const next=DEPARTMENTS[index+1];
+ if(next)back.userData.nextDepartment=next.id;
+ const sign=brandPanel(department.name.toUpperCase(),"FBA SUPERMARKET",5.9,.9);
+ sign.position.set(0,4.12,department.front-.18);group.add(sign);
+ if(!department.products.length){
+  part(6,.52,center+1.45,3.2,1.04,.82,accent);
+  part(6,1.06,center+1.45,3.2,.09,.9,wall);
+  colliders.push({minX:4.4,maxX:7.6,minZ:center+1,maxZ:center+1.9,requiresUpgrade:department.id});
+ }
+ for(const p of catalog.filter(product=>product.department===department.id)){
+  const rack=new THREE.Group();group.add(rack);
+  rack.position.set(p.x,0,p.z);rack.rotation.y=p.rotation*Math.PI/2;
+  const sign=shelfSign(p.name);sign.position.y=2.34;rack.add(sign);
+  const shelfMaterial=new THREE.MeshStandardMaterial({color:p.storage==="cold"?0x93c5fd:0x475569});
+  const backPanel=new THREE.Mesh(new THREE.BoxGeometry(1.7,2.15,.06),shelfMaterial);
+  backPanel.position.set(0,1.07,-.32);rack.add(backPanel);
+  const model=productModel(p);
+  for(let tier=0;tier<3;tier++){
+   const y=.43+tier*.65;
+   const shelf=new THREE.Mesh(new THREE.BoxGeometry(1.72,.08,.72),shelfMaterial);
+   shelf.position.y=y;rack.add(shelf);
+   addPriceRail(rack,p,y+.02,1.72,.37);
+   for(let slot=0;slot<10;slot++){
+    const item=model.clone();item.scale.setScalar(.67);
+    item.position.set(-.64+(slot%5)*.32,y+.22,slot<5?-.16:.16);
+    rack.add(item);displays[p.id].push(item);
+   }
+  }
+  colliders.push({minX:p.x-.42,maxX:p.x+.42,minZ:p.z-.87,maxZ:p.z+.87,requiresUpgrade:department.id});
+ }
+}
 function refreshDisplays(){
  for(const p of catalog)displays[p.id].forEach((m,i)=>{
   const stock=state.inventory[p.id].shelf;
@@ -2091,7 +2632,7 @@ const boxes={},reserveModels={};
 const storageSlots={dry:dryStorageSlots,electronics:electronicsStorageSlots};
 const storageProductGroups={};
 for(const kind of Object.keys(storageSlots)){
- const products=catalog.filter(p=>storageKind(p)===kind);
+ const products=catalog.filter(p=>storageKind(p)===kind&&(p.level||1)<11);
  storageProductGroups[kind]=products;
  if(storageSlots[kind].length<products.length*(MAX_BOXES_PER_PRODUCT+1))
   throw Error("Capacité visuelle insuffisante : "+storageName(kind));
@@ -2104,6 +2645,7 @@ const coldSlots={
 };
 for(const p of catalog){
  boxes[p.id]=[];
+ if(p.level>=11)continue;
  const kind=storageKind(p),cold=kind==="cold",slot=cold?coldSlots[p.id]:null;
  const slots=storageSlots[kind];
  const base=cold?-1:storageProductGroups[kind].indexOf(p)*(MAX_BOXES_PER_PRODUCT+1);
@@ -2133,10 +2675,14 @@ function refreshBoxes(){
   const a=state.inventory[p.id];
   const visible=m=>!m.userData.requiresUpgrade||state.upgrades[m.userData.requiresUpgrade];
   boxes[p.id].forEach((m,i)=>m.visible=visible(m)&&i<Math.min(MAX_BOXES_PER_PRODUCT,a.boxes));
-  reserveModels[p.id].visible=visible(reserveModels[p.id])&&a.reserve>0;
+  if(reserveModels[p.id])reserveModels[p.id].visible=visible(reserveModels[p.id])&&a.reserve>0;
  });
 }
-function sync(){hud();refreshDisplays();refreshBoxes();refreshExtension();updateLighting();save();}
+function sync(){
+ hud();refreshDisplays();refreshBoxes();refreshExtension();updateLighting();
+ for(const register of extraRegisters)for(const mesh of register.meshes)mesh.visible=playerLevel()>=register.level;
+ save();
+}
 // V0.4.2 — transport de cartons entiers, remplissage en lot
 // held = {id, quantity}. Une unité d'ancienne réserve peut être regroupée en lot.
 let held=null;
@@ -2155,11 +2701,11 @@ function refreshCarry(){
  updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
-function atReserve(){return camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<(state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45);}
-function atColdRoom(){return camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
+function atReserve(){return inStorageWing("dry",camera.position.x,camera.position.z)||camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<(state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45);}
+function atColdRoom(){return inStorageWing("cold",camera.position.x,camera.position.z)||camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
 function atElectronicsReserve(){
  const {x,z}=camera.position;
- return !!state.upgrades.store2&&x>=15.3&&x<20.35&&z>30.75&&z<43.7;
+ return inStorageWing("electronics",x,z)||!!state.upgrades.store2&&x>=15.3&&x<20.35&&z>30.75&&z<43.7;
 }
 function currentStorageKind(){
  if(atElectronicsReserve())return "electronics";
@@ -2228,6 +2774,8 @@ function showDisposal(p){
     a.boxes-=opened;
     a.reserve+=opened*BOX_UNITS-remaining;
    }
+   const losses=state.management.losses??={};
+   losses[p.id]=(losses[p.id]||0)+amount;
    sync();showReserve();toast(amount+" × "+p.name+" jetés");
   });
   button(panel,"Annuler",showReserve);
@@ -2474,8 +3022,10 @@ scene.add(stockerGroup);
 stockerGroup.position.set(13,0,5);
 let stockerTarget=null,stockerPhase="idle",stockerCargo=null,stockerTimer=0,stockerWalk=0,stockerTalking=false;
 function stockerNeeds(){
- return catalog.find(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
- (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0));
+ const options=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
+  (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0));
+ if(playerLevel()>=19)options.sort((a,b)=>state.inventory[a.id].shelf-state.inventory[b.id].shelf);
+ return options[0];
 }
 function stockerTaskLabel(){
  if(employeeBreakLabel(stockerBreakJourney))return employeeBreakLabel(stockerBreakJourney);
@@ -2502,7 +3052,7 @@ function stockerShelfPosition(p){
  // La position du produit désigne le centre du meuble : rester côté allée.
  // Rayons centraux : accès depuis l'allée latérale, pas à travers la gondole.
  if(p.kind==="extension")return [p.x,p.z+2.0];
- if(p.kind==="wall"||p.kind==="electronics"){
+ if(p.kind==="wall"||p.kind==="electronics"||p.kind==="department"){
   const angle=p.rotation*Math.PI/2,distance=p.kind==="electronics"?2:1.25;
   return [p.x+Math.sin(angle)*distance,p.z+Math.cos(angle)*distance];
  }
@@ -2810,6 +3360,8 @@ function interact(){
  if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
  if(near(10.2,7.8,1.45)&&camera.position.x>10.2){toggleStockroomLights();return;}
  if(currentStorageKind()){showReserve();return;}
+ const register=activeRegisters().find(r=>near(r.x,r.z,1.65));
+ if(register){showAuxiliaryCheckout(register);return;}
  if(fridgeDoor&&playerLevel()>=4&&near(-8.5,-3.5,2.4)){
   fridgeOpen=!fridgeOpen;fridgeDoor.rotation.y=fridgeOpen?-1.15:0;
   toast(fridgeOpen?"Réfrigérateur ouvert":"Réfrigérateur fermé");return;
@@ -2882,7 +3434,9 @@ document.addEventListener("keyup",e=>{if(keyMap[e.code])keys[keyMap[e.code]]=fal
 window.addEventListener("blur",()=>{Object.keys(keys).forEach(k=>keys[k]=false);lookPointer=null;joystickPointer=null;joyX=0;joyY=0;stick.style.transform="translate(0px,0px)";});
 function blocked(x,z,r=.4){
  // Entrée clientèle au sud (z positif), quai logistique à l'arrière (z négatif).
- const depth=state.upgrades.store2?-33.45:state.upgrades.store1?-21.45:-9.45;
+ const count=openDepartmentCount();
+ const depth=count?annexWall(count)+.17:state.upgrades.store2?-33.45:state.upgrades.store1?-21.45:-9.45;
+ if(count&&Math.abs(z-ANNEX_ENTRY)<.2+r&&Math.abs(x)>3.3-r)return true;
  const shop=x>=-9.45+r&&x<=9.45-r&&z>=depth+r&&z<=9.45-r;
  // Le volume accessible suit les extensions physiques de la réserve.
  const reserveDepth=state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45;
@@ -2898,13 +3452,28 @@ function blocked(x,z,r=.4){
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
  const breakDoor=x>23.5&&x<24.65&&z>-7.25+r&&z<-4.75-r;
- if(!(shop||reserve||cold||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor))return true;
- return colliders.some(c=>!c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
+ const storageWing=STORAGE_KINDS.some(kind=>{
+  const wing=STORAGE_WINGS[kind];
+  return inStorageWing(kind,x,z)&&x>wing.minX+.7+r&&x<wing.maxX-.7-r;
+ });
+ if(!(shop||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor))return true;
+ return colliders.some(c=>!c.disabled&&(!c.storageGate||!storageBayCount(c.storageGate))&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
 }
 // Trajets employés sur la carte du bâtiment, sans traverser murs, rayons ni meubles.
 // Les chemins parcourus sont inversés après la pause : reprise au point de travail exact.
 function staffBreakPath(from,to){
- const STEP=.5,MIN_X=-10,MIN_Z=-34,W=80,H=157;
+ const galleryStart=ANNEX_ENTRY-1.2;
+ if(Math.min(from.z,to.z)>=ANNEX_ENTRY-2)return findStaffPath(from,to);
+ const fromGallery=from.z<galleryStart,toGallery=to.z<galleryStart;
+ const entry={x:0,z:galleryStart};
+ const path=fromGallery?[from,{x:0,z:from.z}]:findStaffPath(from,entry);
+ if(!path.length)return [];
+ if(toGallery)return [...path,{x:0,z:to.z},to];
+ const remainder=findStaffPath(entry,to);
+ return remainder.length?[...path,...remainder]:[];
+}
+function findStaffPath(from,to){
+ const STEP=.5,MIN_X=-10,MIN_Z=Math.floor(Math.min(-34,from.z-2,to.z-2)),W=80,H=Math.ceil((Math.max(44,from.z+2,to.z+2)-MIN_Z)/STEP)+1;
  const at=(i,j)=>({x:MIN_X+i*STEP,z:MIN_Z+j*STEP});
  const node=p=>({i:Math.max(0,Math.min(W-1,Math.round((p.x-MIN_X)/STEP))),
                  j:Math.max(0,Math.min(H-1,Math.round((p.z-MIN_Z)/STEP)))});
@@ -3069,10 +3638,13 @@ function makeCustomer(){
   part(.27,.035,.035,handleMat,0,.42,z,bagGroup);
  }
  bagGroup.visible=false;
- const choices=[...unlockedProducts()].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*catalog.length));
+ const available=unlockedProducts();
+ const count=1+Math.floor(Math.random()*Math.min(available.length,4));
+ const choices=available.sort(()=>Math.random()-.5).slice(0,count);
+ const farthest=Math.max(0,...choices.map(p=>p.department?-p.z:0));
  const route=[{x:0,z:8}];
  for(const p of choices){
-  if(p.kind==="wall"||p.kind==="electronics"||p.kind==="extension"){
+  if(p.kind==="wall"||p.kind==="electronics"||p.kind==="extension"||p.kind==="department"){
    const [x,z]=stockerShelfPosition(p);
    route.push({x,z,shop:p.id});
    continue;
@@ -3086,9 +3658,9 @@ function makeCustomer(){
  group.position.set(0,0,12.5);scene.add(group);
  customers.push({
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
-  speed:1.2+Math.random()*.35,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,
+  speed:(farthest?2.8:1.2)+Math.random()*.35,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,
   visualClock:Math.random()*6,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
-  stuckTime:0,shoppingTime:0,shoppingTimeLimit:choices.some(p=>p.kind==="electronics")?65:42,queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:0,lastNavZ:12.5
+  stuckTime:0,shoppingTime:0,shoppingTimeLimit:farthest?65+farthest:choices.some(p=>p.kind==="electronics")?65:42,queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:0,lastNavZ:12.5
  });
 }
 function updateCustomerVisual(c,dt){
@@ -3126,13 +3698,27 @@ function customerBlocked(x,z,r=.28){
  return x+r>4.7&&x-r<9.45&&z+r>7.25&&z-r<9.95;
 }
 // Navigation A* sur grille invisible : évite les collisions avec les rayons et la caisse.
-const NAV_STEP=.35,NAV_MIN_X=-9.1,NAV_MIN_Z=-33.3,NAV_W=69,NAV_H=135;
+const NAV_STEP=.35,NAV_MIN_X=-9.1,NAV_MIN_Z=annexWall(DEPARTMENTS.length),NAV_W=69,NAV_H=Math.ceil((13.6-NAV_MIN_Z)/NAV_STEP);
 function navNode(x,z){
  return {i:Math.max(0,Math.min(NAV_W-1,Math.round((x-NAV_MIN_X)/NAV_STEP))),
  j:Math.max(0,Math.min(NAV_H-1,Math.round((z-NAV_MIN_Z)/NAV_STEP)))};
 }
 function navPoint(i,j){return {x:NAV_MIN_X+i*NAV_STEP,z:NAV_MIN_Z+j*NAV_STEP};}
 function navPath(from,to){
+ if(Math.min(from.z,to.z)<ANNEX_ENTRY-2){
+  const galleryStart=ANNEX_ENTRY-1.2;
+  const fromGallery=from.z<galleryStart;
+  const toGallery=to.z<galleryStart;
+  const entry={x:0,z:galleryStart};
+  const path=fromGallery?[{x:0,z:from.z}]:findNavPath(from,entry);
+  if(!path.length)return [];
+  if(toGallery)path.push({x:0,z:to.z},to);
+  else path.push(entry,...findNavPath(entry,to));
+  return path;
+ }
+ return findNavPath(from,to);
+}
+function findNavPath(from,to){
  const start=navNode(from.x,from.z),goal=navNode(to.x,to.z);
  const free=(i,j)=>i>=0&&j>=0&&i<NAV_W&&j<NAV_H&&!customerBlocked(NAV_MIN_X+i*NAV_STEP,NAV_MIN_Z+j*NAV_STEP,.28);
  const nearest=n=>{
@@ -3213,14 +3799,119 @@ function removeCustomer(c){
  const i=customers.indexOf(c);if(i!==-1)customers.splice(i,1);
 }
 // La file est un état indépendant : personne ne contourne la caisse côté personnel.
+const extraRegisters=[
+ {id:"second",level:20,x:-2.4,z:5.05,queueX:-1.15,queueZ:5.25,express:false,queue:[],client:null},
+ {id:"express",level:110,x:2.1,z:3.9,queueX:1.05,queueZ:4.05,express:true,queue:[],client:null},
+];
+for(const register of extraRegisters){
+ const {x,z,level}=register;
+ register.meshes=[
+  cube(x,.54,z,1.1,1.08,1.45,0x475569),
+  cube(x,1.11,z,1.19,.11,1.54,0x172033),
+  cube(x,1.29,z-.45,.35,.25,.16,0x22c55e),
+ ];
+ const sign=shelfSign(register.express?"CAISSE 3 · EXPRESS":"CAISSE 2");
+ sign.position.set(x,2.05,z);scene.add(sign);register.meshes.push(sign);
+ colliders.push({minX:x-.59,maxX:x+.59,minZ:z-.77,maxZ:z+.77,level});
+}
+function activeRegisters(){return extraRegisters.filter(r=>playerLevel()>=r.level);}
+function auxiliaryCustomerCount(register){return register.queue.length+Number(!!register.client);}
+function showAuxiliaryRegisters(){
+ openPanel("Caisses supplémentaires");
+ for(const register of activeRegisters()){
+  const label=register.express?"Caisse 3 · petits paniers":"Caisse 2";
+  button(panel,label+" · "+auxiliaryCustomerCount(register)+" client(s)",()=>showAuxiliaryCheckout(register));
+ }
+ if(playerLevel()>=49){
+  const hired=!!state.management.extraCashier;
+  button(panel,hired?"Suspendre le caissier de la caisse 2":"Recruter le caissier de la caisse 2 · 65 € par journée travaillée",()=>{
+   state.management.extraCashier=!hired;save();showAuxiliaryRegisters();
+  });
+ }
+}
+function showAuxiliaryCheckout(register){
+ if(!activeRegisters().includes(register))return;
+ openPanel(register.express?"Caisse 3 · express":"Caisse 2");
+ const client=register.client;
+ paragraph(register.queue.length+" client(s) dans la file.");
+ if(!client){paragraph("Aucun client au comptoir.");button(panel,"Actualiser",()=>showAuxiliaryCheckout(register));return;}
+ const items=Object.entries(client.basket).flatMap(([id,n])=>Array(n).fill(id));
+ paragraph(client.scanned+" / "+items.length+" articles scannés · "+euro(client.total));
+ if(client.scanned<items.length){
+  const product=catalog.find(p=>p.id===items[client.scanned]);
+  button(panel,"Scanner · "+product.name,()=>{
+   if(register.client!==client)return;
+   client.scanned++;showAuxiliaryCheckout(register);
+  });
+ }else button(panel,"Encaisser "+euro(client.total),()=>{
+  if(payAuxiliaryCheckout(register,client))showAuxiliaryCheckout(register);
+ });
+}
+function payAuxiliaryCheckout(register,client){
+ if(register.client!==client)return false;
+ const count=Object.values(client.basket).reduce((n,q)=>n+q,0);
+ if(client.scanned<count)return false;
+ if(count){
+  state.money+=client.total;finance.revenue+=client.total;finance.transactions++;state.sales+=count;
+  trackSale(client.basket,client.prices);
+  client.paid=true;changeSatisfaction(2);
+ }
+ register.client=null;sendToExit(client);sync();checkLevelUp();
+ return true;
+}
+function updateAuxiliaryQueue(client,dt){
+ const register=client.auxRegister;
+ if(!register)return;
+ if(client.phase==="auxCheckout"){
+  if(register.id==="second"&&state.management.extraCashier&&state.hour>=8&&state.hour<20&&
+   (state.hour<12||state.hour>=13)&&state.money>=65){
+   client.timer-=dt;
+   if(client.timer<=0){
+    client.scanned=Object.values(client.basket).reduce((n,q)=>n+q,0);
+    state.management.cashierWorkedDay=state.day;
+    payAuxiliaryCheckout(register,client);
+   }
+  }
+  return;
+ }
+ const i=register.queue.indexOf(client);
+ if(i<0){sendToExit(client);return;}
+ const p=client.group.position,beforeX=p.x,beforeZ=p.z;
+ const target={x:register.queueX,z:register.queueZ-Math.min(i,3)*.62};
+ const arrived=walk(client,target,dt);
+ const moved=Math.hypot(p.x-beforeX,p.z-beforeZ)>.003;
+ client.queueStall=moved||arrived?0:(client.queueStall||0)+dt;
+ if(i===0&&!register.client&&arrived){
+  register.queue.shift();register.client=client;client.phase="auxCheckout";client.scanned=0;
+  client.timer=2+Object.values(client.basket).reduce((n,q)=>n+q,0)*.55;
+  client.navTarget=null;client.navRoute=null;
+  toast(register.express?"Client à la caisse express":"Client à la caisse 2");
+ }else if(client.queueStall>10)sendToExit(client);
+}
 const CHECKOUT_SPOT={x:3.65,z:6.25};
 function queueSpot(i){return {x:3.65,z:6.25-Math.min(i,4)*.65};}
 function sendToQueue(c){
- if(c.phase==="queue"||c.phase==="checkout")return;
+ if(c.phase==="queue"||c.phase==="checkout"||c.phase==="auxQueue"||c.phase==="auxCheckout")return;
+ const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
+ const register=activeRegisters().filter(r=>!r.express||count<=5)
+  .sort((a,b)=>auxiliaryCustomerCount(a)-auxiliaryCustomerCount(b))[0];
+ if(register&&auxiliaryCustomerCount(register)<queue.length+Number(!!cashier)){
+  c.auxRegister=register;c.phase="auxQueue";c.queueStall=0;c.navTarget=null;c.navRoute=null;
+  register.queue.push(c);return;
+ }
  c.phase="queue";c.queueStall=0;c.navTarget=null;c.navRoute=null;
  if(!queue.includes(c))queue.push(c);
 }
 function sendToExit(c){
+ if(c.auxRegister){
+  const register=c.auxRegister;
+  register.queue=register.queue.filter(customer=>customer!==c);
+  if(register.client===c)register.client=null;
+  c.auxRegister=null;
+  c.phase="leaving";c.waypoint=0;c.navTarget=null;c.navRoute=null;c.stuckTime=0;
+  c.route=[{x:0,z:7.7},{x:0,z:12.5}];
+  return;
+ }
  const index=queue.indexOf(c);if(index>=0)queue.splice(index,1);
  c.phase="leaving";c.waypoint=0;c.navTarget=null;c.navRoute=null;c.stuckTime=0;
  c.route=[{x:3.65,z:6.25},{x:3.1,z:8.5},{x:0,z:8.5},{x:0,z:12.5}];
@@ -3258,6 +3949,8 @@ function updateCustomers(dt){
     }
     c.phase="shopping";
    }
+  }else if(c.phase==="auxQueue"||c.phase==="auxCheckout"){
+   updateAuxiliaryQueue(c,dt);
   }else if(c.phase==="queue"){
    c.queueElapsed+=dt;
    if(c.queueElapsed>25&&!c.waitPenalty){c.waitPenalty=true;changeSatisfaction(-3);}
@@ -3355,8 +4048,11 @@ function business(dt){
   }
   if(state.stockerHired&&state.stockerEnabled&&stockerShift()&&state.stockerSentHomeDay!==state.day){state.stockerWageDue+=STOCKER_DAILY_WAGE;state.stockerDaysWorked++;}
   if(finishedDate.getUTCDate()===new Date(Date.UTC(finishedDate.getUTCFullYear(),finishedDate.getUTCMonth()+1,0)).getUTCDate()){settleWorkerPayroll();const paid=Math.min(Math.max(0,state.money),state.stockerWageDue);state.money-=paid;state.stockerWageDue-=paid;state.stockerPaidTotal+=paid;}
+  if(state.management.cashierWorkedDay===state.day){state.money-=65;finance.charges+=65;}
   dayTimer=0;preopenTimer=0;state.hour=PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
+  processStandingOrders();
+  processOrderPicker();
   dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
   updateOpen();sync();
   toast(dateLabel()+" — 7 h : préparation, charges "+euro(DAILY_CHARGES));
@@ -3377,4 +4073,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.12.2 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.0 !");
