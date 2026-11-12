@@ -1226,7 +1226,26 @@ storageExtensionPart(12.65,-.15,27.1,5.3,.3,7.0,0xb9c1c8);
 storageExtensionPart(12.65,5.1,27.1,5.3,.2,7.0,0xf1f5f9);
 storageExtensionPart(10.0,2.5,27.15,.3,5,7.0,0xe2e8f0,true);
 storageExtensionPart(15.3,2.5,27.15,.3,5,7.0,0xe2e8f0,true);
-storageExtensionPart(12.65,2.5,30.6,5.3,5,.3,0xe2e8f0,true);
+// Nouvelle porte arrière de réserve, ouverte seulement après l'extension électronique.
+const reserve2Gate=cube(12.65,2.5,30.6,5.3,5,.3,0xe2e8f0);
+const reserve2GateCollider={minX:10,maxX:15.3,minZ:30.45,maxZ:30.75,disabled:false};
+colliders.push(reserve2GateCollider);
+const reserve2Meshes=[];
+function reserve2Part(x,y,z,w,h,d,color,solid=false){
+ const mesh=cube(x,y,z,w,h,d,color);reserve2Meshes.push(mesh);
+ if(solid)colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2,requiresUpgrade:"store2"});
+ return mesh;
+}
+reserve2Part(12.65,-.15,34.0,5.3,.3,7.0,0xb9c1c8);
+reserve2Part(12.65,5.1,34.0,5.3,.2,7.0,0xf1f5f9);
+reserve2Part(10,2.5,34.0,.3,5,7.0,0xe2e8f0,true);
+reserve2Part(15.3,2.5,34.0,.3,5,7.0,0xe2e8f0,true);
+reserve2Part(12.65,2.5,37.4,5.3,5,.3,0xe2e8f0,true);
+for(const x of [11.6,13.8])for(const z of [32.4,35.4]){
+ reserve2Part(x,4.905,z,1.62,.055,.58,0x94a3b8);
+ reserve2Part(x,4.869,z,1.49,.024,.46,0xfff7db);
+ const light=ceilingLamp(x,z);lamps.push({light,stockroom:true,requiresUpgrade:"store2"});
+}
 for(const x of [11.6,13.8])for(const z of [25.2,28.5]){
  storageExtensionPart(x,4.905,z,1.62,.055,.58,0x94a3b8);
  const panel=storageExtensionPart(x,4.869,z,1.49,.024,.46,0xfff7db);
@@ -1241,21 +1260,26 @@ for(const x of [10.2,15.08])wallBaseboard(x,20.05,.07,7.0);
 // l'allée, de l'accès magasin (x=10,z=5.5) ou devant l'interrupteur (z=7.8).
 const dryStorageSlots=[];
 function storageRack(x,z,face,expansion=false){
+ const upgrade=expansion==="store2"?"store2":expansion?"store1":null;
  const put=(px,py,pz,w,h,d,col)=>{
   const m=cube(px,py,pz,w,h,d,col);
-  if(expansion)storageExtensionMeshes.push(m);
+  if(upgrade==="store2")reserve2Meshes.push(m);
+  else if(upgrade==="store1")storageExtensionMeshes.push(m);
   return m;
  };
  for(const y of [.62,1.62,2.62]){
   put(x,y,z,.84,.075,1.65,0x94a3b8);
   put(x,y+.062,z+.80,.84,.07,.035,0x64748b);
-  for(const dz of [-.37,.37])dryStorageSlots.push({x,y:y+.367,z:z+dz,face,requiresUpgrade:expansion?"store1":null});
+  for(const dz of [-.37,.37])dryStorageSlots.push({x,y:y+.367,z:z+dz,face,requiresUpgrade:upgrade});
  }
  for(const dx of [-.38,.38])for(const dz of [-.78,.78])
   put(x+dx,1.66,z+dz,.055,3.32,.055,0x64748b);
  put(x,3.3,z,.82,.07,1.58,0x64748b);
  const hit={minX:x-.44,maxX:x+.44,minZ:z-.82,maxZ:z+.82};
- if(expansion){hit.requiresUpgrade="store1";storageExtensionColliders.push(hit);}
+ if(upgrade){
+  hit.requiresUpgrade=upgrade;
+  if(upgrade==="store1")storageExtensionColliders.push(hit);
+ }
  colliders.push(hit);
 }
 // Mur gauche : interruption sur 2,45 m au niveau de l'interrupteur.
@@ -1268,6 +1292,10 @@ for(const z of [3.2,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
 for(const z of [25.2,27.35,29.5]){
  storageRack(10.75,z,1,true);
  storageRack(14.55,z,-1,true);
+}
+for(const z of [32.4,34.6,36.5]){
+ storageRack(10.75,z,1,"store2");
+ storageRack(14.55,z,-1,"store2");
 }
 // Ouverture rectangulaire de 3 m, du sol jusqu’à 3,4 m, sans panneau suspendu.
 // Mur arrière avec passage central réservé à la première extension.
@@ -1416,6 +1444,9 @@ function refreshExtension(){
  oldReserveEndWall.visible=!unlocked;
  oldReserveWallCollider.disabled=unlocked;
  for(const mesh of storageExtensionMeshes)mesh.visible=unlocked;
+ reserve2Gate.visible=unlocked&&!electronicsUnlocked;
+ reserve2GateCollider.disabled=electronicsUnlocked||!unlocked;
+ for(const mesh of reserve2Meshes)mesh.visible=electronicsUnlocked;
 }
 // Équipe de chantier niveau 4 : ouvriers visibles devant le passage de l'extension.
 const constructionCrew=[];
@@ -2071,7 +2102,7 @@ function refreshCarry(){
  updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
-function atReserve(){return camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<(state.upgrades.store1?30.45:23.45);}
+function atReserve(){return camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<(state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45);}
 function atColdRoom(){return camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
 function atStorageFor(p){return coldProduct(p)?atColdRoom():atReserve();}
 function putBack(){
@@ -2764,7 +2795,7 @@ function blocked(x,z,r=.4){
  const depth=state.upgrades.store2?-33.45:state.upgrades.store1?-21.45:-9.45;
  const shop=x>=-9.45+r&&x<=9.45-r&&z>=depth+r&&z<=9.45-r;
  // Le volume accessible suit les extensions physiques de la réserve.
- const reserveDepth=state.upgrades.store1?30.45:23.45;
+ const reserveDepth=state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
  const cold=x>15.55&&x<23.75&&z>1.8&&z<16.8;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<13.45;
