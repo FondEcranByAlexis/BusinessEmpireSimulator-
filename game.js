@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.8";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.8";
-// Business Empire Simulator V0.13.8 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.9";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.9";
+// Business Empire Simulator V0.13.9 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -3885,8 +3885,8 @@ function blocked(x,z,r=.4){
 }
 // Trajets employés sur la carte du bâtiment, sans traverser murs, rayons ni meubles.
 // Les chemins parcourus sont inversés après la pause : reprise au point de travail exact.
-function directWalk(from,to,isBlocked){
- const steps=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.z-from.z)/.23));
+function directWalk(from,to,isBlocked,spacing=.23){
+ const steps=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.z-from.z)/spacing));
  for(let step=1;step<=steps;step++){
   const fraction=step/steps;
   if(isBlocked(from.x+(to.x-from.x)*fraction,from.z+(to.z-from.z)*fraction))return false;
@@ -4156,7 +4156,10 @@ function navNode(x,z){
 }
 function navPoint(i,j){return {x:NAV_MIN_X+i*NAV_STEP,z:NAV_MIN_Z+j*NAV_STEP};}
 function navPath(from,to){
- return directWalk(from,to,customerBlocked)?[to]:findNavPath(from,to);
+ return customerCanWalk(from,to,.28,.05)?[to]:findNavPath(from,to);
+}
+function customerCanWalk(from,to,radius=.26,spacing=.02){
+ return directWalk(from,to,(x,z)=>customerBlocked(x,z,radius),spacing);
 }
 function findNavPath(from,to){
  const start=navNode(from.x,from.z),goal=navNode(to.x,to.z);
@@ -4167,19 +4170,22 @@ function findNavPath(from,to){
   if(!cells[key])cells[key]=customerBlocked(NAV_MIN_X+i*NAV_STEP,NAV_MIN_Z+j*NAV_STEP,.28)?2:1;
   return cells[key]===1;
  };
- const nearest=n=>{
-  if(free(n.i,n.j))return n;
+ // Le point de grille le plus proche peut être de l'autre côté d'un coin de rayon.
+ const nearest=(n,position)=>{
+  const reachable=(i,j)=>free(i,j)&&(!position||customerCanWalk(position,navPoint(i,j)));
+  if(reachable(n.i,n.j))return n;
   for(let radius=1;radius<=12;radius++){
    let best=null,dist=Infinity;
    for(let di=-radius;di<=radius;di++)for(let dj=-radius;dj<=radius;dj++){
-    if(Math.max(Math.abs(di),Math.abs(dj))!==radius||!free(n.i+di,n.j+dj))continue;
+    if(Math.max(Math.abs(di),Math.abs(dj))!==radius||!reachable(n.i+di,n.j+dj))continue;
     const d=di*di+dj*dj;if(d<dist){dist=d;best={i:n.i+di,j:n.j+dj};}
    }
    if(best)return best;
   }
   return null;
  };
- const a=nearest(start),b=nearest(goal);if(!a||!b)return [];
+ const exactGoal=!customerBlocked(to.x,to.z);
+ const a=nearest(start,from),b=nearest(goal,exactGoal?to:null);if(!a||!b)return [];
  const key=(i,j)=>i+","+j,goalKey=key(b.i,b.j);
  const open=[{i:a.i,j:a.j,g:0,f:Math.abs(b.i-a.i)+Math.abs(b.j-a.j)}];
  const best=new Map([[key(a.i,a.j),0]]),parents=new Map(),closed=new Set();
@@ -4189,11 +4195,11 @@ function findNavPath(from,to){
   if(closed.has(nk))continue;
   if(nk===goalKey){
    const path=[];let cursor=nk;
-   while(cursor&&cursor!==key(a.i,a.j)){
+   while(cursor){
     const [i,j]=cursor.split(",").map(Number);path.push(navPoint(i,j));cursor=parents.get(cursor);
    }
    path.reverse();
-   if(!customerBlocked(to.x,to.z,.28))path.push({x:to.x,z:to.z});
+   if(exactGoal)path.push({x:to.x,z:to.z});
    return path;
   }
   closed.add(nk);
@@ -4225,8 +4231,7 @@ function walk(c,t,dt){
  while(c.navIndex<route.length&&Math.hypot(route[c.navIndex].x-p.x,route[c.navIndex].z-p.z)<.18){
   const next=route[c.navIndex+1];
   // Garde le point au coin d'un meuble tant que la diagonale n'est pas libre.
-  if(next&&Math.hypot(route[c.navIndex].x-p.x,route[c.navIndex].z-p.z)>.015&&
-   !directWalk(p,next,(x,z)=>customerBlocked(x,z,.25)))break;
+  if(next&&!customerCanWalk(p,next))break;
   c.navIndex++;
  }
  if(c.navIndex>=route.length){
@@ -4234,7 +4239,9 @@ function walk(c,t,dt){
   return Math.hypot(p.x-t.x,p.z-t.z)<.4;
  }
  const w=route[c.navIndex],dx=w.x-p.x,dz=w.z-p.z,dist=Math.hypot(dx,dz);
- const step=Math.min(c.speed*dt,dist),nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
+ const step=Math.min(c.speed*dt,dist);
+ if(!step)return false;
+ const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
  if(customerBlocked(nx,nz,.25)){
   c.stuckTime=(c.stuckTime||0)+dt;
   if(c.stuckTime>.35){c.navTarget=null;c.navRoute=null;c.stuckTime=0;}
@@ -4561,4 +4568,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.8 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.9 !");
