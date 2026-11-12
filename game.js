@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.1";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.1";
-// Business Empire Simulator V0.13.1 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.2";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.2";
+// Business Empire Simulator V0.13.2 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1535,7 +1535,8 @@ const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc9e8);
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,100);
 camera.position.set(0,1.7,7.5);camera.rotation.order="YXZ";
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.25));
+const basePixelRatio=Math.min(devicePixelRatio||1,1.25);
+renderer.setPixelRatio(basePixelRatio);
 renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=false;
 $("game").appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xffffff,0x718096,2.2));
@@ -1567,6 +1568,22 @@ function updateLighting(){
  if(typeof storageExtensionLightPanels!=="undefined")storageExtensionLightPanels.forEach(m=>m.material.color.setHex(stockroomLightsOn?0xfff7db:0x64748b));
 }
 const colliders=[];
+const colliderCells=new Map(),COLLIDER_CELL_SIZE=6,COLLIDER_CELL_PADDING=.5;
+function colliderCell(x,z){return Math.floor(x/COLLIDER_CELL_SIZE)+","+Math.floor(z/COLLIDER_CELL_SIZE);}
+function indexColliders(){
+ colliderCells.clear();
+ for(const collider of colliders){
+  const minX=Math.floor((collider.minX-COLLIDER_CELL_PADDING)/COLLIDER_CELL_SIZE);
+  const maxX=Math.floor((collider.maxX+COLLIDER_CELL_PADDING)/COLLIDER_CELL_SIZE);
+  const minZ=Math.floor((collider.minZ-COLLIDER_CELL_PADDING)/COLLIDER_CELL_SIZE);
+  const maxZ=Math.floor((collider.maxZ+COLLIDER_CELL_PADDING)/COLLIDER_CELL_SIZE);
+  for(let x=minX;x<=maxX;x++)for(let z=minZ;z<=maxZ;z++){
+   const key=x+","+z;
+   if(!colliderCells.has(key))colliderCells.set(key,[]);
+   colliderCells.get(key).push(collider);
+  }
+ }
+}
 function cube(x,y,z,w,h,d,color,solid=false){
  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.8}));
  mesh.position.set(x,y,z);scene.add(mesh);
@@ -1965,7 +1982,7 @@ function refreshExtension(){
  for(const [id,room] of annexGroups){
   room.group.visible=mallOpen;
   room.gate.visible=!state.upgrades[id];
-  room.furnishings.visible=!!state.upgrades[id];
+  if(!state.upgrades[id])room.furnishings.visible=false;
  }
  // La même amélioration agrandit aussi la surface exploitable du stockage.
  oldReserveEndWall.visible=!unlocked;
@@ -2108,8 +2125,10 @@ const productTextures={};
 function packageTexture(p){
  if(productTextures[p.id])return productTextures[p.id];
  // Texture haute définition : nom très lisible sur la face avant du paquet.
- const c=document.createElement("canvas");c.width=512;c.height=512;
- const x=c.getContext("2d");
+ const c=document.createElement("canvas");
+ const scale=p.department?.5:1;
+ c.width=512*scale;c.height=512*scale;
+ const x=c.getContext("2d");x.scale(scale,scale);
  x.fillStyle="#"+p.color.toString(16).padStart(6,"0");x.fillRect(0,0,512,512);
  x.fillStyle="#ffffff";x.fillRect(18,62,476,370);
  x.fillStyle="#172033";x.textAlign="center";x.textBaseline="middle";
@@ -2256,8 +2275,10 @@ const priceLabelTextures={};
 function addPriceRail(parent,p,y,width,front){
  const key=p.id;
  if(!priceLabelTextures[key]){
-  const canvas=document.createElement("canvas");canvas.width=512;canvas.height=192;
-  const ctx=canvas.getContext("2d");
+  const canvas=document.createElement("canvas");
+  const scale=p.department?.5:1;
+  canvas.width=512*scale;canvas.height=192*scale;
+  const ctx=canvas.getContext("2d");ctx.scale(scale,scale);
   ctx.fillStyle="#ffffff";ctx.fillRect(0,0,512,192);
   ctx.strokeStyle="#cbd5e1";ctx.lineWidth=5;ctx.strokeRect(3,3,506,186);
   ctx.fillStyle="#0f172a";ctx.textAlign="left";ctx.textBaseline="middle";
@@ -2280,7 +2301,7 @@ function addShelfDividers(parent,y,width){
   divider.position.set(x,y+.115,0);parent.add(divider);
  }
 }
-const displays={},extraShelves=[];
+const displays={},departmentDisplays=new Map(),extraShelves=[];
 let freezerLid=null,freezerOpen=false;
 let fridgeDoor=null,fridgeOpen=false;
 for(const p of catalog){
@@ -2563,8 +2584,30 @@ for(const [z,west,east] of [
  mallSign(mallShell,east+" →","AILE EST",4.2,z,0,6.1);
 }
 
+// Une instance par emplacement, regroupée en un seul objet de rendu
+// par pièce du modèle. Les trente emplacements restent utilisables.
+function departmentProductBatch(parent,product){
+ const model=productModel(product);
+ const transform=new THREE.Matrix4();
+ const position=new THREE.Vector3(),rotation=new THREE.Quaternion(),scale=new THREE.Vector3(.67,.67,.67);
+ const result=[];
+ for(const piece of model.children){
+  const batch=new THREE.InstancedMesh(piece.geometry,piece.material,CAPACITY);
+  piece.updateMatrix();
+  for(let index=0;index<CAPACITY;index++){
+   const tier=Math.floor(index/10),slot=index%10;
+   position.set(-.64+(slot%5)*.32,.65+tier*.65,slot<5?-.16:.16);
+   transform.compose(position,rotation,scale).multiply(piece.matrix);
+   batch.setMatrixAt(index,transform);
+  }
+  batch.computeBoundingSphere();
+  parent.add(batch);result.push(batch);
+ }
+ departmentDisplays.set(product.id,result);
+}
 for(const [index,department] of DEPARTMENTS.entries()){
  const group=new THREE.Group(),furnishings=new THREE.Group();
+ furnishings.visible=false;
  group.add(furnishings);scene.add(group);
  const {x,z,front}=department,half=MALL_ROOM/2;
  const accent=new THREE.MeshStandardMaterial({color:departmentColors[index%departmentColors.length]});
@@ -2586,7 +2629,7 @@ for(const [index,department] of DEPARTMENTS.entries()){
  const gate=roomWall(x,1.7,front,2.8,3.4,.24,new THREE.MeshStandardMaterial({color:0x475569}));
  hit(x,front,2.8,.24,department.id);
  mallSign(group,department.name.toUpperCase(),"NIVEAU "+department.level,x,front+.15,0,7.4);
- annexGroups.set(department.id,{group,gate,furnishings});
+ annexGroups.set(department.id,{group,gate,furnishings,x,z});
  if(!department.products.length){
   fixture(x+2.25,.52,z,2.6,1.04,.82,accent);
   fixture(x+2.25,1.06,z,2.6,.09,.9,mallWallMaterial);
@@ -2599,29 +2642,28 @@ for(const [index,department] of DEPARTMENTS.entries()){
   const shelfMaterial=new THREE.MeshStandardMaterial({color:p.storage==="cold"?0x93c5fd:0x475569});
   const backPanel=new THREE.Mesh(new THREE.BoxGeometry(1.7,2.15,.06),shelfMaterial);
   backPanel.position.set(0,1.07,-.32);rack.add(backPanel);
-  const model=productModel(p);
+  departmentProductBatch(rack,p);
   for(let tier=0;tier<3;tier++){
    const y=.43+tier*.65;
    const shelf=new THREE.Mesh(new THREE.BoxGeometry(1.72,.08,.72),shelfMaterial);
    shelf.position.y=y;rack.add(shelf);
    addPriceRail(rack,p,y+.02,1.72,.37);
-   for(let slot=0;slot<10;slot++){
-    const item=model.clone();item.scale.setScalar(.67);
-    item.position.set(-.64+(slot%5)*.32,y+.22,slot<5?-.16:.16);
-    rack.add(item);displays[p.id].push(item);
-   }
   }
   colliders.push({minX:p.x-.42,maxX:p.x+.42,minZ:p.z-.87,maxZ:p.z+.87,requiresUpgrade:department.id});
   addShelfGuide(p,p.x,p.z,p.rotation*Math.PI/2);
  }
 }
 function refreshDisplays(){
- for(const p of catalog)displays[p.id].forEach((m,i)=>{
-  const stock=state.inventory[p.id].shelf;
-  // Chaque produit de départ occupe désormais une gondole.
-  const visible=p.level||p.kind==="extension"?i<stock:i<stock;
-  m.visible=productAvailable(p)&&visible;
- });
+ for(const p of catalog){
+  const stock=productAvailable(p)?state.inventory[p.id].shelf:0;
+  const batches=departmentDisplays.get(p.id);
+  if(batches){
+   for(const mesh of batches){
+    mesh.count=Math.min(stock,CAPACITY);
+    mesh.visible=mesh.count>0;
+   }
+  }else displays[p.id].forEach((mesh,index)=>mesh.visible=index<stock);
+ }
  for(const e of extraShelves)e.group.visible=playerLevel()>=e.level;
  for(const p of catalog.filter(p=>p.kind==="extension")){const g=extensionProductGroups[p.id];if(g)g.visible=!!state.upgrades.store1;}
  for(const p of catalog.filter(p=>p.kind==="electronics")){const g=electronicsProductGroups[p.id];if(g)g.visible=!!state.upgrades.store2;}
@@ -3536,7 +3578,11 @@ function blocked(x,z,r=.4){
   return inStorageWing(kind,x,z)&&x>wing.minX+.7+r&&x<wing.maxX-.7-r;
  });
  if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor))return true;
- return colliders.some(c=>!c.disabled&&(!c.storageGate||!storageBayCount(c.storageGate))&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&(!c.lockedBy||!state.upgrades[c.lockedBy])&&playerLevel()>=(c.level||1)&&x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ);
+ const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
+ return candidates?.some(c=>x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ&&
+  !c.disabled&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&
+  (!c.lockedBy||!state.upgrades[c.lockedBy])&&(!c.level||playerLevel()>=c.level)&&
+  (!c.storageGate||!storageBayCount(c.storageGate)))??false;
 }
 // Trajets employés sur la carte du bâtiment, sans traverser murs, rayons ni meubles.
 // Les chemins parcourus sont inversés après la pause : reprise au point de travail exact.
@@ -4144,6 +4190,26 @@ function business(dt){
 window.addEventListener("resize",()=>{
  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
 });
+// La façade et les panneaux restent visibles. L'intérieur d'une boutique
+// est chargé au rendu à l'approche, indépendamment du stock et de la navigation.
+let renderingDeepGallery=false;
+function updateGalleryRendering(){
+ const {x,z}=camera.position;
+ for(const [id,room] of annexGroups){
+  const dx=Math.max(0,Math.abs(x-room.x)-MALL_ROOM/2);
+  const dz=Math.max(0,Math.abs(z-room.z)-MALL_ROOM/2);
+  const distance=room.furnishings.visible?7:5.5;
+  room.furnishings.visible=room.group.visible&&!!state.upgrades[id]&&dx*dx+dz*dz<=distance*distance;
+ }
+ // À cette distance les luminaires du magasin ne touchent plus la galerie.
+ // Les retirer du rendu évite les calculs d'éclairage inutiles par pixel.
+ const deep=z<ANNEX_ENTRY-(renderingDeepGallery?5:7);
+ if(deep===renderingDeepGallery)return;
+ renderingDeepGallery=deep;
+ ceilingLights.visible=!deep;
+ coldLightGlow.visible=!deep;
+ renderer.setPixelRatio(deep?Math.min(basePixelRatio,1):basePixelRatio);
+}
 const clock=new THREE.Clock();
 function animate(){
  requestAnimationFrame(animate);
@@ -4153,6 +4219,7 @@ function animate(){
  if(!paused){movePlayer(dt);updateConstruction(dt);business(dt);updateCustomers(dt);updateWorker(dt);updateStocker(dt);}
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
+ updateGalleryRendering();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.1 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.2 !");
