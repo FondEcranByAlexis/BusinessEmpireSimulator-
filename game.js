@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.11";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.11";
-// Business Empire Simulator V0.13.11 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.12";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.12";
+// Business Empire Simulator V0.13.12 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -41,15 +41,15 @@ const catalog=[
  {id:"graines",name:"Graines de tournesol",cost:4,price:9,color:0xc084fc,x:0,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
  {id:"sauce_tomate",name:"Sauce tomate",cost:4,price:8,color:0xef4444,x:5,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
  {id:"smartphones",name:"Téléphones",cost:65,price:125,color:0x2563eb,x:-8.9,z:-24.1,level:6,kind:"electronics",rotation:1,license:"phones"},
- {id:"ecouteurs",name:"Écouteurs",cost:12,price:29,color:0x38bdf8,x:8.9,z:-24.1,level:6,kind:"electronics",rotation:-1,license:"store2"},
- {id:"casques",name:"Casques audio",cost:25,price:59,color:0xa78bfa,x:8.9,z:-27.1,level:6,kind:"electronics",rotation:-1,license:"store2"},
- {id:"ordinateurs",name:"Ordinateurs",cost:135,price:279,color:0x94a3b8,x:-6.7,z:-32.5,level:6,kind:"electronics",rotation:0,license:"store2"},
- {id:"drones",name:"Drones",cost:85,price:179,color:0x22c55e,x:6.7,z:-32.5,level:6,kind:"electronics",rotation:0,license:"store2"},
- {id:"tablettes",name:"Tablettes",cost:80,price:159,color:0x0891b2,x:-8.9,z:-27.1,level:6,kind:"electronics",rotation:1,license:"store2"},
- {id:"montres",name:"Montres connectées",cost:42,price:89,color:0xf472b6,x:-8.9,z:-30.1,level:6,kind:"electronics",rotation:1,license:"store2"},
- {id:"appareils_photo",name:"Appareils photo",cost:95,price:189,color:0x6366f1,x:4.5,z:-23.05,level:6,kind:"electronics",rotation:2,license:"store2"},
- {id:"enceintes",name:"Enceintes Bluetooth",cost:32,price:69,color:0xf97316,x:8.9,z:-30.1,level:6,kind:"electronics",rotation:-1,license:"store2"},
- {id:"claviers",name:"Claviers sans fil",cost:23,price:49,color:0xa3e635,x:-4.5,z:-23.05,level:6,kind:"electronics",rotation:2,license:"store2"}
+ {id:"ecouteurs",name:"Écouteurs",cost:12,price:29,color:0x38bdf8,x:8.9,z:-24.1,level:5,kind:"electronics",rotation:-1,license:"store2"},
+ {id:"casques",name:"Casques audio",cost:25,price:59,color:0xa78bfa,x:8.9,z:-27.1,level:5,kind:"electronics",rotation:-1,license:"store2"},
+ {id:"ordinateurs",name:"Ordinateurs",cost:135,price:279,color:0x94a3b8,x:-6.7,z:-32.5,level:5,kind:"electronics",rotation:0,license:"store2"},
+ {id:"drones",name:"Drones",cost:85,price:179,color:0x22c55e,x:6.7,z:-32.5,level:5,kind:"electronics",rotation:0,license:"store2"},
+ {id:"tablettes",name:"Tablettes",cost:80,price:159,color:0x0891b2,x:-8.9,z:-27.1,level:5,kind:"electronics",rotation:1,license:"store2"},
+ {id:"montres",name:"Montres connectées",cost:42,price:89,color:0xf472b6,x:-8.9,z:-30.1,level:5,kind:"electronics",rotation:1,license:"store2"},
+ {id:"appareils_photo",name:"Appareils photo",cost:95,price:189,color:0x6366f1,x:4.5,z:-23.05,level:5,kind:"electronics",rotation:2,license:"store2"},
+ {id:"enceintes",name:"Enceintes Bluetooth",cost:32,price:69,color:0xf97316,x:8.9,z:-30.1,level:5,kind:"electronics",rotation:-1,license:"store2"},
+ {id:"claviers",name:"Claviers sans fil",cost:23,price:49,color:0xa3e635,x:-4.5,z:-23.05,level:5,kind:"electronics",rotation:2,license:"store2"}
 ];
 const departmentColors=[0x0e7490,0xb45309,0x15803d,0x7c3aed,0xbe123c,0x0369a1];
 for(const [id,name,cost,price,level,x,z,rotation] of EARLY_PRODUCTS){
@@ -76,9 +76,9 @@ const upgradeCatalog=[
  {id:"handtruck",name:"Diable de manutention",level:1,cost:125,description:"Transporte jusqu’à 3 cartons du quai vers les trois zones de stockage."},
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
  {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Agrandit le magasin et la réserve sèche : +40 places de stockage, jusqu’à 100 cartons après l’amélioration du niveau 3."},
- {id:"store2",name:"Extension Électronique II",level:6,cost:3000,requires:"store1",description:"Hall électronique avec dix rayons et réserve électronique de 60 cartons. Réserve sèche : +60 cartons."},
- {id:"phoneSkill",name:"Compétence Téléphonie",level:5,cost:1200,description:"Formation préalable à la vente de téléphones."},
- {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:"phoneSkill",description:"Débloque la spécialisation téléphones."},
+ {id:"store2",name:"Extension Électronique II",level:5,cost:3000,requires:"store1",description:"Hall électronique avec neuf rayons disponibles dès l’ouverture et un emplacement pour les téléphones au niveau 6. Réserve électronique : 60 cartons. Réserve sèche : +60 cartons."},
+ {id:"phoneSkill",name:"Compétence Téléphonie",level:6,cost:1200,requires:"store2",description:"Formation préalable à la vente de téléphones."},
+ {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:["store2","phoneSkill"],description:"Débloque la spécialisation téléphones."},
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
  {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",description:"Débloque la spécialisation consoles."},
  {id:"freshLicense",name:"Licence produits frais et surgelés",level:4,cost:650,description:"Autorise la vente de fromage et de pizzas surgelées."},
@@ -217,6 +217,10 @@ function upgradeCategory(u){
  if(u.id.endsWith("Skill")||u.id==="phones"||u.id==="consoles")return "competences";
  return "extensions";
 }
+function missingUpgradePrerequisites(upgrade){
+ return [].concat(upgrade.requires??[]).filter(id=>!state.upgrades[id])
+  .map(id=>upgradeCatalog.find(item=>item.id===id).name);
+}
 function showUpgrades(tab=activeUpgradeTab){
  activeUpgradeTab=UPGRADE_TABS.some(t=>t.id===tab)?tab:"licences";
  openPanel("Améliorations du magasin");
@@ -278,8 +282,9 @@ function showUpgrades(tab=activeUpgradeTab){
   if(hasConstruction&&u.id==="store2"&&!owned&&!underway)paragraph("Chantier sur trois journées, de 8 h à 17 h.");
   if(underway){paragraph("Progression : "+constructionPercent()+" % — "+constructionStage());continue;}
   if(owned)continue;
-  const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires])&&(!hasConstruction||!state.construction);
-  if(u.requires&&!state.upgrades[u.requires])paragraph("Prérequis · "+upgradeCatalog.find(item=>item.id===u.requires)?.name);
+  const prerequisites=missingUpgradePrerequisites(u);
+  const eligible=playerLevel()>=u.level&&!prerequisites.length&&(!hasConstruction||!state.construction);
+  if(prerequisites.length)paragraph("Prérequis · "+prerequisites.join(" et "));
   const b=button(panel,eligible?"Acheter — "+euro(u.cost):"Verrouillé — niveau "+u.level,()=>{
    if(!eligible||state.upgrades[u.id]||(hasConstruction&&state.construction))return;
    if(state.money<u.cost){toast("Trésorerie insuffisante");return;}
@@ -527,8 +532,8 @@ function showNextLevelNotice(){
  }));
  const newUpgrades=upgradeCatalog.filter(u=>u.level===level);
  section("AMÉLIORATIONS ET COMPÉTENCES",newUpgrades.map(u=>{
-  const prerequisite=upgradeCatalog.find(item=>item.id===u.requires);
-  const restriction=prerequisite&&!state.upgrades[prerequisite.id]?" — nécessite d'abord : "+prerequisite.name:"";
+  const prerequisites=missingUpgradePrerequisites(u);
+  const restriction=prerequisites.length?" — nécessite d’abord : "+prerequisites.join(" et "):"";
   return u.name+" ("+euro(u.cost)+")"+restriction+(state.upgrades[u.id]?" — déjà acquis":"");
  }));
  const milestone=LEVEL_REWARDS[level-1]?.[0];
@@ -4613,4 +4618,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.11 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.12 !");
