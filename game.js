@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.12.1 — version synchronisée
+// Business Empire Simulator V0.12.2 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -45,9 +45,9 @@ const catalog=[
  {id:"drones",name:"Drones",cost:85,price:179,color:0x22c55e,x:6.7,z:-32.5,level:6,kind:"electronics",rotation:0,license:"store2"},
  {id:"tablettes",name:"Tablettes",cost:80,price:159,color:0x0891b2,x:-8.9,z:-27.1,level:6,kind:"electronics",rotation:1,license:"store2"},
  {id:"montres",name:"Montres connectées",cost:42,price:89,color:0xf472b6,x:-8.9,z:-30.1,level:6,kind:"electronics",rotation:1,license:"store2"},
- {id:"appareils_photo",name:"Appareils photo",cost:95,price:189,color:0x6366f1,x:2.25,z:-32.5,level:6,kind:"electronics",rotation:0,license:"store2"},
+ {id:"appareils_photo",name:"Appareils photo",cost:95,price:189,color:0x6366f1,x:4.5,z:-23.05,level:6,kind:"electronics",rotation:2,license:"store2"},
  {id:"enceintes",name:"Enceintes Bluetooth",cost:32,price:69,color:0xf97316,x:8.9,z:-30.1,level:6,kind:"electronics",rotation:-1,license:"store2"},
- {id:"claviers",name:"Claviers sans fil",cost:23,price:49,color:0xa3e635,x:-2.25,z:-32.5,level:6,kind:"electronics",rotation:0,license:"store2"}
+ {id:"claviers",name:"Claviers sans fil",cost:23,price:49,color:0xa3e635,x:-4.5,z:-23.05,level:6,kind:"electronics",rotation:2,license:"store2"}
 ];
 const CAPACITY=30, BOX_UNITS=10;
 // Six gondoles : une par produit de départ, 30 emplacements chacune.
@@ -1979,7 +1979,7 @@ for(const p of catalog.filter(p=>p.kind==="electronics")){
   rack.add(item);displays[p.id].push(item);
  }
  scene.add(rack);electronicsProductGroups[p.id]=rack;electronicsMeshes.push(rack);
- const side=p.rotation!==0,halfX=side?.60:1.35,halfZ=side?1.35:.60;
+ const alongX=p.rotation%2===0,halfX=alongX?1.35:.60,halfZ=alongX?.60:1.35;
  colliders.push({minX:p.x-halfX,maxX:p.x+halfX,minZ:p.z-halfZ,maxZ:p.z+halfZ,requiresUpgrade:"store2"});
  addShelfGuide(p,p.x,p.z,angle);
 }
@@ -3377,4 +3377,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.12.1 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.12.2 !");
