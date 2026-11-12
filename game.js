@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.12.0 — version synchronisée
+// Business Empire Simulator V0.12.1 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -38,16 +38,16 @@ const catalog=[
  {id:"semoule",name:"Semoule",cost:3,price:7,color:0xeab308,x:-5,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
  {id:"graines",name:"Graines de tournesol",cost:4,price:9,color:0xc084fc,x:0,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
  {id:"sauce_tomate",name:"Sauce tomate",cost:4,price:8,color:0xef4444,x:5,z:-19,level:4,kind:"wall",rotation:0,license:"extensionLicense"},
- {id:"smartphones",name:"Téléphones",cost:65,price:125,color:0x2563eb,x:-7,z:-29,level:6,kind:"electronics",license:"phones"},
- {id:"ecouteurs",name:"Écouteurs",cost:12,price:29,color:0x38bdf8,x:-3.5,z:-29,level:6,kind:"electronics",license:"store2"},
- {id:"casques",name:"Casques audio",cost:25,price:59,color:0xa78bfa,x:0,z:-29,level:6,kind:"electronics",license:"store2"},
- {id:"ordinateurs",name:"Ordinateurs",cost:135,price:279,color:0x94a3b8,x:3.5,z:-29,level:6,kind:"electronics",license:"store2"},
- {id:"drones",name:"Drones",cost:85,price:179,color:0x22c55e,x:7,z:-29,level:6,kind:"electronics",license:"store2"},
- {id:"tablettes",name:"Tablettes",cost:80,price:159,color:0x0891b2,x:-7,z:-32.4,level:6,kind:"electronics",license:"store2"},
- {id:"montres",name:"Montres connectées",cost:42,price:89,color:0xf472b6,x:-3.5,z:-32.4,level:6,kind:"electronics",license:"store2"},
- {id:"appareils_photo",name:"Appareils photo",cost:95,price:189,color:0x6366f1,x:0,z:-32.4,level:6,kind:"electronics",license:"store2"},
- {id:"enceintes",name:"Enceintes Bluetooth",cost:32,price:69,color:0xf97316,x:3.5,z:-32.4,level:6,kind:"electronics",license:"store2"},
- {id:"claviers",name:"Claviers sans fil",cost:23,price:49,color:0xa3e635,x:7,z:-32.4,level:6,kind:"electronics",license:"store2"}
+ {id:"smartphones",name:"Téléphones",cost:65,price:125,color:0x2563eb,x:-8.9,z:-24.1,level:6,kind:"electronics",rotation:1,license:"phones"},
+ {id:"ecouteurs",name:"Écouteurs",cost:12,price:29,color:0x38bdf8,x:8.9,z:-24.1,level:6,kind:"electronics",rotation:-1,license:"store2"},
+ {id:"casques",name:"Casques audio",cost:25,price:59,color:0xa78bfa,x:8.9,z:-27.1,level:6,kind:"electronics",rotation:-1,license:"store2"},
+ {id:"ordinateurs",name:"Ordinateurs",cost:135,price:279,color:0x94a3b8,x:-6.7,z:-32.5,level:6,kind:"electronics",rotation:0,license:"store2"},
+ {id:"drones",name:"Drones",cost:85,price:179,color:0x22c55e,x:6.7,z:-32.5,level:6,kind:"electronics",rotation:0,license:"store2"},
+ {id:"tablettes",name:"Tablettes",cost:80,price:159,color:0x0891b2,x:-8.9,z:-27.1,level:6,kind:"electronics",rotation:1,license:"store2"},
+ {id:"montres",name:"Montres connectées",cost:42,price:89,color:0xf472b6,x:-8.9,z:-30.1,level:6,kind:"electronics",rotation:1,license:"store2"},
+ {id:"appareils_photo",name:"Appareils photo",cost:95,price:189,color:0x6366f1,x:2.25,z:-32.5,level:6,kind:"electronics",rotation:0,license:"store2"},
+ {id:"enceintes",name:"Enceintes Bluetooth",cost:32,price:69,color:0xf97316,x:8.9,z:-30.1,level:6,kind:"electronics",rotation:-1,license:"store2"},
+ {id:"claviers",name:"Claviers sans fil",cost:23,price:49,color:0xa3e635,x:-2.25,z:-32.5,level:6,kind:"electronics",rotation:0,license:"store2"}
 ];
 const CAPACITY=30, BOX_UNITS=10;
 // Six gondoles : une par produit de départ, 30 emplacements chacune.
@@ -1892,8 +1892,8 @@ function shelfSign(label){
  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:true,depthWrite:false}));
  sprite.scale.set(2.5,.62,1);return sprite;
 }
-function addShelfGuide(p,x,z){
- const group=new THREE.Group();group.position.set(x,0,z);
+function addShelfGuide(p,x,z,rotation=0){
+ const group=new THREE.Group();group.position.set(x,0,z);group.rotation.y=rotation;
  const sign=shelfSign(p.name);sign.position.set(0,2.72,0);group.add(sign);
  // Balise lumineuse sur toute la hauteur et la largeur du meuble, visible à travers les murs.
  const isCompact=!!p.level&&p.kind!=="electronics"&&p.kind!=="extension"&&p.kind!=="froid"&&p.kind!=="congelateur"&&p.kind!=="wall";
@@ -1953,10 +1953,11 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
  colliders.push({minX:p.x-1.4,maxX:p.x+1.4,minZ:p.z-.55,maxZ:p.z+.55,requiresUpgrade:"store1"});
 }
 
-// Zone électronique : dix vitrines réparties sur deux rangées.
+// Vitrines orientées vers l’allée centrale, sur les deux côtés et au fond.
 const electronicsProductGroups={};
 for(const p of catalog.filter(p=>p.kind==="electronics")){
- const rack=new THREE.Group();rack.position.set(p.x,0,p.z);
+ const angle=p.rotation*Math.PI/2;
+ const rack=new THREE.Group();rack.position.set(p.x,0,p.z);rack.rotation.y=angle;
  const sign=shelfSign(p.name);sign.position.y=2.65;rack.add(sign);
  const steel=new THREE.MeshStandardMaterial({color:0x475569,metalness:.5,roughness:.35});
  const glass=new THREE.MeshStandardMaterial({color:0x8ecce0,transparent:true,opacity:.25,depthWrite:false});
@@ -1978,8 +1979,9 @@ for(const p of catalog.filter(p=>p.kind==="electronics")){
   rack.add(item);displays[p.id].push(item);
  }
  scene.add(rack);electronicsProductGroups[p.id]=rack;electronicsMeshes.push(rack);
- colliders.push({minX:p.x-1.35,maxX:p.x+1.35,minZ:p.z-.60,maxZ:p.z+.60,requiresUpgrade:"store2"});
- addShelfGuide(p,p.x,p.z);
+ const side=p.rotation!==0,halfX=side?.60:1.35,halfZ=side?1.35:.60;
+ colliders.push({minX:p.x-halfX,maxX:p.x+halfX,minZ:p.z-halfZ,maxZ:p.z+halfZ,requiresUpgrade:"store2"});
+ addShelfGuide(p,p.x,p.z,angle);
 }
 // Assortiment des rayonnages muraux et des trois gondoles du fond.
 for(const item of wallProductRacks){
@@ -1992,8 +1994,7 @@ for(const item of wallProductRacks){
   model.position.set(-1.02+(slot%5)*.51,.69+tier*.70,slot<5?-.18:.18);
   item.rack.add(model);displays[p.id].push(model);
  }
- addShelfGuide(p,p.x,p.z);
- shelfGuides[p.id+"@"+p.z].group.rotation.y=item.rotation;
+ addShelfGuide(p,p.x,p.z,item.rotation);
 }
 for(const p of catalog.filter(p=>p.kind!=="extension"&&p.kind!=="electronics"&&p.kind!=="wall"))for(const z of (p.z!==undefined?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
 function refreshDisplays(){
@@ -2500,10 +2501,10 @@ function showStockerInteraction(){
 function stockerShelfPosition(p){
  // La position du produit désigne le centre du meuble : rester côté allée.
  // Rayons centraux : accès depuis l'allée latérale, pas à travers la gondole.
- if(p.kind==="extension"||p.kind==="electronics")return [p.x,p.z+2.0];
- if(p.kind==="wall"){
-  const angle=p.rotation*Math.PI/2;
-  return [p.x+Math.sin(angle)*1.25,p.z+Math.cos(angle)*1.25];
+ if(p.kind==="extension")return [p.x,p.z+2.0];
+ if(p.kind==="wall"||p.kind==="electronics"){
+  const angle=p.rotation*Math.PI/2,distance=p.kind==="electronics"?2:1.25;
+  return [p.x+Math.sin(angle)*distance,p.z+Math.cos(angle)*distance];
  }
  if(p.kind==="froid"||p.kind==="congelateur")return [p.x,p.z+2.1];
  if(p.x<=-4)return [p.x+1.65,p.z??1];
@@ -3376,4 +3377,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.12.0 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.12.1 !");
