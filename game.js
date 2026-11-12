@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.17";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.17";
-// Business Empire Simulator V0.13.17 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.18";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.18";
+// Business Empire Simulator V0.13.18 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -70,6 +70,7 @@ DEPARTMENTS.forEach((department,index)=>{
  });
 });
 const CAPACITY=30, BOX_UNITS=10;
+const FAST_RESTOCK_LIMIT=15;
 // Six gondoles : une par produit de départ, 30 emplacements chacune.
 function shelfCapacity(p){return CAPACITY;}
 const upgradeCatalog=[
@@ -81,6 +82,7 @@ const upgradeCatalog=[
  {id:"phoneSkill",name:"Licence Téléphonie",level:6,cost:1200,requires:"store2",category:"licences",description:"Autorise la vente de téléphones après l’installation du rayon dédié."},
  {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:["store2","phoneSkill"],category:"extensions",description:"Ouvre le rayon Téléphones dans le hall électronique."},
  {id:"fastMovement",name:"Déplacement rapide",level:6,cost:500,category:"competences",description:"Augmente de 25 % ta vitesse de déplacement à pied."},
+ {id:"fastRestock",name:"Mise en rayon efficace",level:8,cost:800,category:"competences",description:"Prends jusqu’à 15 articles d’un même produit en réserve et dépose-les en une seule interaction si le rayon a la place."},
  {id:"gamingSkill",name:"Licence Jeux vidéo",level:8,cost:1600,category:"licences",description:"Autorise l’ouverture du rayon Consoles au niveau 10."},
  {id:"consoles",name:"Rayon Consoles",level:10,cost:3500,requires:"gamingSkill",category:"extensions",description:"Débloque le rayon Consoles. Les consoles seront ajoutées au catalogue dans une prochaine mise à jour."},
  {id:"freshLicense",name:"Licence produits frais et surgelés",level:4,cost:650,description:"Autorise la vente de fromage et de pizzas surgelées."},
@@ -3073,6 +3075,22 @@ function takeCarton(p,amount,source="box"){
  sync();refreshCarry();panel.style.display="none";
  toast((held.source==="loose"?"Lot en vrac de ":"Carton de ")+p.name+" : "+held.quantity+" produits. Va au rayon.");
 }
+function removeReserveUnits(inventory,quantity){
+ const loose=Math.min(inventory.reserve,quantity);
+ const remaining=quantity-loose;
+ const opened=Math.ceil(remaining/BOX_UNITS);
+ inventory.boxes-=opened;
+ inventory.reserve+=opened*BOX_UNITS-remaining-loose;
+}
+function takeRestockBatch(p){
+ if(held||!state.upgrades.fastRestock||!atStorageFor(p)||!productAvailable(p))return;
+ const quantity=Math.min(FAST_RESTOCK_LIMIT,productStoredUnits(p));
+ if(!quantity)return;
+ removeReserveUnits(state.inventory[p.id],quantity);
+ held={id:p.id,quantity,source:"loose"};
+ sync();refreshCarry();panel.style.display="none";
+ toast(quantity+" × "+p.name+" pris en réserve. Va au rayon.");
+}
 // Gestion des déchets : uniquement les produits réellement en réserve.
 // Confirmation obligatoire ; aucun remboursement.
 function showDisposal(p){
@@ -3099,15 +3117,8 @@ function showDisposal(p){
   openPanel("Confirmer la suppression");
   paragraph("Jeter définitivement "+amount+" × "+p.name+" ?");
   button(panel,"Oui, jeter "+amount+" produit(s)",()=>{
-   // Déballer virtuellement les cartons nécessaires pour prélever le solde.
-   const fromLoose=Math.min(a.reserve,amount);
-   a.reserve-=fromLoose;
-   let remaining=amount-fromLoose;
-   if(remaining>0){
-    const opened=Math.ceil(remaining/BOX_UNITS);
-    a.boxes-=opened;
-    a.reserve+=opened*BOX_UNITS-remaining;
-   }
+   if(amount>productStoredUnits(p)){toast("Le stock disponible a changé");showDisposal(p);return;}
+   removeReserveUnits(a,amount);
    const losses=state.management.losses??={};
    losses[p.id]=(losses[p.id]||0)+amount;
    sync();showReserve();toast(amount+" × "+p.name+" jetés");
@@ -3633,6 +3644,8 @@ function showReserve(){
   paragraph("● "+p.name+" — "+stockAlert(p)+" | Cartons : "+a.boxes+"/5 ("+(a.boxes*BOX_UNITS)+" unités) | Espace vrac : "+a.reserve+" unités | Total réserve : "+(a.reserve+a.boxes*BOX_UNITS));
   if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10,"box"));
   if(a.reserve>0)button(panel,"PRENDRE EN VRAC — "+p.name+" ("+Math.min(10,a.reserve)+")",()=>takeCarton(p,10,"loose"));
+  const batch=Math.min(FAST_RESTOCK_LIMIT,productStoredUnits(p));
+  if(state.upgrades.fastRestock&&batch>BOX_UNITS)button(panel,"Prendre un lot de "+batch+" — "+p.name,()=>takeRestockBatch(p));
   if(a.boxes>0||a.reserve>0)button(panel,"Jeter des "+p.name,()=>showDisposal(p));
  }
 }
@@ -4641,4 +4654,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.17 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.18 !");

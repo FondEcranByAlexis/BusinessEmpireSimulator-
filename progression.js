@@ -7,7 +7,7 @@ export const LEVEL_REWARDS = [
   ["Céréales et neuf références électroniques après ouverture de l’Extension II.", "", "Extension Électronique II · 3 000 € · après Extension I · chantier de 3 services en partie normale", "Réserve sèche · +60, jusqu’à 160 cartons. Réserve électronique · 60 cartons.", ""],
   ["Pommes et téléphones après acquisition des licences et ouverture des rayons concernés. Déplacement rapide · 500 € · vitesse de déplacement +25 %.", "Fruits et légumes · 450 €. Licence Téléphonie · 1 200 €, après ouverture de l’Extension II.", "Rayon Téléphones · 2 400 €, après la licence Téléphonie et l’ouverture de l’Extension II.", "", ""],
   ["Proposition · mise de côté des marchandises proches de leur date pour préparer une démarque", "", "", "", ""],
-  ["", "Licence Jeux vidéo · 1 600 €", "", "", ""],
+  ["Mise en rayon efficace · 800 € · jusqu’à 15 articles d’un même produit par trajet et par interaction.", "Licence Jeux vidéo · 1 600 €", "", "", ""],
   ["Proposition · tableau des ventes par produit sur les sept derniers jours", "", "", "", ""],
   ["", "", "Rayon Consoles · 3 500 €, après la licence Jeux vidéo. Les consoles seront ajoutées au catalogue dans une prochaine mise à jour.", "", ""],
   ["Ajout des confitures, pâtes à tartiner et du granola", "", "", "", ""],
