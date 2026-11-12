@@ -1877,6 +1877,32 @@ for(const p of catalog.filter(p=>p.kind==="extension")){
  colliders.push({minX:p.x-1.4,maxX:p.x+1.4,minZ:p.z-.55,maxZ:p.z+.55,requiresUpgrade:"store1"});
 }
 
+// Zone électronique — cinq rayons avec 30 produits chacun.
+const electronicsProductGroups={};
+for(const p of catalog.filter(p=>p.kind==="electronics")){
+ const rack=new THREE.Group();rack.position.set(p.x,0,p.z);
+ const steel=new THREE.MeshStandardMaterial({color:0x475569,metalness:.5,roughness:.35});
+ const glass=new THREE.MeshStandardMaterial({color:0x8ecce0,transparent:true,opacity:.25,depthWrite:false});
+ for(const y of [.45,1.15,1.85]){
+  const shelf=new THREE.Mesh(new THREE.BoxGeometry(2.55,.08,.96),steel);
+  shelf.position.y=y;rack.add(shelf);
+  const front=new THREE.Mesh(new THREE.BoxGeometry(2.55,.20,.03),glass);
+  front.position.set(0,y+.13,.48);rack.add(front);
+  addPriceRail(rack,p,y+.02,2.55,.51);
+ }
+ for(const x of [-1.25,1.25])for(const z of [-.46,.46]){
+  const post=new THREE.Mesh(new THREE.BoxGeometry(.06,2.4,.06),steel);
+  post.position.set(x,1.2,z);rack.add(post);
+ }
+ for(let i=0;i<CAPACITY;i++){
+  const tier=Math.floor(i/10),slot=i%10,item=productModel(p);
+  item.position.set(-1.02+(slot%5)*.51,.70+tier*.70,slot<5?-.20:.19);
+  rack.add(item);displays[p.id].push(item);
+ }
+ scene.add(rack);electronicsProductGroups[p.id]=rack;electronicsMeshes.push(rack);
+ colliders.push({minX:p.x-1.35,maxX:p.x+1.35,minZ:p.z-.60,maxZ:p.z+.60,requiresUpgrade:"store2"});
+ addShelfGuide(p,p.x,p.z);
+}
 // Les nouveaux produits occupent les deux étagères murales déjà installées.
 for(const item of wallProductRacks){
  const p=item.product;
@@ -1890,7 +1916,7 @@ for(const item of wallProductRacks){
  addShelfGuide(p,p.x,p.z);
  shelfGuides[p.id+"@"+p.z].group.rotation.y=item.rotation;
 }
-for(const p of catalog.filter(p=>p.kind!=="extension"&&p.kind!=="wall"))for(const z of (p.z!==undefined?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
+for(const p of catalog.filter(p=>p.kind!=="extension"&&p.kind!=="electronics"&&p.kind!=="wall"))for(const z of (p.z!==undefined?[p.z]:[-4,1]))addShelfGuide(p,p.x,z);
 function refreshDisplays(){
  for(const p of catalog)displays[p.id].forEach((m,i)=>{
   const stock=state.inventory[p.id].shelf;
@@ -1904,6 +1930,7 @@ function refreshDisplays(){
   item.availableSign.visible=!productAvailable(item.product);
  }
  for(const p of catalog.filter(p=>p.kind==="extension")){const g=extensionProductGroups[p.id];if(g)g.visible=!!state.upgrades.store1;}
+ for(const p of catalog.filter(p=>p.kind==="electronics")){const g=electronicsProductGroups[p.id];if(g)g.visible=!!state.upgrades.store2;}
  updateShelfGuides();
 }
 cube(6.5,.55,6.5,3,1.1,1.3,0x475569,true);
