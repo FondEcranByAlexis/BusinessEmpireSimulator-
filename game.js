@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.11.0 — version synchronisée
+// Business Empire Simulator V0.11.1 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -103,6 +103,7 @@ function unlockedShelves(){return 6+Math.max(0,playerLevel()-1)+(playerLevel()>=
 const CONSTRUCTION_DAYS=3;
 const CONSTRUCTION_START_HOUR=8,CONSTRUCTION_END_HOUR=17;
 const CONSTRUCTION_SHIFT_SECONDS=450; // 600 s pour 12 heures : 9 heures = 450 s
+const CONSTRUCTION_PROGRESS_TOLERANCE=1e-9;
 function constructionOnShift(){
  return !!state.construction&&!state.upgrades[state.construction.target||"store1"]&&
   state.hour>=CONSTRUCTION_START_HOUR&&state.hour<CONSTRUCTION_END_HOUR;
@@ -1505,7 +1506,8 @@ function updateConstruction(dt){
  // Chantier actif uniquement de 08 h à 17 h : neuf heures de travail par journée.
  // 450 secondes réelles = une journée complète d'ouvriers dans le temps du jeu.
  if(constructionOnShift()){
-  state.construction.progress=Math.min(CONSTRUCTION_DAYS,state.construction.progress+dt/CONSTRUCTION_SHIFT_SECONDS);
+  const workSeconds=Math.min(dt,Math.max(0,CONSTRUCTION_SHIFT_SECONDS-dayTimer));
+  state.construction.progress+=workSeconds/CONSTRUCTION_SHIFT_SECONDS;
   constructionAnimation+=dt;
   for(const w of constructionCrew){
    w.arm.rotation.x=-.5+Math.sin(constructionAnimation*5+w.offset)*.8;
@@ -1514,7 +1516,7 @@ function updateConstruction(dt){
  }
  constructionAutosave+=dt;
  if(constructionAutosave>=5){constructionAutosave=0;save();}
- if(state.construction.progress>=CONSTRUCTION_DAYS){
+ if(state.construction.progress>=CONSTRUCTION_DAYS-CONSTRUCTION_PROGRESS_TOLERANCE){
   const target=state.construction.target||"store1";
   state.construction=null;state.upgrades[target]=true;
   updateConstructionUI();sync();
@@ -3294,4 +3296,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.11.0 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.11.1 !");
