@@ -1582,6 +1582,33 @@ function productModel(p){
  }else if(p.id==="pommes"){
   add(new THREE.SphereGeometry(.18,12,10),base);
   add(new THREE.CylinderGeometry(.018,.025,.09,6),new THREE.MeshStandardMaterial({color:0x365314}),0,.18,0);
+ }else if(p.kind==="electronics"){
+  const black=new THREE.MeshStandardMaterial({color:0x111827,roughness:.25,metalness:.2});
+  const screen=new THREE.MeshStandardMaterial({color:p.color,emissive:p.color,emissiveIntensity:.17});
+  const metal=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.3});
+  if(p.id==="smartphones"){
+   add(new THREE.BoxGeometry(.23,.43,.045),black);
+   add(new THREE.BoxGeometry(.20,.37,.007),screen,0,0,.028);
+  }else if(p.id==="ecouteurs"){
+   for(const x of [-.10,.10]){
+    add(new THREE.SphereGeometry(.075,9,8),white,x,.04,.03);
+    add(new THREE.CylinderGeometry(.022,.024,.20,8),metal,x,-.12,.03);
+   }
+  }else if(p.id==="casques"){
+   const band=add(new THREE.TorusGeometry(.16,.042,7,18,Math.PI),black,0,.03,0);
+   band.rotation.z=Math.PI;
+   for(const x of [-.16,.16])add(new THREE.BoxGeometry(.085,.19,.13),screen,x,-.10,0);
+  }else if(p.id==="ordinateurs"){
+   add(new THREE.BoxGeometry(.42,.29,.045),black,0,.09,0);
+   add(new THREE.BoxGeometry(.38,.25,.008),screen,0,.09,.029);
+   add(new THREE.BoxGeometry(.48,.025,.33),metal,0,-.08,.13);
+  }else if(p.id==="drones"){
+   add(new THREE.BoxGeometry(.25,.085,.20),base);
+   for(const x of [-.20,.20])for(const z of [-.19,.19]){
+    add(new THREE.BoxGeometry(.23,.035,.035),black,x/2,0,z/2);
+    add(new THREE.CylinderGeometry(.10,.10,.018,10),metal,x,.06,z);
+   }
+  }
  }else if(p.id==="fromage"){
   add(new THREE.CylinderGeometry(.17,.17,.15,3),base);
   add(new THREE.BoxGeometry(.22,.035,.12),label,0,.09,0);
