@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.11.1 — version synchronisée
+// Business Empire Simulator V0.11.2 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -40,7 +40,7 @@ const upgradeCatalog=[
  {id:"handtruck",name:"Diable de manutention",level:1,cost:125,description:"Transporte jusqu’à 3 cartons du quai vers la réserve sèche et la chambre froide."},
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
  {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Agrandit le magasin et la réserve sèche : +40 places de stockage, jusqu’à 100 cartons après l’amélioration du niveau 3."},
- {id:"store2",name:"Extension Électronique II",level:6,cost:3000,requires:"store1",description:"Hall électronique avec cinq rayons et chantier sur trois journées (ouvriers de 8 h à 17 h). Réserve sèche : +40 cartons."},
+ {id:"store2",name:"Extension Électronique II",level:6,cost:3000,requires:"store1",description:"Hall électronique avec cinq rayons. Réserve sèche : +40 cartons."},
  {id:"phoneSkill",name:"Compétence Téléphonie",level:5,cost:1200,description:"Formation préalable à la vente de téléphones."},
  {id:"phones",name:"Rayon Téléphones",level:6,cost:2400,requires:"phoneSkill",description:"Débloque la spécialisation téléphones."},
  {id:"gamingSkill",name:"Compétence Jeux vidéo",level:8,cost:1600,description:"Formation préalable à la vente de consoles."},
@@ -163,7 +163,7 @@ function showUpgrades(tab=activeUpgradeTab){
   if(products.length)paragraph("Références : "+products.map(p=>p.name).join(", ")+".");
   button(panel,"Consulter les stocks",showStocks);
  }else if(activeUpgradeTab==="extensions"){
-  note.textContent="Agrandissements du magasin et suivi des chantiers.";
+  note.textContent=DEV_MODE?"En mode test, les extensions ouvrent dès l’achat.":"Agrandissements du magasin et suivi des chantiers.";
   if(state.construction&&!state.upgrades[state.construction.target||"store1"]){
    paragraph("Chantier "+(state.construction.target==="store2"?"électronique":"magasin")+" : "+constructionPercent()+" % — "+constructionStage()+".");
    paragraph("Ouvriers de 8 h à 17 h, pendant trois journées de travail.");
@@ -183,18 +183,20 @@ function showUpgrades(tab=activeUpgradeTab){
  }
  const upgrades=upgradeCatalog.filter(u=>upgradeCategory(u)===activeUpgradeTab);
  for(const u of upgrades){
+  const hasConstruction=!DEV_MODE&&(u.id==="store1"||u.id==="store2");
   const owned=!!state.upgrades[u.id];
   const underway=!!state.construction&&(state.construction.target||"store1")===u.id&&!owned;
   paragraph(u.name+" — "+(owned?"ACQUIS":underway?"CHANTIER EN COURS":euro(u.cost))+" | Niveau "+u.level+" requis");
   paragraph(u.description);
+  if(hasConstruction&&u.id==="store2"&&!owned&&!underway)paragraph("Chantier sur trois journées, de 8 h à 17 h.");
   if(underway){paragraph("Progression : "+constructionPercent()+" % — "+constructionStage());continue;}
   if(owned)continue;
-  const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires])&&(!(u.id==="store1"||u.id==="store2")||!state.construction);
+  const eligible=playerLevel()>=u.level&&(!u.requires||state.upgrades[u.requires])&&(!hasConstruction||!state.construction);
   const b=button(panel,eligible?"Acheter — "+euro(u.cost):"Verrouillé — niveau "+u.level,()=>{
    if(!eligible)return;
    if(state.money<u.cost){toast("Trésorerie insuffisante");return;}
    state.money-=u.cost;
-   if(u.id==="store1"||u.id==="store2"){
+   if(hasConstruction){
     state.construction={progress:0,units:"days",target:u.id};
     sync();updateConstructionUI();showUpgrades(activeUpgradeTab);toast("Chantier lancé : les ouvriers arrivent !");
    }else{
@@ -270,6 +272,11 @@ function load(){
  return s;
 }
 const state=load();
+// Un chantier déjà payé dans une ancienne sauvegarde de test est livré au chargement.
+if(DEV_MODE&&state.construction){
+ state.upgrades[state.construction.target]=true;
+ state.construction=null;
+}
 // Les niveaux déjà acquis ne déclenchent aucune notification rétroactive.
 if(!Number.isInteger(state.lastNotifiedLevel)){
  let achieved=1;
@@ -1476,8 +1483,10 @@ function createBuilder(x,z,color){
  group.position.set(x,0,z);group.rotation.y=Math.PI;scene.add(group);
  constructionCrew.push({group,arm,offset:constructionCrew.length*1.6});
 }
-createBuilder(-2.85,-8.75,0xf97316);
-createBuilder(2.85,-8.75,0xfacc15);
+if(!DEV_MODE){
+ createBuilder(-2.85,-8.75,0xf97316);
+ createBuilder(2.85,-8.75,0xfacc15);
+}
 let constructionAnimation=0,constructionAutosave=0;
 function updateConstructionUI(){
  const active=!!state.construction&&!state.upgrades[state.construction.target||"store1"];
@@ -3296,4 +3305,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.11.1 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.11.2 !");
