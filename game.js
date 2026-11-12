@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.18";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.18";
-// Business Empire Simulator V0.13.18 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.19";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.19";
+// Business Empire Simulator V0.13.19 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -456,7 +456,7 @@ Object.assign(levelModalCard.style,{width:"min(94vw,460px)",maxHeight:"88dvh",
  background:"#0f172a",boxShadow:"0 12px 40px #0009"});
 levelModal.appendChild(levelModalCard);document.body.appendChild(levelModal);
 function implementedMilestone(level){
- return [1,2,3,4,5,6,7,8,9,11,14,16,18,19,20,24,25,31,49,59,66,72,77,86,88,94,104,109,110,112,138,154,172,174,179,199,200].includes(level);
+ return [1,2,3,4,5,6,7,8,9,10,11,14,16,18,19,20,24,25,31,49,59,66,72,77,86,88,94,104,109,110,112,138,154,172,174,179,199,200].includes(level);
 }
 function milestoneEntries(level){
  const entries=LEVEL_REWARDS[level-1];
@@ -1520,27 +1520,33 @@ function checkoutRemaining(c){
  }
  return c.checkoutRemaining;
 }
+function checkoutSlotCount(){return playerLevel()>=10?6:5;}
 function renderCheckoutVisual(c){
- if(checkoutVisual?.customer===c&&checkoutVisual.scanned===c.scanned)return;
+ const slots=checkoutSlotCount();
+ if(checkoutVisual?.customer===c&&checkoutVisual.scanned===c.scanned&&checkoutVisual.slots===slots)return;
  clearCheckoutVisual();
  const models=[];
- checkoutRemaining(c).slice(0,5).forEach((id,i)=>{
+ checkoutRemaining(c).slice(0,slots).forEach((id,i)=>{
   const p=catalog.find(x=>x.id===id);if(!p)return;
   const m=productModel(p);m.scale.setScalar(.7);
-  m.position.set(6.16-i*.23,1.28,6.44);
+  if(slots===6){
+   const backRow=i%2;
+   m.position.set(6.05-Math.floor(i/2)*.36+backRow*.15,1.28,backRow?6.16:6.75);
+  }
+  else m.position.set(6.16-i*.23,1.28,6.44);
   // L'index correspond à la position dans la file, pas au type de produit.
   m.traverse(o=>{o.userData.checkoutArticle=true;o.userData.checkoutSlot=i;});
   scene.add(m);models.push(m);
  });
- checkoutVisual={customer:c,scanned:c.scanned,models};
+ checkoutVisual={customer:c,scanned:c.scanned,slots,models};
 }
 function scanCheckoutArticle(slot){
  const c=cashier;if(!c||c.phase!=="checkout")return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(c.scanned>=count)return;
  const remaining=checkoutRemaining(c);
- // Seuls les cinq articles présents sur le tapis peuvent être scannés.
- if(!Number.isInteger(slot)||slot<0||slot>=Math.min(remaining.length,5))return;
+ // Seuls les articles visibles sur le tapis peuvent être scannés.
+ if(!Number.isInteger(slot)||slot<0||slot>=Math.min(remaining.length,checkoutSlotCount()))return;
  remaining.splice(slot,1);
  c.scanned++;
  renderCheckoutVisual(c);
@@ -3016,6 +3022,7 @@ function refreshBoxes(){
 }
 function sync(){
  hud();refreshDisplays();refreshBoxes();refreshExtension();updateLighting();
+ if(checkoutVisual)renderCheckoutVisual(checkoutVisual.customer);
  for(const register of extraRegisters)for(const mesh of register.meshes)mesh.visible=playerLevel()>=register.level;
  save();
 }
@@ -4654,4 +4661,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.18 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.19 !");

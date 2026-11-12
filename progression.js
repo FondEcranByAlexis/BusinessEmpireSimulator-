@@ -9,7 +9,7 @@ export const LEVEL_REWARDS = [
   ["Proposition · mise de côté des marchandises proches de leur date pour préparer une démarque", "", "", "", ""],
   ["Mise en rayon efficace · 800 € · jusqu’à 15 articles d’un même produit par trajet et par interaction.", "Licence Jeux vidéo · 1 600 €", "", "", ""],
   ["Proposition · tableau des ventes par produit sur les sept derniers jours", "", "", "", ""],
-  ["", "", "Rayon Consoles · 3 500 €, après la licence Jeux vidéo. Les consoles seront ajoutées au catalogue dans une prochaine mise à jour.", "", ""],
+  ["Tapis de caisse · jusqu’à six articles visibles, disposés en quinconce.", "", "Rayon Consoles · 3 500 €, après la licence Jeux vidéo. Les consoles seront ajoutées au catalogue dans une prochaine mise à jour.", "", ""],
   ["Ajout des confitures, pâtes à tartiner et du granola", "", "", "", ""],
   ["", "Licence boissons fraîches → sodas, eaux aromatisées et thés glacés", "", "", ""],
   ["", "", "", "Deux travées de réserve sèche pour l’épicerie · sec +40 → 200 cartons", ""],
