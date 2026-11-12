@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-// Business Empire Simulator V0.10.9.1 — version synchronisée
+// Business Empire Simulator V0.11.0 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -153,7 +153,7 @@ function showUpgrades(tab=activeUpgradeTab){
  if(activeUpgradeTab==="stock"){
   note.textContent="Réserve sèche : capacité et transport des cartons.";
   paragraph("Stockage actuel : "+storageBoxes("dry")+"/"+reserveLimit()+" cartons.");
-  paragraph("La première extension du magasin ajoute 40 places à la réserve sèche lorsqu'elle est terminée.");
+  paragraph("Chaque extension achevée ajoute 40 cartons et une nouvelle zone de rayonnages à la réserve sèche.");
  }else if(activeUpgradeTab==="froid"){
   note.textContent="Zone frigorifique indépendante de la réserve sèche.";
   paragraph("Chambre froide : "+storageBoxes("cold")+"/"+coldLimit()+" cartons (10 produits par carton).");
@@ -206,7 +206,7 @@ function showUpgrades(tab=activeUpgradeTab){
 
 function initial(){
  const inventory={};
- catalog.forEach(p=>inventory[p.id]={shelf:p.kind==="extension"?0:10,reserve:0,boxes:0,price:p.price});
+ catalog.forEach(p=>inventory[p.id]={shelf:(p.kind==="extension"||p.kind==="electronics")?0:10,reserve:0,boxes:0,price:p.price});
  return {money:1000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],stockerLeaveDays:[],construction:null,stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,satisfaction:80,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
@@ -2433,7 +2433,7 @@ function showStockerInteraction(){
 function stockerShelfPosition(p){
  // La position du produit désigne le centre du meuble : rester côté allée.
  // Rayons centraux : accès depuis l'allée latérale, pas à travers la gondole.
- if(p.kind==="extension")return [p.x,p.z+2.1];
+ if(p.kind==="extension"||p.kind==="electronics")return [p.x,p.z+2.1];
  if(p.kind==="wall")return p.id==="conserves"?[-7.65,5.9]:[-5.2,6.55];
  if(p.kind==="froid"||p.kind==="congelateur")return [p.x,p.z+2.1];
  if(p.x<=-4)return [p.x+1.65,p.z??1];
@@ -2444,11 +2444,16 @@ let stockerRoute=[];
 function stockerRouteTo(point){
  const x=stockerGroup.position.x,z=stockerGroup.position.z;
  const inside=x>10.3&&z>1.8,goingInside=point[0]>10.3&&point[1]>1.8;
- // Passage du personnel : ouverture du mur est à x=10, z=5.5.
  const route=[];
+ // L'accès aux deux extensions suit les portes centrales à z=-10 et z=-22.
+ // Cette déviation évite de traverser les cloisons et les vitrines.
+ if(z<-22.5&&point[1]>=-22.5)route.push([0,-25],[0,-23.5],[0,-20],[0,-12],[0,-8.5]);
  if(inside!==goingInside){
   if(inside)route.push([11.1,5.5],[8.8,5.5]);
   else route.push([8.8,5.5],[11.1,5.5]);
+ }
+ if(point[1]<-22.5){
+  route.push([0,-8.5],[0,-12],[0,-20],[0,-23.5],[0,-25],[point[0],point[1]+2]);
  }
  route.push(point);
  stockerRoute=route;
@@ -3289,4 +3294,4 @@ function animate(){
  updateHandtruck();
  renderer.render(scene,camera);
 }
-sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.10.9.1 !");
+sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.11.0 !");
