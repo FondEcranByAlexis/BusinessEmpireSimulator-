@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.7";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.7";
-// Business Empire Simulator V0.13.7 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.13.8";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.13.8";
+// Business Empire Simulator V0.13.8 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1478,7 +1478,11 @@ function checkoutText(value,large=false){
  Object.assign(p.style,{margin:"9px 0",fontSize:large?"18px":"13px",fontWeight:large?"bold":"normal"});
  checkoutUI.appendChild(p);
 }
-function closeCheckoutUI(){checkoutUI.style.display="none";}
+let terminalKeyHandler=null;
+function closeCheckoutUI(){
+ terminalKeyHandler=null;
+ checkoutUI.style.display="none";
+}
 let checkoutVisual=null;
 function clearCheckoutVisual(){
  if(!checkoutVisual)return;
@@ -1544,6 +1548,7 @@ function completeCheckoutPayment(c,count){
 }
 function showPayment(c,count){
  if(c!==cashier)return;
+ terminalKeyHandler=null;
  releaseMouseLook();
  checkoutUI.replaceChildren();checkoutUI.style.display="block";
  checkoutText("FBA — MODE DE PAIEMENT",true);
@@ -1557,17 +1562,27 @@ function showCardPayment(c,count){
  let entered="",amountConfirmed=false;
  const expected=Math.round(c.total*100);
  function draw(){
+  terminalKeyHandler=null;
   checkoutUI.replaceChildren();checkoutUI.style.display="block";
   checkoutText("FBA — TERMINAL BANCAIRE",true);
   checkoutText("Total à encaisser : "+euro(c.total),true);
   if(!amountConfirmed){
-   checkoutText("1. Saisis le montant en euros (ex. 30 = 30 €).");
+   checkoutText("Saisis le montant en euros avec le clavier ou les boutons. Entrée pour valider.");
    const amountDisplay=document.createElement("div");
    Object.assign(amountDisplay.style,{fontSize:"18px",fontWeight:"bold",margin:"9px 0"});
    checkoutUI.appendChild(amountDisplay);
    const grid=document.createElement("div");
    Object.assign(grid.style,{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"5px"});
    checkoutUI.appendChild(grid);
+   function enterDigit(digit){
+    entered=digit==="C"?"":digit==="⌫"?entered.slice(0,-1):(entered+digit).slice(0,7);
+    updateAmount();
+   }
+   function confirmAmount(){
+    if(c!==cashier)return;
+    if(Math.round(Number(entered)*100)!==expected){toast("Saisis le montant exact");return;}
+    amountConfirmed=true;draw();
+   }
    for(const digit of ["1","2","3","4","5","6","7","8","9","C","0","⌫"]){
     const b=document.createElement("button");b.textContent=digit;
     Object.assign(b.style,{minHeight:"40px",padding:"7px",fontSize:"19px",fontWeight:"bold",touchAction:"manipulation",background:"#334155",color:"#fff",border:"1px solid #64748b",borderRadius:"7px"});
@@ -1576,14 +1591,21 @@ function showCardPayment(c,count){
     // Ne pas mélanger pointerup et click (double frappe sur certains Android).
     b.addEventListener("click",e=>{
      e.preventDefault();e.stopPropagation();
-     entered=digit==="C"?"":digit==="⌫"?entered.slice(0,-1):(entered+digit).slice(0,7);
-     updateAmount();
+     enterDigit(digit);
     });
     grid.appendChild(b);
    }
-   const ok=checkoutButton("Valider le montant",()=>{if(Math.round(Number(entered)*100)!==expected){toast("Saisis le montant exact");return;}amountConfirmed=true;draw();});
-   ok.disabled=Math.round(Number(entered)*100)!==expected;
-   ok.style.opacity=Math.round(Number(entered)*100)===expected?"1":".45";
+   const ok=checkoutButton("Valider le montant",confirmAmount);
+   terminalKeyHandler=event=>{
+    if(c!==cashier)return false;
+    const digit=/^[0-9]$/.test(event.key)?event.key:/^(?:Numpad|Digit)([0-9])$/.exec(event.code)?.[1];
+    if(digit!==undefined)enterDigit(digit);
+    else if(event.key==="Backspace")enterDigit("⌫");
+    else if(event.key==="Delete")enterDigit("C");
+    else if(event.key==="Enter"){if(!event.repeat)confirmAmount();}
+    else return false;
+    return true;
+   };
    function updateAmount(){
     amountDisplay.textContent="Montant saisi : "+(entered?euro(Number(entered)):"0,00 €");
     ok.disabled=Math.round(Number(entered)*100)!==expected;
@@ -1616,6 +1638,7 @@ function showCardPayment(c,count){
 }
 function showCashPayment(c,count){
  if(c!==cashier)return;
+ terminalKeyHandler=null;
  // Le client remet un montant arrondi à un billet supérieur ou égal au total.
  const cents=Math.round(c.total*100);
  const receivedCents=[500,1000,2000,5000,10000,20000].find(v=>v>=cents)||Math.ceil(cents/5000)*5000;
@@ -1648,9 +1671,8 @@ function showCashPayment(c,count){
 }
 function finishCheckout(c){
  if(c!==cashier)return;
- closeCheckoutUI();clearCheckoutVisual();cashier=null;c.phase="leaving";c.waypoint=0;
- // Sortie par le couloir central : ne jamais couper à travers le comptoir.
- c.route=[{x:3.65,z:6.25},{x:3.1,z:8.6},{x:0,z:8.6},{x:0,z:12.5}];
+ closeCheckoutUI();clearCheckoutVisual();cashier=null;
+ sendToExit(c);
  panel.style.display="none";
 }
 // Scène et éclairage léger
@@ -3609,6 +3631,10 @@ function showCheckoutSeatPrompt(){
  button(panel,"Ordinateur de gestion",showComputer);
 }
 function interact(){
+ if(seatedAtCheckout){
+  if(checkoutUI.style.display==="none")showCheckout();
+  return;
+ }
  if(held){
   const p=catalog.find(p=>p.id===held.id);
   if(productAvailable(p)&&near(p.x,p.z,2.75)){
@@ -3801,6 +3827,9 @@ document.addEventListener("keydown",e=>{
   releaseMouseLook();return;
  }
  if(e.target?.closest?.("input, textarea, select, [contenteditable]")||e.ctrlKey||e.altKey||e.metaKey)return;
+ if(!levelModalShowing&&panel.style.display==="none"&&checkoutUI.style.display==="block"&&terminalKeyHandler?.(e)){
+  e.preventDefault();return;
+ }
  const direction=keyMap[e.code];
  if(direction&&canLookAround()){
   pressedMovement.set(e.code,direction);
@@ -3808,7 +3837,7 @@ document.addEventListener("keydown",e=>{
  }
  if(!e.repeat&&panel.style.display==="none"&&checkoutUI.style.display==="none"&&!levelModalShowing){
   if(e.key?.toLowerCase()==="m"){e.preventDefault();showMainMenu();}
-  if(e.code==="KeyE"&&canLookAround()){e.preventDefault();interact();}
+  if(e.code==="KeyE"&&!paused&&(seatedAtCheckout||canLookAround())){e.preventDefault();interact();}
  }
 });
 document.addEventListener("keyup",e=>{
@@ -4193,7 +4222,13 @@ function walk(c,t,dt){
   if(c.stuckTime>3){c.stuckTime=0;c.navTarget=null;c.navRoute=null;}
   return false;
  }
- while(c.navIndex<route.length&&Math.hypot(route[c.navIndex].x-p.x,route[c.navIndex].z-p.z)<.18)c.navIndex++;
+ while(c.navIndex<route.length&&Math.hypot(route[c.navIndex].x-p.x,route[c.navIndex].z-p.z)<.18){
+  const next=route[c.navIndex+1];
+  // Garde le point au coin d'un meuble tant que la diagonale n'est pas libre.
+  if(next&&Math.hypot(route[c.navIndex].x-p.x,route[c.navIndex].z-p.z)>.015&&
+   !directWalk(p,next,(x,z)=>customerBlocked(x,z,.25)))break;
+  c.navIndex++;
+ }
  if(c.navIndex>=route.length){
   c.navTarget=null;c.navRoute=null;
   return Math.hypot(p.x-t.x,p.z-t.z)<.4;
@@ -4320,7 +4355,7 @@ function sendToQueue(c){
   c.auxRegister=register;c.phase="auxQueue";c.queueStall=0;c.navTarget=null;c.navRoute=null;
   register.queue.push(c);return;
  }
- c.phase="queue";c.queueStall=0;c.navTarget=null;c.navRoute=null;
+ c.phase="queue";c.queueStall=0;c.checkoutApproach=null;c.navTarget=null;c.navRoute=null;
  if(!queue.includes(c))queue.push(c);
 }
 function sendToExit(c){
@@ -4337,12 +4372,12 @@ function sendToExit(c){
   register.queue=register.queue.filter(customer=>customer!==c);
   if(register.client===c)register.client=null;
   c.auxRegister=null;
-  c.phase="leaving";c.waypoint=0;c.navTarget=null;c.navRoute=null;c.stuckTime=0;
+  c.phase="leaving";c.waypoint=0;c.navTarget=null;c.navRoute=null;c.stuckTime=0;c.exitStall=0;
   c.route=[{x:0,z:7.7},{x:0,z:12.5}];
   return;
  }
  const index=queue.indexOf(c);if(index>=0)queue.splice(index,1);
- c.phase="leaving";c.waypoint=0;c.navTarget=null;c.navRoute=null;c.stuckTime=0;
+ c.phase="leaving";c.waypoint=0;c.navTarget=null;c.navRoute=null;c.stuckTime=0;c.exitStall=0;
  c.route=[{x:0,z:8.5},{x:0,z:12.5}];
 }
 function updateCustomers(dt){
@@ -4385,7 +4420,7 @@ function updateCustomers(dt){
    if(c.queueElapsed>25&&!c.waitPenalty){c.waitPenalty=true;changeSatisfaction(-3);}
    const i=queue.indexOf(c);
    if(i<0){sendToExit(c);continue;}
-   const target=queueSpot(i),p=c.group.position;
+   const target=i===0&&!cashier&&c.checkoutApproach?c.checkoutApproach:queueSpot(i),p=c.group.position;
    const beforeX=p.x,beforeZ=p.z;
    const arrived=walk(c,target,dt);
    if(arrived&&cashier){faceNpc(c.group,3.65-p.x,6.25-p.z,dt);c.l.rotation.x=c.r.rotation.x=0;}
@@ -4397,10 +4432,14 @@ function updateCustomers(dt){
     if(seatedAtCheckout)showCheckout();else toast("Client en caisse : assieds-toi au poste");
    }else if(c.queueStall>5){
     c.queueStall=0;c.navTarget=null;c.navRoute=null;
-    if(i===0&&!cashier){changeSatisfaction(-2);sendToExit(c);}
-    else c.l.rotation.x=c.r.rotation.x=0;
+    if(i===0&&!cashier){
+     if(!c.checkoutApproach)c.checkoutApproach={x:3.35,z:6.5};
+     else{changeSatisfaction(-2);sendToExit(c);}
+    }else c.l.rotation.x=c.r.rotation.x=0;
    }
   }else if(c.phase==="checkout"){
+   if(c===cashier&&seatedAtCheckout&&panel.style.display==="none"&&checkoutUI.style.display==="none"&&
+    (checkoutVisual?.customer!==c||checkoutVisual.models.length===0))showCheckout();
    c.checkoutElapsed+=dt;
    if(c.checkoutElapsed>45&&!c.waitPenalty){c.waitPenalty=true;changeSatisfaction(-3);}
    c.l.rotation.x=c.r.rotation.x=0;
@@ -4522,4 +4561,4 @@ function animate(){
  }
  renderer.render(scene,camera);
 }
-indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.7 !");
+indexColliders();sync();updateOpen();updateConstructionUI();animate();toast("Business Empire Simulator V0.13.8 !");
