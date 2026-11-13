@@ -980,8 +980,7 @@ function showPlaytime(){
  if(!playtime.splits.length)paragraph("Aucun relevé pour le moment.");
  for(const s of playtime.splits.slice(-40))paragraph("Niveau "+s.level+" : "+playtimeFormat(s.ms));
  button(panel,"Copier le bilan des temps",()=>{
-  const report=["FBA GAMES — Test chronométré","Temps : "+playtimeFormat(playtime.ms),"Niveau : "+playerLevel(),...playtime.splits.map(s=>"Niveau "+s.level+" : "+playtimeFormat(s.ms))].join("
-");
+  const report=["FBA GAMES — Test chronométré","Temps : "+playtimeFormat(playtime.ms),"Niveau : "+playerLevel(),...playtime.splits.map(s=>"Niveau "+s.level+" : "+playtimeFormat(s.ms))].join("\n");
   if(navigator.clipboard?.writeText)navigator.clipboard.writeText(report).then(()=>toast("Bilan copié")).catch(()=>toast("Copie impossible"));
   else toast("Presse-papiers indisponible");
  });
@@ -2118,8 +2117,7 @@ function standardMaterial(options){
 function applyFixedLighting(shader){
  shader.uniforms.fbaZoneBounds=fixedLightUniforms.bounds;
  shader.uniforms.fbaZoneLevels=fixedLightUniforms.levels;
- shader.vertexShader="varying vec2 fbaFloorPosition;
-"+shader.vertexShader.replace("#include <project_vertex>",`
+ shader.vertexShader="varying vec2 fbaFloorPosition;\n"+shader.vertexShader.replace("#include <project_vertex>",`
   #include <project_vertex>
   vec4 floorPosition = vec4(transformed, 1.0);
   #ifdef USE_INSTANCING
