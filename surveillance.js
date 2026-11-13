@@ -1,4 +1,4 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.31)
+// FBA Supermarket — PC de vidéosurveillance (V0.14.32)
 export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
@@ -8,11 +8,24 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   {name:"Réserve",x:12,z:5,look:[13,1,11]},
   {name:"Zone de sortie",x:-3,z:8,look:[0,1,9]},
   {name:"Chambre froide",x:18.4,z:3.5,look:[18.4,1.3,8.6]},
-  {name:"Zone de livraison",x:26,z:13,look:[24,1.2,7]},
+  {name:"Zone de livraison",x:26,z:-10,look:[26,1.2,-17]},
   {name:"Première extension",x:0,z:-13.5,look:[0,1.2,-8],unlocked:extensionUnlocked},
   {name:"Vue générale des caisses",x:3.5,z:10,look:[5,1.15,4],wide:true}
  ];
  departments.forEach((d,i)=>stations.push({name:"Galerie · "+d.name,x:d.x,z:d.z,look:[d.x,1.15,d.front+1.5],department:d}));
+ // Deux caméras par zone, placées aux extrémités et orientées l'une vers l'autre.
+ // Les nouvelles caméras sont ajoutées après les anciennes pour préserver les réglages sauvegardés.
+ const originals=[...stations];
+ for(const station of originals){
+  const firstZ=station.fixtureZ??(station.department?station.z-2.8:station.z);
+  const secondZ=station.department?station.z+2.8:station.z+(station.name==="Zone de livraison"?-6:4);
+  stations.push({
+   name:station.name+" · opposée",x:station.x,z:secondZ,
+   fixtureZ:secondZ,
+   look:[station.x,1.2,firstZ],
+   department:station.department,unlocked:station.unlocked,wide:station.wide
+  });
+ }
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
  const PTZ_KEY="fba-cctv-orientations-v1";
  let savedAngles={};
