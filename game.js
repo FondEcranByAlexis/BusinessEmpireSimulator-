@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.8";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.8";
-// Business Empire Simulator V0.14.8 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.9";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.9";
+// Business Empire Simulator V0.14.9 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1952,57 +1952,86 @@ const ambient=scene.children.find(o=>o.isHemisphereLight);
 const LIGHT_ZONES={
  sales:"Surface de vente",hall:"Hall des caisses",gallery:"Galerie et départements",
  auto:"Showroom automobile",dry:"Réserve sèche",cold:"Chambre froide",
- electronics:"Réserve électronique",logistics:"Quai et couloir logistique",staff:"Salle de repos",office:"Bureau du directeur"
+ electronics:"Réserve électronique",logistics:"Quai et couloir logistique",staff:"Salle de repos",office:"Bureau du directeur",outside:"Façade et parking"
 };
 const lightSettings=state.lighting??={};
 const lightOn=zone=>lightSettings[zone]!==false;
-const ceilingLights=new THREE.Group();scene.add(ceilingLights);
-const lamps=[],zonePanels=new Map();
-const nearbyLights=Array.from({length:8},()=>{
- const lamp=new THREE.PointLight(0xfff4db,0,10,1.8);
- ceilingLights.add(lamp);return lamp;
-});
-let lastLightX=Infinity,lastLightZ=Infinity;
+// L'éclairage d'une surface dépend de sa position dans le bâtiment.
+const COMMERCIAL_LIGHTS=["sales","hall","gallery","auto"];
+const STORAGE_LIGHTS=["dry","electronics"];
+const zonePanels=new Map(),zoneBounds=[],zoneLevels=[];
+const LIGHT_REGION_COUNT=13;
+for(let i=0;i<LIGHT_REGION_COUNT;i++){zoneBounds.push(new THREE.Vector4());zoneLevels.push(1);}
+const fixedLightUniforms={bounds:{value:zoneBounds},levels:{value:zoneLevels}};
+function standardMaterial(options){
+ const material=new THREE.MeshStandardMaterial(options);
+ material.onBeforeCompile=applyFixedLighting;
+ return material;
+}
+function applyFixedLighting(shader){
+ shader.uniforms.fbaZoneBounds=fixedLightUniforms.bounds;
+ shader.uniforms.fbaZoneLevels=fixedLightUniforms.levels;
+ shader.vertexShader="varying vec2 fbaFloorPosition;\n"+shader.vertexShader.replace("#include <project_vertex>",`
+  #include <project_vertex>
+  vec4 floorPosition = vec4(transformed, 1.0);
+  #ifdef USE_INSTANCING
+   floorPosition = instanceMatrix * floorPosition;
+  #endif
+  fbaFloorPosition = (modelMatrix * floorPosition).xz;
+ `);
+ shader.fragmentShader=`
+  varying vec2 fbaFloorPosition;
+  uniform vec4 fbaZoneBounds[${LIGHT_REGION_COUNT}];
+  uniform float fbaZoneLevels[${LIGHT_REGION_COUNT}];
+ `+shader.fragmentShader.replace("#include <opaque_fragment>",`
+  float circuitLight = 1.0;
+  for (int i = 0; i < ${LIGHT_REGION_COUNT}; ++i) {
+   vec4 bounds = fbaZoneBounds[i];
+   vec2 edge = min(fbaFloorPosition - bounds.xy, bounds.zw - fbaFloorPosition);
+   circuitLight = mix(circuitLight, fbaZoneLevels[i], smoothstep(-0.12, 0.12, min(edge.x, edge.y)));
+  }
+  outgoingLight *= circuitLight;
+  #include <opaque_fragment>
+ `);
+}
 function zonePanel(zone){
  if(!zonePanels.has(zone))zonePanels.set(zone,new THREE.MeshBasicMaterial({color:0xfff7db}));
  return zonePanels.get(zone);
 }
-function addLamp(x,z,zone,enabled=()=>true,y=4.45){
- lamps.push({x,y,z,zone,enabled});
-}
-function refreshNearbyLights(force=false){
- const {x,z}=camera.position;
- if(!force&&Math.hypot(x-lastLightX,z-lastLightZ)<.5)return;
- lastLightX=x;lastLightZ=z;
- const nearest=lamps.flatMap(lamp=>{
-  const d=Math.hypot(x-lamp.x,z-lamp.z);
-  return d<17&&lightOn(lamp.zone)&&lamp.enabled()?[{lamp,d}]:[];
- }).sort((a,b)=>a.d-b.d);
- for(const [i,light] of nearbyLights.entries()){
-  const entry=nearest[i];
-  light.intensity=0;
-  if(!entry)continue;
-  const {lamp,d}=entry;
-  light.position.set(lamp.x,lamp.y,lamp.z);
-  light.color.setHex(lamp.zone==="cold"?0xcbeaff:0xfff2d8);
-  light.intensity=48*Math.min(1,(17-d)/5);
- }
-}
-for(const x of [-6,0,6])for(const z of [-6,0,6])addLamp(x,z,"sales");
-for(const x of [-6,0,6])for(const z of [-14,-19])addLamp(x,z,"sales",()=>state.upgrades.store1);
 const reserveLightPositions=[3.5,7.5,11.5,15,18.5,22];
-for(const x of [11.6,13.8])for(const z of reserveLightPositions)addLamp(x,z,"dry");
-for(const x of [17.2,21.6])for(const z of [5,11,15])addLamp(x,z,"cold");
 function updateLighting(){
  const daylight=Math.max(.12,Math.min(1,(20-state.hour)/3.5));
  scene.background.setRGB(.055+.55*daylight,.09+.69*daylight,.17+.74*daylight);
  sun.intensity=.12+1.28*daylight;
  ambient.intensity=.25+1.95*daylight;
- for(const [zone,material] of zonePanels)material.color.setHex(lightOn(zone)?(zone==="cold"?0xdff5ff:0xfff7db):0x64748b);
- for(const [zone,switchMesh] of [["sales",lightSwitch],["dry",stockroomSwitch],["cold",coldSwitch]]){
-  switchMesh.material.color.setHex(lightOn(zone)?0x22c55e:0xef4444);
+ const storageEnd=kind=>STORAGE_WINGS[kind].start+storageBayCount(kind)*STORAGE_BAY_DEPTH;
+ const regions=[
+  ["sales",-10,state.upgrades.store2?ANNEX_ENTRY:state.upgrades.store1?-22:-10,10,10],
+  ["hall",HALL_WEST,-12,-10,9.6,state.upgrades[FRONT_HALL]],
+  ["gallery",-MALL_HALF_WIDTH,MALL_MIN_Z,MALL_HALF_WIDTH,ANNEX_ENTRY,state.upgrades.annex3],
+  ["gallery",AUTO_LINK_X-3,GALLERY_LINK_Z-1.5,AUTO_LINK_X+3,SHOWROOM_LINK_Z+1.5,autoLinkOpen()],
+  ["auto",-30,-22,-10,-12,state.upgrades[AUTO_SHOWROOM]],
+  ["dry",10,1.5,15.3,state.upgrades.store2?storageEnd("dry"):state.upgrades.store1?30.6:23.6],
+  ["cold",15.3,1.5,24,17],
+  ["cold",20.65,17,24,storageEnd("cold"),storageBayCount("cold")],
+  ["electronics",15.3,30.5,20.6,storageEnd("electronics"),state.upgrades.store2],
+  ["logistics",24,-27.5,28.5,7.5],
+  ["staff",17.8,-9,24.1,-3],
+  ["office",-14.65,-5.55,-10.1,-2.05,directorOpen()],
+  ["outside",-14,10.14,14,31]
+ ];
+ for(const [i,[zone,x0,z0,x1,z1,active=true]] of regions.entries()){
+  // Les améliorations verrouillées ne modifient aucune surface.
+  if(active)zoneBounds[i].set(x0,z0,x1,z1);
+  else zoneBounds[i].set(1,1,-1,-1);
+  zoneLevels[i]=zone==="outside"?(lightOn(zone)?1+(1-daylight)*1.8:1):
+   lightOn(zone)?1.05+(1-daylight)*2.5:.38+(1-daylight)*.24;
  }
- refreshNearbyLights(true);
+ for(const [zone,material] of zonePanels)material.color.setHex(lightOn(zone)?(zone==="cold"?0xdff5ff:0xfff7db):0x64748b);
+ for(const [zones,switchMesh] of [[COMMERCIAL_LIGHTS,lightSwitch],[STORAGE_LIGHTS,stockroomSwitch],[["cold"],coldSwitch]]){
+  const enabled=zones.filter(lightOn).length;
+  switchMesh.material.color.setHex(enabled===zones.length?0x22c55e:enabled===0?0xef4444:0xf59e0b);
+ }
 }
 const colliders=[];
 const colliderCells=new Map(),COLLIDER_CELL_SIZE=6,COLLIDER_CELL_PADDING=.5;
@@ -2022,7 +2051,7 @@ function indexColliders(){
  }
 }
 function cube(x,y,z,w,h,d,color,solid=false){
- const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.8}));
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),standardMaterial({color,roughness:.8}));
  mesh.position.set(x,y,z);scene.add(mesh);
  if(solid)colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2});
  return mesh;
@@ -2037,15 +2066,15 @@ function tileFloor(width,depth,x,z){
  }
  const tex=gameTexture(c);
  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(width/8,depth/8);
- const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),new THREE.MeshStandardMaterial({map:tex,roughness:.88}));
+ const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),standardMaterial({map:tex,roughness:.88}));
  mesh.rotation.x=-Math.PI/2;mesh.position.set(x,.012,z);scene.add(mesh);return mesh;
 }
 function wallBaseboard(x,z,w,d,extension=false){
- const m=new THREE.Mesh(new THREE.BoxGeometry(w,.16,d),new THREE.MeshStandardMaterial({color:0x475569,roughness:.55}));
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,.16,d),standardMaterial({color:0x475569,roughness:.55}));
  m.position.set(x,.12,z);scene.add(m);if(extension)extensionMeshes.push(m);return m;
 }
 function ceilingPanel(x,z,extension=false){
- const frame=new THREE.Mesh(new THREE.BoxGeometry(2.45,.045,.40),new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.5}));
+ const frame=new THREE.Mesh(new THREE.BoxGeometry(2.45,.045,.40),standardMaterial({color:0x94a3b8,metalness:.5}));
  frame.position.set(x,4.91,z);scene.add(frame);
  const diffuser=new THREE.Mesh(new THREE.BoxGeometry(2.3,.028,.29),new THREE.MeshBasicMaterial({color:0xfff7db}));
  diffuser.position.set(x,4.87,z);scene.add(diffuser);
@@ -2200,19 +2229,16 @@ storageWingGates.electronics=reserve2Part(17.95,2.5,44,5.3,5,.3,0xdbeafe,true);
 colliders.at(-1).storageGate="electronics";
 for(const z of [32,35,38,41.5]){
  reserve2Part(17.95,4.88,z,1.6,.05,.5,0xe0f2fe).material=zonePanel("electronics");
- addLamp(17.95,z,"electronics",()=>state.upgrades.store2);
 }
 storageWingGates.dry=reserve2Part(12.65,2.5,37.4,5.3,5,.3,0xe2e8f0,true);
 colliders.at(-1).storageGate="dry";
 for(const x of [11.6,13.8])for(const z of [32.4,35.4]){
  reserve2Part(x,4.905,z,1.62,.055,.58,0x94a3b8);
  reserve2Part(x,4.869,z,1.49,.024,.46,0xfff7db).material=zonePanel("dry");
- addLamp(x,z,"dry",()=>state.upgrades.store2);
 }
 for(const x of [11.6,13.8])for(const z of [25.2,28.5]){
  storageExtensionPart(x,4.905,z,1.62,.055,.58,0x94a3b8);
  storageExtensionPart(x,4.869,z,1.49,.024,.46,0xfff7db).material=zonePanel("dry");
- addLamp(x,z,"dry",()=>state.upgrades.store1);
 }
 wallBaseboard(12.65,23.52,5.0,.07);
 for(const x of [10.2,15.08])wallBaseboard(x,20.05,.07,7.0);
@@ -2303,7 +2329,7 @@ wallBaseboard(9.78,8.45,.065,2.75);
 wallBaseboard(10.22,2.45,.065,1.65);
 wallBaseboard(10.22,8.25,.065,2.0);
 // Encadrement du passage principal / extension : montants et linteau commerciaux.
-const passageTrim=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.28,roughness:.48});
+const passageTrim=standardMaterial({color:0x64748b,metalness:.28,roughness:.48});
 for(const x of [-2.03,2.03]){
  const post=new THREE.Mesh(new THREE.BoxGeometry(.09,3.38,.37),passageTrim);
  post.position.set(x,1.69,-10);scene.add(post);
@@ -2311,7 +2337,7 @@ for(const x of [-2.03,2.03]){
 const lintel=new THREE.Mesh(new THREE.BoxGeometry(4.16,.12,.38),passageTrim);
 lintel.position.set(0,3.4,-10);scene.add(lintel);
 // Bande de seuil fine, affleurante au carrelage, sans obstacle au passage.
-const threshold=new THREE.Mesh(new THREE.BoxGeometry(3.8,.012,.18),new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.45}));
+const threshold=new THREE.Mesh(new THREE.BoxGeometry(3.8,.012,.18),standardMaterial({color:0x94a3b8,metalness:.45}));
 threshold.position.set(0,.028,-10);scene.add(threshold);
 
 extensionCube(0,5.1,-16,20,.2,12,0xf1f5f9);
@@ -2352,7 +2378,6 @@ function openDepartmentCount(){
 }
 for(const x of [-6,0,6])for(const z of [-26,-31]){
  electronicsCube(x,4.94,z,2.8,.05,.55,0xf8fafc).material=zonePanel("sales");
- addLamp(x,z,"sales",()=>state.upgrades.store2);
 }
 for(const x of [-9.7,9.7])electronicsCube(x,.12,-28,.08,.24,11.5,0x64748b);
 electronicsCube(0,.12,-33.74,19.2,.24,.08,0x64748b);
@@ -2364,7 +2389,7 @@ function addWallRack(product){
  const {x,z}=product,rotation=product.rotation*Math.PI/2;
  const extension=product.license==="extensionLicense";
  const rack=new THREE.Group();rack.position.set(x,0,z);rack.rotation.y=rotation;
- const steel=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
+ const steel=standardMaterial({color:0x64748b,metalness:.3});
  for(const y of [.45,1.15,1.85]){
   const plank=new THREE.Mesh(new THREE.BoxGeometry(2.55,.075,.78),steel);
   plank.position.y=y;plank.rotation.x=.12;rack.add(plank);
@@ -2391,9 +2416,9 @@ function buildStorageWings(){
   const wing=STORAGE_WINGS[kind];
   const count=capacityUpgrades.filter(u=>u.capacity[kind]).length;
   const center=(wing.minX+wing.maxX)/2, width=wing.maxX-wing.minX;
-  const walls=new THREE.MeshStandardMaterial({color:wing.wall});
-  const flooring=new THREE.MeshStandardMaterial({color:wing.floor});
-  const racks=new THREE.MeshStandardMaterial({color:kind==="cold"?0x789cb4:0x64748b});
+  const walls=standardMaterial({color:wing.wall});
+  const flooring=standardMaterial({color:wing.floor});
+  const racks=standardMaterial({color:kind==="cold"?0x789cb4:0x64748b});
   for(let i=0;i<count;i++){
    const group=new THREE.Group(),z=wing.start+(i+.5)*STORAGE_BAY_DEPTH;
    const part=(x,y,depth,w,h,d,material)=>{
@@ -2414,7 +2439,6 @@ function buildStorageWings(){
     for(const end of [-1,1])part(rack,1.55,z+end*1.76,.06,3.1,.07,racks);
    }
    part(center,4.91,z,Math.min(2.35,width-.4),.065,.40,zonePanel(kind));
-   addLamp(center,z,kind,()=>group.visible);
    scene.add(group);storageWingGroups[kind].push({group,back});
   }
  }
@@ -2463,7 +2487,7 @@ function refreshExtension(){
 }
 // Silhouettes communes, articulées aux épaules et aux hanches.
 function personModel(group,{shirt,skin,hair,woman=false,style=0,trousers=0x334155,uniform=false}){
- const material=color=>new THREE.MeshStandardMaterial({color,roughness:.83});
+ const material=color=>standardMaterial({color,roughness:.83});
  const fabric=material(shirt),face=material(skin),hairMat=material(hair);
  const pants=material(trousers),shoes=material(0x22262d),white=material(0xf5f1eb),eyes=material(0x352c2b);
  const sphere=new THREE.SphereGeometry(1,12,9);
@@ -2516,9 +2540,9 @@ function personModel(group,{shirt,skin,hair,woman=false,style=0,trousers=0x33415
 const constructionCrew=[];
 function createBuilder(x,z,color){
  const group=new THREE.Group();
- const hardhat=new THREE.MeshStandardMaterial({color:0xfacc15});
- const steel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.45});
- const dark=new THREE.MeshStandardMaterial({color:0x334155});
+ const hardhat=standardMaterial({color:0xfacc15});
+ const steel=standardMaterial({color:0x94a3b8,metalness:.45});
+ const dark=standardMaterial({color:0x334155});
  const {head,arms:[,arm]}=personModel(group,{shirt:color,skin:0xd7a17c,hair:0x493126,uniform:true});
  const shell=new THREE.Mesh(new THREE.SphereGeometry(.152,12,8),hardhat);
  shell.position.set(0,.147,0);shell.scale.y=.62;head.add(shell);
@@ -2621,7 +2645,82 @@ electronicsStorageBrand.rotation.y=-Math.PI/2;scene.add(electronicsStorageBrand)
 const corridorBrand=brandPanel(state.storeName,"EXTENSION DU MAGASIN",3.75,.72);
 corridorBrand.position.set(0,4.18,-9.78);scene.add(corridorBrand);
 
-cube(0,-.17,12,8,.3,5,0x94a3b8);
+function buildStoreExterior(){
+ const group=new THREE.Group();scene.add(group);
+ const asphalt=standardMaterial({color:0x454c52,roughness:1});
+ const concrete=standardMaterial({color:0xc6c8c6,roughness:.95});
+ const trim=standardMaterial({color:0x263b4a,roughness:.65});
+ const cladding=standardMaterial({color:0x647888,roughness:.72});
+ const blue=standardMaterial({color:0x007a9a,roughness:.52});
+ const windowGlass=standardMaterial({color:0x385f76,metalness:.36,roughness:.28});
+ const paint=new THREE.MeshBasicMaterial({color:0xdce0dc});
+ const curb=standardMaterial({color:0x7a8283});
+ const grass=standardMaterial({color:0x586f50,roughness:1});
+ const leaf=standardMaterial({color:0x476d43,roughness:1});
+ const trunk=standardMaterial({color:0x685141,roughness:1});
+ const part=(x,y,z,w,h,d,mat)=>mallPart(group,x,y,z,w,h,d,mat);
+
+ part(0,-.09,20.65,28,.16,20.7,asphalt);
+ part(0,-.19,32.1,45,.19,2.2,grass);
+ for(const side of [-1,1])part(side*18.25,-.19,21.55,8.5,.19,23.3,grass);
+ part(0,-.04,12.22,28,.10,3.94,concrete);
+ part(0,-.033,20.1,3.1,.076,12.2,concrete);
+ part(0,3.24,10.98,10.8,.22,1.95,trim);
+ part(0,3.31,11.94,10.8,.27,.14,blue);
+ part(0,5.03,10.23,20.25,.25,.52,trim);
+ part(0,3.54,10.18,20.1,.12,.14,blue);
+ part(0,2.77,10.05,3.92,.10,.18,trim);
+ for(const x of [-1.97,1.97]){
+  part(x,1.38,10.10,.095,2.76,.19,trim);
+  part(x*.89,1.40,10.12,.31,2.69,.055,windowGlass);
+ }
+ for(const side of [-1,1]){
+  for(let i=0;i<4;i++){
+   const x=side*(3.05+i*1.75);
+   part(x,1.76,10.18,1.66,2.68,.13,trim);
+   part(x,1.79,10.26,1.54,2.53,.045,windowGlass);
+   part(x,1.02,10.29,1.54,.04,.034,cladding);
+  }
+  const column=part(side*5.15,1.57,11.61,.27,3.14,.27,trim);
+  colliders.push({minX:column.position.x-.135,maxX:column.position.x+.135,minZ:11.475,maxZ:11.745});
+  for(const offset of [2.35,4.9,7.45,10,12.55])part(side*offset,.004,18.1,.06,.009,5.2,paint);
+  part(side*7.45,.008,15.52,10.2,.014,.065,paint);
+  for(const x of [3.55,9.9])part(side*x,.042,15.78,1.35,.10,.16,curb);
+  for(const z of [15.4,25.6]){
+   const x=side*12.8;
+   part(x,.10,z,1.35,.23,1.35,curb);
+   colliders.push({minX:x-.675,maxX:x+.675,minZ:z-.675,maxZ:z+.675});
+   const stem=new THREE.Mesh(new THREE.CylinderGeometry(.07,.12,1.75,8),trunk);
+   stem.position.set(x,1.08,z);group.add(stem);
+   for(const [dx,y,dz,scale] of [[0,2.3,0,1],[-.41,2.04,.11,.69],[.42,2.16,-.14,.72]]){
+    const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(scale,1),leaf);
+    crown.position.set(x+dx,y,z+dz);crown.scale.y=1.12;group.add(crown);
+   }
+  }
+  const poleX=side*10.95;
+  part(poleX,2.15,25.2,.09,4.3,.09,trim);
+  part(poleX-side*.22,4.24,25.2,.59,.11,.23,trim);
+  part(poleX-side*.22,4.17,25.2,.51,.04,.17,zonePanel("outside"));
+ }
+ for(const x of [-3.7,0,3.7])part(x,3.105,11.3,1.30,.04,.20,zonePanel("outside"));
+ for(let z=21.2;z<=25;z+=.58)part(0,.008,z,2.8,.01,.22,paint);
+ const parking=brandPanel("PARKING","ENTRÉE DU SUPERMARCHÉ",2.55,.62);
+ parking.position.set(4.15,2.25,26.55);group.add(parking);
+ part(4.15,1.02,26.49,.12,2.04,.12,trim);
+ for(const [x,z,color] of [[-6.18,18.1,0x2d6987],[8.72,18.1,0x9b392e]]){
+  const body=standardMaterial({color,roughness:.34,metalness:.32});
+  part(x,.48,z,1.72,.52,3.95,body);
+  part(x,.90,z-.20,1.43,.36,1.94,windowGlass);
+  part(x,1.105,z-.23,1.40,.07,1.78,body);
+  for(const dx of [-.76,.76])for(const dz of [-1.21,1.21]){
+   const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.24,10),trim);
+   wheel.rotation.z=Math.PI/2;wheel.position.set(x+dx,.28,z+dz);group.add(wheel);
+  }
+  for(const dx of [-.59,.59])part(x+dx,.54,z+1.98,.24,.10,.04,paint);
+  colliders.push({minX:x-.86,maxX:x+.86,minZ:z-1.98,maxZ:z+1.98});
+ }
+}
+buildStoreExterior();
 cube(0,.015,8.5,3,.03,2,0x334155);
 for(const x of [-6,0,6])for(const z of [-6,0,6])cube(x,4.94,z,2.8,.05,.5,0xffffff).material=zonePanel("sales");
 // Emballages 3D stylisés, avec étiquettes lisibles et silhouettes distinctes.
@@ -2676,14 +2775,14 @@ const PRODUCT_PACKAGING={
  flat:new Set("jeux_video cahiers semences filtres linge vetements chaussettes lingettes dentifrices preservatifs".split(" ")),
 };
 function productModel(p){
- const g=new THREE.Group(),base=new THREE.MeshStandardMaterial({color:p.color,roughness:.72});
- const label=new THREE.MeshStandardMaterial({map:packageTexture(p),roughness:.68});
- const white=new THREE.MeshStandardMaterial({color:0xf1f5f9,roughness:.65});
+ const g=new THREE.Group(),base=standardMaterial({color:p.color,roughness:.72});
+ const label=standardMaterial({map:packageTexture(p),roughness:.68});
+ const white=standardMaterial({color:0xf1f5f9,roughness:.65});
  const add=(geometry,material,x=0,y=0,z=0)=>{
   const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);g.add(mesh);return mesh;
  };
  const id=p.id;
- const dark=new THREE.MeshStandardMaterial({color:0x293546,roughness:.8});
+ const dark=standardMaterial({color:0x293546,roughness:.8});
  const packaging=Object.keys(PRODUCT_PACKAGING).find(key=>PRODUCT_PACKAGING[key].has(id));
  const wrap=[base,base,base,base,label,base];
  const box=(w,h,d)=>add(new THREE.BoxGeometry(w,h,d),wrap);
@@ -2706,7 +2805,7 @@ function productModel(p){
   for(const x of [-.12,.12]){
    const roll=add(new THREE.CylinderGeometry(.12,.12,.27,14),base,x,0,0);
    roll.rotation.x=Math.PI/2;
-   const core=add(new THREE.CylinderGeometry(.034,.034,.275,12),new THREE.MeshStandardMaterial({color:0xb8a38e}),x,0,0);
+   const core=add(new THREE.CylinderGeometry(.034,.034,.275,12),standardMaterial({color:0xb8a38e}),x,0,0);
    core.rotation.x=Math.PI/2;
   }
  }else if(["pommes","poires","oranges","tomates","carottes","ballons"].includes(id)){
@@ -2718,15 +2817,15 @@ function productModel(p){
   if(id==="poires"){fruit.scale.set(.83,1.06,.85);add(new THREE.SphereGeometry(.10,12,8),base,0,.105,0);}
   if(id==="tomates")fruit.scale.y=.79;
   if(id!=="ballons"){
-   const green=new THREE.MeshStandardMaterial({color:0x476331});
+   const green=standardMaterial({color:0x476331});
    add(new THREE.CylinderGeometry(.013,.019,.059,6),green,0,id==="carottes"?.215:.166,0);
    const leaf=add(new THREE.SphereGeometry(.055,10,6),green,.043,id==="carottes"?.235:.179,0);
    leaf.scale.set(1,.27,.55);leaf.rotation.z=.32;
   }else add(new THREE.TorusGeometry(.158,.008,5,16),white);
  }else if(p.kind==="electronics"){
-  const black=new THREE.MeshStandardMaterial({color:0x111827,roughness:.25,metalness:.2});
-  const screen=new THREE.MeshStandardMaterial({color:p.color,emissive:p.color,emissiveIntensity:.17});
-  const metal=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.3});
+  const black=standardMaterial({color:0x111827,roughness:.25,metalness:.2});
+  const screen=standardMaterial({color:p.color,emissive:p.color,emissiveIntensity:.17});
+  const metal=standardMaterial({color:0x94a3b8,metalness:.65,roughness:.3});
   if(p.id==="smartphones"){
    add(new THREE.BoxGeometry(.23,.43,.045),black);
    add(new THREE.BoxGeometry(.20,.37,.007),screen,0,0,.028);
@@ -2844,13 +2943,13 @@ function priceLabel(p,width=.52){
 }
 function addPriceRail(parent,p,y,width,front){
  // Réglette discrète au bord du plateau, avec un seul petit porte-prix.
- const rail=new THREE.Mesh(new THREE.BoxGeometry(width,.065,.025),new THREE.MeshStandardMaterial({color:0xcbd5e1,roughness:.6}));
+ const rail=new THREE.Mesh(new THREE.BoxGeometry(width,.065,.025),standardMaterial({color:0xcbd5e1,roughness:.6}));
  rail.position.set(0,y,front);parent.add(rail);
  const sign=priceLabel(p);
  sign.position.set(0,y-.018,front+.016);parent.add(sign);
 }
 function addShelfDividers(parent,y,width){
- const mat=new THREE.MeshStandardMaterial({color:0xb6c8d5,transparent:true,opacity:.58,roughness:.22,depthWrite:false});
+ const mat=standardMaterial({color:0xb6c8d5,transparent:true,opacity:.58,roughness:.22,depthWrite:false});
  for(const x of [-width*.30,-width*.10,width*.10,width*.30]){
   const divider=new THREE.Mesh(new THREE.BoxGeometry(.018,.13,.85),mat);
   divider.position.set(x,y+.115,0);parent.add(divider);
@@ -2863,8 +2962,8 @@ for(const p of catalog){
  displays[p.id]=[];
  if(p.kind==="extension"||p.kind==="electronics"||p.kind==="wall"||p.kind==="department")continue;
  for(const z of (p.z!==undefined?[p.z]:[-4,1])){
-  const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
-  const mat=new THREE.MeshStandardMaterial({color:p.color});
+  const metal=standardMaterial({color:0x64748b,metalness:.3});
+  const mat=standardMaterial({color:p.color});
   const group=new THREE.Group();group.position.set(p.x,0,z);
   if(p.level){
    group.scale.set((p.kind==="congelateur"||p.kind==="froid")?1:.47,1,(p.kind==="congelateur"||p.kind==="froid")?1:.8);
@@ -2882,14 +2981,14 @@ for(const p of catalog){
    // Plateau légèrement incliné vers le client, avec butée anti-chute.
    const tilt=.12; // pente vers le client (avant = z positif)
    const isFruit=p.kind==="fruits";
-   const plank=new THREE.Mesh(new THREE.BoxGeometry(2.4,.075,1),isFruit?new THREE.MeshStandardMaterial({color:0x9a6b3b,roughness:.9}):metal);
+   const plank=new THREE.Mesh(new THREE.BoxGeometry(2.4,.075,1),isFruit?standardMaterial({color:0x9a6b3b,roughness:.9}):metal);
    plank.position.y=y;plank.rotation.x=tilt;group.add(plank);
-   const lip=new THREE.Mesh(new THREE.BoxGeometry(2.4,.065,.045),isFruit?new THREE.MeshStandardMaterial({color:0x7c4a24}):metal);
+   const lip=new THREE.Mesh(new THREE.BoxGeometry(2.4,.065,.045),isFruit?standardMaterial({color:0x7c4a24}):metal);
    lip.position.set(0,y+.075,.49);group.add(lip);
    if(!isFruit){addPriceRail(group,p,y+.025,2.4,.525);addShelfDividers(group,y,2.4);}
    else addPriceRail(group,p,y+.025,2.4,.525);
    if(isFruit){
-    const wood=new THREE.MeshStandardMaterial({color:0x8b5a2b,roughness:.9});
+    const wood=standardMaterial({color:0x8b5a2b,roughness:.9});
     for(const x of [-1.1,0,1.1]){
      const side=new THREE.Mesh(new THREE.BoxGeometry(.035,.12,.94),wood);
      side.position.set(x,y+.11,0);side.rotation.x=tilt;group.add(side);
@@ -2906,10 +3005,10 @@ for(const p of catalog){
   }
   if(p.kind==="froid"){
    // Réfrigérateur vertical creux, contre le mur gauche ; ouverture côté allée.
-   const shell=new THREE.MeshStandardMaterial({color:0xe5edf4,roughness:.45,metalness:.15});
-   const liner=new THREE.MeshStandardMaterial({color:0xc5d9e6,roughness:.58});
-   const trim=new THREE.MeshStandardMaterial({color:0x334155,metalness:.42});
-   const glass=new THREE.MeshStandardMaterial({color:0x9ddcf4,transparent:true,opacity:.19,roughness:.08,depthWrite:false,side:THREE.DoubleSide});
+   const shell=standardMaterial({color:0xe5edf4,roughness:.45,metalness:.15});
+   const liner=standardMaterial({color:0xc5d9e6,roughness:.58});
+   const trim=standardMaterial({color:0x334155,metalness:.42});
+   const glass=standardMaterial({color:0x9ddcf4,transparent:true,opacity:.19,roughness:.08,depthWrite:false,side:THREE.DoubleSide});
    const add=(w,h,d,x,y,z,material,parent=group)=>{
     const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
     mesh.position.set(x,y,z);parent.add(mesh);return mesh;
@@ -2941,10 +3040,10 @@ for(const p of catalog){
   }
   if(p.kind==="congelateur"){
    // Long congélateur coffre contre le mur droit, ouvert sur une vraie cuve creuse.
-   const shell=new THREE.MeshStandardMaterial({color:0xe7eef4,roughness:.46,metalness:.18});
-   const liner=new THREE.MeshStandardMaterial({color:0xc5d9e6,roughness:.6,side:THREE.DoubleSide});
-   const trim=new THREE.MeshStandardMaterial({color:0x334155,metalness:.4,roughness:.4});
-   const glass=new THREE.MeshStandardMaterial({color:0x9ddcf4,transparent:true,opacity:.22,roughness:.08,side:THREE.DoubleSide,depthWrite:false});
+   const shell=standardMaterial({color:0xe7eef4,roughness:.46,metalness:.18});
+   const liner=standardMaterial({color:0xc5d9e6,roughness:.6,side:THREE.DoubleSide});
+   const trim=standardMaterial({color:0x334155,metalness:.4,roughness:.4});
+   const glass=standardMaterial({color:0x9ddcf4,transparent:true,opacity:.22,roughness:.08,side:THREE.DoubleSide,depthWrite:false});
    const add=(w,h,d,x,y,z,material,parent=group)=>{
     const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
     mesh.position.set(x,y,z);parent.add(mesh);return mesh;
@@ -2973,7 +3072,7 @@ for(const p of catalog){
    sign.position.set(-.79,1.03,0);sign.rotation.y=-Math.PI/2;sign.rotateX(-Math.PI/7);
    group.add(sign);coldPriceLabels[p.id]=sign;
    // Les pizzas sont réellement dans la cuve et non sur un plateau extérieur.
-   const pizzaMat=new THREE.MeshStandardMaterial({color:0x60a5fa,roughness:.75});
+   const pizzaMat=standardMaterial({color:0x60a5fa,roughness:.75});
    for(let i=0;i<CAPACITY;i++){
     const item=new THREE.Mesh(new THREE.BoxGeometry(.62,.09,.29),pizzaMat);
     const row=Math.floor(i/10),slot=i%10;
@@ -3035,8 +3134,8 @@ const extensionProductGroups={};
 // Trois rayons commercialisables dans la nouvelle zone, avec cartons visibles.
 for(const p of catalog.filter(p=>p.kind==="extension")){
  const rack=new THREE.Group();rack.position.set(p.x,0,p.z);
- const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.3});
- const productMat=new THREE.MeshStandardMaterial({color:p.color,roughness:.75});
+ const metal=standardMaterial({color:0x64748b,metalness:.3});
+ const productMat=standardMaterial({color:p.color,roughness:.75});
  for(const y of [.48,1.15,1.82]){
   const plank=new THREE.Mesh(new THREE.BoxGeometry(2.65,.08,.95),metal);
   plank.position.y=y;plank.rotation.x=.12;rack.add(plank);
@@ -3066,8 +3165,8 @@ for(const p of catalog.filter(p=>p.kind==="electronics")){
  const angle=p.rotation*Math.PI/2;
  const rack=new THREE.Group();rack.position.set(p.x,0,p.z);rack.rotation.y=angle;
  const sign=shelfSign(p.name);sign.position.y=2.65;rack.add(sign);
- const steel=new THREE.MeshStandardMaterial({color:0x475569,metalness:.5,roughness:.35});
- const glass=new THREE.MeshStandardMaterial({color:0x8ecce0,transparent:true,opacity:.25,depthWrite:false});
+ const steel=standardMaterial({color:0x475569,metalness:.5,roughness:.35});
+ const glass=standardMaterial({color:0x8ecce0,transparent:true,opacity:.25,depthWrite:false});
  for(const y of [.45,1.15,1.85]){
   const shelf=new THREE.Mesh(new THREE.BoxGeometry(2.55,.08,.96),steel);
   shelf.position.y=y;rack.add(shelf);
@@ -3115,12 +3214,12 @@ function mallSign(group,title,subtitle,x,z,rotation=0,width=6){
  sign.position.set(x,3.55,z);sign.rotation.y=rotation;group.add(sign);
  return sign;
 }
-const mallWallMaterial=new THREE.MeshStandardMaterial({color:0xcbd5e1});
+const mallWallMaterial=standardMaterial({color:0xcbd5e1});
 const hallGroup=new THREE.Group(),showroomGroup=new THREE.Group();
 scene.add(hallGroup,showroomGroup);
 hallGroup.add(tileFloor(-HALL_WEST-10,21.6,(HALL_WEST-10)/2,-1.2));
 showroomGroup.add(tileFloor(19.7,9.9,-20,-16.95));
-const hallTrim=new THREE.MeshStandardMaterial({color:0x29465b});
+const hallTrim=standardMaterial({color:0x29465b});
 const hallLight=new THREE.MeshBasicMaterial({color:0xfff7db});
 const hallStripe=new THREE.MeshBasicMaterial({color:0x258691});
 const laneStripe=new THREE.MeshBasicMaterial({color:0xe4c261});
@@ -3153,18 +3252,17 @@ mallPart(autoLinkGroup,AUTO_LINK_X,5.1,linkMiddle,6,.2,linkLength,mallWallMateri
 mallPart(autoLinkGroup,-36,2.5,linkMiddle,.24,5,linkLength,mallWallMaterial);
 for(const z of [SHOWROOM_LINK_Z+1.5,GALLERY_LINK_Z-1.5])mallPart(autoLinkGroup,AUTO_LINK_X,2.5,z,6,5,.24,mallWallMaterial);
 mallPart(autoLinkGroup,-30,2.5,linkMiddle,.24,5,linkLength-6,mallWallMaterial);
-function ceilingFixture(parent,x,z,zone,enabled,width=2.4){
+function ceilingFixture(parent,x,z,zone,width=2.4){
  mallPart(parent,x,4.96,z,width+.10,.065,.47,mallWallMaterial);
  mallPart(parent,x,4.90,z,width,.065,.36,zonePanel(zone));
- addLamp(x,z,zone,enabled);
 }
-for(let z=-20;z>GALLERY_LINK_Z;z-=5)ceilingFixture(autoLinkGroup,AUTO_LINK_X,z,"gallery",()=>autoLinkGroup.visible);
+for(let z=-20;z>GALLERY_LINK_Z;z-=5)ceilingFixture(autoLinkGroup,AUTO_LINK_X,z,"gallery");
 mallSign(autoLinkGroup,"PLACE CENTRALE","PASSAGE GALERIE",AUTO_LINK_X,-21,0,4.7);
 mallSign(autoLinkGroup,"AUTOMOBILE","RETOUR VERS LE HALL DES CAISSES",AUTO_LINK_X,-54,Math.PI,4.7);
 for(const x of [-37,-31,-25,-19,-13])for(const z of [-8,-2,4]){
- ceilingFixture(hallGroup,x,z,"hall",()=>hallGroup.visible);
+ ceilingFixture(hallGroup,x,z,"hall");
 }
-for(const x of [-26,-20,-14])ceilingFixture(showroomGroup,x,-17,"auto",()=>showroomGroup.visible);
+for(const x of [-26,-20,-14])ceilingFixture(showroomGroup,x,-17,"auto");
 const intimateSign=mallSign(hallGroup,"BIEN-ÊTRE INTIME","RAYON RÉSERVÉ AUX ADULTES",-25,-11.78,0,5.5);
 mallSign(hallGroup,"CAISSES","← LIBRE-SERVICE · RAYONS →",-17,4.2,Math.PI,6.6);
 mallSign(hallGroup,"BOISSONS ÉNERGISANTES","ALLÉE OUEST",-39.1,-4,Math.PI/2,4.7);
@@ -3175,14 +3273,14 @@ mallPart(showroomGroup,-20,1.1,-17,2.2,.1,.84,mallWallMaterial);
 colliders.push({minX:-21.1,maxX:-18.9,minZ:-17.42,maxZ:-16.58,requiresUpgrade:AUTO_SHOWROOM});
 const directorRoom=new THREE.Group(),securityStation=new THREE.Group();
 hallGroup.add(directorRoom,securityStation);
-ceilingFixture(directorRoom,-12.25,-4.22,"office",directorOpen,1.75);
-ceilingFixture(securityStation,-13,8.05,"hall",securityOpen,1.55);
+ceilingFixture(directorRoom,-12.25,-4.22,"office",1.75);
+ceilingFixture(securityStation,-13,8.05,"hall",1.55);
 function serviceFurniture(group,x,y,z,w,h,d,material,solid=false,level=DIRECTOR_LEVEL){
  mallPart(group,x,y,z,w,h,d,material);
  if(solid)colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2,level,requiresUpgrade:FRONT_HALL});
 }
-const officeWood=new THREE.MeshStandardMaterial({color:0x99684c,roughness:.6});
-const officeGlass=new THREE.MeshStandardMaterial({color:0x9bcde8,transparent:true,opacity:.26,depthWrite:false});
+const officeWood=standardMaterial({color:0x99684c,roughness:.6});
+const officeGlass=standardMaterial({color:0x9bcde8,transparent:true,opacity:.26,depthWrite:false});
 serviceFurniture(directorRoom,-12.35,1.55,-5.5,4.55,3.1,.16,hallTrim,true);
 serviceFurniture(directorRoom,-14.6,1.45,-3.8,.14,2.9,3.4,officeGlass,true);
 serviceFurniture(directorRoom,-12.2,.52,-4.3,2.15,1.04,.77,officeWood,true);
@@ -3223,6 +3321,9 @@ function showDirectorOffice(){
 function showLightingControls(){
  if(!directorOpen())return;
  openPanel("Bureau du directeur · Éclairage");
+ for(const [label,action] of [["Interrupteur général · Espaces de vente",toggleLights],["Interrupteur commun · Réserves",toggleStockroomLights]]){
+  button(panel,label,()=>{if(directorOpen()){action();showLightingControls();}});
+ }
  for(const [zone,label] of Object.entries(LIGHT_ZONES)){
   button(panel,label+" · "+(lightOn(zone)?"Allumé":"Éteint"),()=>{
    if(!directorOpen())return;
@@ -3237,10 +3338,10 @@ const AUTO_MODELS=[
  {id:"city",name:"FBA City",fuel:"Électrique",cost:12500,price:15900,x:-25.4,z:-18.3,color:0x0e7490},
  {id:"touring",name:"FBA Touring",fuel:"Thermique",cost:14200,price:17900,x:-14.6,z:-18.3,color:0xb91c1c},
 ];
-const tireMaterial=new THREE.MeshStandardMaterial({color:0x17191f,roughness:.86});
-const carGlass=new THREE.MeshStandardMaterial({color:0x20394d,metalness:.65,roughness:.18});
+const tireMaterial=standardMaterial({color:0x17191f,roughness:.86});
+const carGlass=standardMaterial({color:0x20394d,metalness:.65,roughness:.18});
 for(const model of AUTO_MODELS){
- const {x,z,color}=model,paint=new THREE.MeshStandardMaterial({color,metalness:.6,roughness:.24});
+ const {x,z,color}=model,paint=standardMaterial({color,metalness:.6,roughness:.24});
  mallPart(showroomGroup,x,.62,z,1.82,.53,4.12,paint);
  mallPart(showroomGroup,x,.99,z-.14,1.54,.32,2.23,paint);
  mallPart(showroomGroup,x,1.27,z-.26,1.43,.39,1.8,carGlass);
@@ -3283,15 +3384,15 @@ function showAutoService(){
 
 const mallCenter=(ANNEX_ENTRY+MALL_MIN_Z)/2;
 const mallSize=ANNEX_ENTRY-MALL_MIN_Z;
-const mallFloorMaterial=new THREE.MeshStandardMaterial({color:0xaabacb});
-const plazaMaterial=new THREE.MeshStandardMaterial({color:0xd2e4e6});
+const mallFloorMaterial=standardMaterial({color:0xaabacb});
+const plazaMaterial=standardMaterial({color:0xd2e4e6});
 const guideMaterial=new THREE.MeshBasicMaterial({color:0x69b8b4});
 mallPart(mallShell,0,-.16,mallCenter,2*MALL_HALF_WIDTH,.3,mallSize,mallFloorMaterial);
 mallPart(mallShell,0,5.1,mallCenter,2*MALL_HALF_WIDTH,.2,mallSize,mallWallMaterial);
 for(let z=ANNEX_ENTRY-4;z>MALL_MIN_Z;z-=7){
- for(const x of [-8,0,8])ceilingFixture(mallShell,x,z,"gallery",()=>mallShell.visible);
+ for(const x of [-8,0,8])ceilingFixture(mallShell,x,z,"gallery");
 }
-for(const x of [-24,-16,16,24])ceilingFixture(mallShell,x,MALL_PLAZA_Z,"gallery",()=>mallShell.visible);
+for(const x of [-24,-16,16,24])ceilingFixture(mallShell,x,MALL_PLAZA_Z,"gallery");
 mallPart(mallShell,0,2.5,MALL_MIN_Z,2*MALL_HALF_WIDTH,5,.3,mallWallMaterial);
 for(const side of [-1,1]){
  if(side===1)mallPart(mallShell,MALL_HALF_WIDTH,2.5,mallCenter,.3,5,mallSize,mallWallMaterial);
@@ -3346,8 +3447,8 @@ for(const [index,department] of DEPARTMENTS.entries()){
  furnishings.visible=false;
  group.add(furnishings);scene.add(group);
  const {x,z,front}=department,half=MALL_ROOM/2;
- for(const dx of [-2.1,2.1])ceilingFixture(group,x+dx,z,"gallery",()=>group.visible&&state.upgrades[department.id]);
- const accent=new THREE.MeshStandardMaterial({color:departmentColors[index%departmentColors.length]});
+ for(const dx of [-2.1,2.1])ceilingFixture(furnishings,x+dx,z,"gallery");
+ const accent=standardMaterial({color:departmentColors[index%departmentColors.length]});
  const roomWall=(x,y,z,w,h,d,material)=>mallPart(group,x,y,z,w,h,d,material);
  const fixture=(x,y,z,w,h,d,material)=>mallPart(furnishings,x,y,z,w,h,d,material);
  const hit=(x,z,w,d,lockedBy)=>colliders.push({
@@ -3363,14 +3464,14 @@ for(const [index,department] of DEPARTMENTS.entries()){
  roomWall(x,2.5,z-half,MALL_ROOM,5,.24,mallWallMaterial);
  hit(x,z-half,MALL_ROOM,.24);
  roomWall(x,4.2,front,2.8,1.6,.24,accent);
- const gate=roomWall(x,1.7,front,2.8,3.4,.24,new THREE.MeshStandardMaterial({color:0x475569}));
+ const gate=roomWall(x,1.7,front,2.8,3.4,.24,standardMaterial({color:0x475569}));
  hit(x,front,2.8,.24,department.id);
  mallSign(group,department.name.toUpperCase(),"NIVEAU "+department.level,x,front+.15,0,7.4);
  annexGroups.set(department.id,{group,gate,furnishings,x,z});
  if(department.id===BAKERY_ID){
   const ovenZ=z-3.62;
-  const metal=new THREE.MeshStandardMaterial({color:0x334155,roughness:.55});
-  const glass=new THREE.MeshStandardMaterial({color:0x16243a,emissive:0xfb7b24,emissiveIntensity:0});
+  const metal=standardMaterial({color:0x334155,roughness:.55});
+  const glass=standardMaterial({color:0x16243a,emissive:0xfb7b24,emissiveIntensity:0});
   fixture(x,.88,ovenZ,2.35,1.76,.92,metal);
   fixture(x,1.1,ovenZ+.47,1.85,.67,.045,glass);
   fixture(x,1.54,ovenZ+.54,1.45,.045,.09,metal);
@@ -3382,7 +3483,7 @@ for(const [index,department] of DEPARTMENTS.entries()){
   const baker=new THREE.Group();
   baker.position.set(x+1.75,0,ovenZ+.95);
   furnishings.add(baker);
-  const uniform=new THREE.MeshStandardMaterial({color:0xf1f5f9});
+  const uniform=standardMaterial({color:0xf1f5f9});
   const {head}=personModel(baker,{shirt:0xf1f5f9,skin:0xd99d73,hair:0x392620,uniform:true});
   const hat=new THREE.Mesh(new THREE.CylinderGeometry(.147,.13,.16,12),uniform);
   hat.position.y=.20;head.add(hat);
@@ -3397,7 +3498,7 @@ for(const [index,department] of DEPARTMENTS.entries()){
   const rack=new THREE.Group();furnishings.add(rack);
   rack.position.set(p.x,0,p.z);rack.rotation.y=p.rotation*Math.PI/2;
   const sign=shelfSign(p.name);sign.position.y=2.34;rack.add(sign);
-  const shelfMaterial=new THREE.MeshStandardMaterial({color:p.storage==="cold"?0x93c5fd:0x475569});
+  const shelfMaterial=standardMaterial({color:p.storage==="cold"?0x93c5fd:0x475569});
   const backPanel=new THREE.Mesh(new THREE.BoxGeometry(1.7,2.15,.06),shelfMaterial);
   backPanel.position.set(0,1.07,-.32);rack.add(backPanel);
   departmentProductBatch(rack,p);
@@ -3476,10 +3577,10 @@ mainClosedSign.position.set(6.55,2.03,6.38);scene.add(mainClosedSign);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
 // V0.9.90 — Équipements réalistes de la caisse, purement visuels.
-const checkoutRubber=new THREE.MeshStandardMaterial({color:0x111827,roughness:.92});
-const checkoutSteel=new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
-const checkoutBlack=new THREE.MeshStandardMaterial({color:0x172033,roughness:.6});
-const checkoutGlow=new THREE.MeshStandardMaterial({color:0x38bdf8,emissive:0x075985,emissiveIntensity:.32});
+const checkoutRubber=standardMaterial({color:0x111827,roughness:.92});
+const checkoutSteel=standardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
+const checkoutBlack=standardMaterial({color:0x172033,roughness:.6});
+const checkoutGlow=standardMaterial({color:0x38bdf8,emissive:0x075985,emissiveIntensity:.32});
 function checkoutPart(x,y,z,w,h,d,mat){
  const part=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
  part.position.set(x,y,z);scene.add(part);return part;
@@ -3536,14 +3637,16 @@ const lightSwitch=cube(8.08,1.16,6.93,.10,.09,.035,0x22c55e);
 // Plaque et bouton fixés sur le mur du fond de la réserve, côté intérieur.
 const stockroomSwitchPlate=cube(10.174,1.35,7.8,.045,.22,.19,0xf8fafc);
 const stockroomSwitch=cube(10.205,1.35,7.8,.035,.11,.09,0x22c55e);
-function setZoneLighting(zone){
- lightSettings[zone]=!lightOn(zone);
+function setLightCircuit(zones,label){
+ const on=!zones.every(lightOn);
+ for(const zone of zones)lightSettings[zone]=on;
  updateLighting();save();
- toast(LIGHT_ZONES[zone]+" · "+(lightOn(zone)?"Éclairage allumé":"Éclairage éteint"));
+ toast(label+" · "+(on?"Éclairage allumé":"Éclairage éteint"));
 }
+function setZoneLighting(zone){setLightCircuit([zone],LIGHT_ZONES[zone]);}
 function toggleColdRoomLights(){setZoneLighting("cold");}
-function toggleStockroomLights(){setZoneLighting("dry");}
-function toggleLights(){setZoneLighting("sales");}
+function toggleStockroomLights(){setLightCircuit(STORAGE_LIGHTS,"Réserves sèche et électronique");}
+function toggleLights(){setLightCircuit(COMMERCIAL_LIGHTS,"Espaces de vente");}
 // Les emplacements libres sont partagés par toutes les références de la zone.
 for(const [xs,zs] of [[[16.35,20.15],[3.1,7.8]],[[16.6,22.5],[11,14.8]]]){
  for(const x of xs)for(const z of zs)for(const y of [.65,1.7,2.75])
@@ -3555,12 +3658,12 @@ storageBoxGeometry.clearGroups();
 storageBoxGeometry.addGroup(0,24,0);
 storageBoxGeometry.addGroup(24,6,1);
 storageBoxGeometry.addGroup(30,6,0);
-const storageCardboard=new THREE.MeshStandardMaterial({color:0xb78d62,roughness:.94});
+const storageCardboard=standardMaterial({color:0xb78d62,roughness:.94});
 const cartonLabels=new Map();
 function cartonLabel(product,loose=false){
  const key=product.id+(loose?":loose":":box");
  if(!cartonLabels.has(key)){
-  cartonLabels.set(key,new THREE.MeshStandardMaterial({map:packageTexture(product,loose?"VRAC":"CARTON"),roughness:.88}));
+  cartonLabels.set(key,standardMaterial({map:packageTexture(product,loose?"VRAC":"CARTON"),roughness:.88}));
  }
  return cartonLabels.get(key);
 }
@@ -3792,11 +3895,10 @@ cube(18.55,1.72,-7.84,.65,.38,.56,0x1f2937);
 cube(18.56,1.74,-7.47,.37,.07,.025,0x38bdf8);
 for(const x of [19.3,20.1])cube(x,1.1,-8.48,.65,2.2,.4,0x94a3b8,true);
 ceilingFixture(scene,20.95,-6,"staff");
-for(const z of [3,-2,-8,-14,-20])ceilingFixture(scene,25.65,z,"logistics",()=>true,1.55);
+for(const z of [3,-2,-8,-14,-20])ceilingFixture(scene,25.65,z,"logistics",1.55);
 for(const x of [24.1,27.2]){
  cube(x,3.85,-24.15,.29,.21,.21,0x475569);
  cube(x,3.77,-24.27,.25,.075,.08,0xfff7db).material=zonePanel("logistics");
- addLamp(x,-25,"logistics",()=>true,3.6);
 }
 // Fermeture de l'extrémité côté chambre froide : plus de vue sur l'extérieur.
 // L'accès latéral depuis la chambre froide (x=24, z=4.25..6.65) reste ouvert.
@@ -3819,8 +3921,8 @@ for(let i=0;i<8;i++){
 }
 // Diable visible en 3D, près du quai et accompagnant le joueur lorsqu'il est chargé.
 const handtruckVisual=new THREE.Group();
-const trolleyMetal=new THREE.MeshStandardMaterial({color:0xdc2626,metalness:.45,roughness:.35});
-const trolleyRubber=new THREE.MeshStandardMaterial({color:0x111827});
+const trolleyMetal=standardMaterial({color:0xdc2626,metalness:.45,roughness:.35});
+const trolleyRubber=standardMaterial({color:0x111827});
 function trolleyPart(w,h,d,x,y,z,mat=trolleyMetal){
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
  m.position.set(x,y,z);handtruckVisual.add(m);return m;
@@ -3835,12 +3937,11 @@ for(const x of [-.42,.42]){
 }
 const trolleyBoxes=[];
 for(let i=0;i<TROLLEY_UPGRADES.at(-1).trolleyCapacity;i++){
- const box=trolleyPart(.67,.33,.49,0,.39,.02,new THREE.MeshStandardMaterial({color:0xb98246}));
+ const box=trolleyPart(.67,.33,.49,0,.39,.02,standardMaterial({color:0xb98246}));
  box.visible=false;trolleyBoxes.push(box);
 }
 scene.add(handtruckVisual);
 const handtruckHeldVisual=handtruckVisual.clone(true);
-handtruckHeldVisual.traverse(o=>{if(o.isMesh)o.material=o.material.clone();});
 const heldPlatform=handtruckHeldVisual.children[handtruckVisual.children.indexOf(trolleyPlatform)];
 const heldTrolleyBoxes=handtruckHeldVisual.children.slice(-trolleyBoxes.length);
 camera.add(handtruckHeldVisual);
@@ -3874,7 +3975,7 @@ function updateHandtruck(){
 const workerGroup=new THREE.Group();
 const {legs:[workerLeftLeg,workerRightLeg],arms:[workerLeftArm,workerRightArm]}=personModel(workerGroup,
  {shirt:0xf59e0b,skin:0xe5ac83,hair:0x493126,style:3,uniform:true});
-const workerCarton=mallPart(workerGroup,0,1.05,-.45,.6,.45,.5,new THREE.MeshStandardMaterial({color:0xb98246}));
+const workerCarton=mallPart(workerGroup,0,1.05,-.45,.6,.45,.5,standardMaterial({color:0xb98246}));
 scene.add(workerGroup);
 const WORKER_DOCK=[25.65,-23.8];
 function storageWorkPoint(p){
@@ -3972,7 +4073,7 @@ function showWorkerInteraction(){
 const stockerGroup=new THREE.Group();
 const {legs:[stockerLegA,stockerLegB],arms:[stockerArmA,stockerArmB]}=personModel(stockerGroup,
  {shirt:0x16a34a,skin:0xc98b68,hair:0x241d22,woman:true,style:2,uniform:true});
-const stockerCarton=mallPart(stockerGroup,0,1.05,-.4,.55,.42,.48,new THREE.MeshStandardMaterial({color:0xb98246}));
+const stockerCarton=mallPart(stockerGroup,0,1.05,-.4,.55,.42,.48,standardMaterial({color:0xb98246}));
 scene.add(stockerGroup);
 stockerGroup.position.set(13,0,5);
 let stockerTarget=null,stockerPhase="idle",stockerCargo=null,stockerTimer=0,stockerWalk=0,stockerTalking=false;
@@ -4571,7 +4672,8 @@ function blocked(x,z,r=.4){
  const cold=x>15.55&&x<23.75&&z>1.8&&z<16.8;
  const electronicsReserve=state.upgrades.store2&&x>15.55&&x<20.35&&z>30.75&&z<43.7;
  const electronicsReserveDoor=state.upgrades.store2&&x>=15.0-r&&x<=15.6+r&&z>34+r&&z<35.8-r;
- const entrance=Math.abs(x)<2.15&&z>9.0&&z<13.45;
+ const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
+ const forecourt=x>-14+r&&x<14-r&&z>10.38+r&&z<31-r;
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
  const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
@@ -4590,7 +4692,7 @@ function blocked(x,z,r=.4){
  const link=autoLinkOpen()&&x>-35.85+r&&x<-30+r&&z>GALLERY_LINK_Z-1.35+r&&z<SHOWROOM_LINK_Z+1.35-r;
  const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
- if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
+ if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||forecourt||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  return candidates?.some(c=>x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ&&
   !c.disabled&&contentVisible(c)&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&
@@ -4752,15 +4854,15 @@ function makeCustomer(){
  });
  function part(w,h,d,mat,x,y,z,parent=group){return mallPart(parent,x,y,z,w,h,d,mat);}
  if(Math.random()<.22){
-  const fabric=new THREE.MeshStandardMaterial({color:shirt});
+  const fabric=standardMaterial({color:shirt});
   const cap=new THREE.Mesh(new THREE.SphereGeometry(.151,12,8),fabric);
   cap.position.set(0,.124,0);cap.scale.y=.59;head.add(cap);
   part(.27,.022,.117,fabric,0,.094,-.145,head);
  }
  // Panier tenu dans la main avec des produits visibles au fur et à mesure des achats.
  const basketGroup=new THREE.Group();basketGroup.position.set(.46,.72,-.10);group.add(basketGroup);
- const basketMat=new THREE.MeshStandardMaterial({color:[0x2563eb,0x16a34a,0xd97706][Math.floor(Math.random()*3)],roughness:.78});
- const basketRim=new THREE.MeshStandardMaterial({color:0x1e293b,roughness:.75});
+ const basketMat=standardMaterial({color:[0x2563eb,0x16a34a,0xd97706][Math.floor(Math.random()*3)],roughness:.78});
+ const basketRim=standardMaterial({color:0x1e293b,roughness:.75});
  part(.58,.055,.38,basketMat,0,0,0,basketGroup);
  for(const z of [-.17,.17])part(.58,.25,.04,basketMat,0,.15,z,basketGroup);
  for(const x of [-.27,.27])part(.04,.25,.38,basketMat,x,.15,0,basketGroup);
@@ -4769,13 +4871,13 @@ function makeCustomer(){
  part(.49,.035,.04,basketRim,0,.49,0,basketGroup);
  const basketCargo=[];
  for(let i=0;i<4;i++){
-  const cargo=part(.15,.16,.13,new THREE.MeshStandardMaterial({color:0xfacc15}),-.16+(i%3)*.16,.13+Math.floor(i/3)*.14,-.07+(i%2)*.13,basketGroup);
+  const cargo=part(.15,.16,.13,standardMaterial({color:0xfacc15}),-.16+(i%3)*.16,.13+Math.floor(i/3)*.14,-.07+(i%2)*.13,basketGroup);
   cargo.visible=false;basketCargo.push(cargo);
  }
  // Sac d'achat qui remplace le panier uniquement après le paiement.
  const bagGroup=new THREE.Group();bagGroup.position.set(.43,.67,-.10);group.add(bagGroup);
- const bagMat=new THREE.MeshStandardMaterial({color:0xd6b58b,roughness:1});
- const handleMat=new THREE.MeshStandardMaterial({color:0x91674c,roughness:1});
+ const bagMat=standardMaterial({color:0xd6b58b,roughness:1});
+ const handleMat=standardMaterial({color:0x91674c,roughness:1});
  part(.43,.46,.28,bagMat,0,.01,0,bagGroup);
  for(const z of [-.095,.095]){
   part(.035,.22,.035,handleMat,-.12,.31,z,bagGroup);
@@ -4852,7 +4954,7 @@ function updateCustomerVisual(c,dt){
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
 // Le joueur conserve son accès à l'ordinateur et au poste de travail.
 function customerBlocked(x,z,r=.28){
- if(blocked(x,z,r))return true;
+ if(z>13.45||blocked(x,z,r))return true;
  return x+r>4.7&&x-r<9.45&&z+r>7.25&&z-r<9.95;
 }
 // Navigation A* sur grille invisible : évite les collisions avec les rayons et la caisse.
@@ -4980,7 +5082,7 @@ function teamAvatar(role,x,z,woman=false){
   hair:[0x30201d,0x271b1a,0x865e37,0x553724][variant],
   style:woman?[2,1,0,1][variant]:[0,3,2,0][variant]});
  group.scale.setScalar(woman?.94:1);
- const carton=mallPart(group,0,1,-.32,.51,.32,.30,new THREE.MeshStandardMaterial({color:0xa77543}));
+ const carton=mallPart(group,0,1,-.32,.51,.32,.30,standardMaterial({color:0xa77543}));
  group.position.set(x,0,z);group.visible=false;scene.add(group);
  return {group,legs,arms,carton,stride:0};
 }
@@ -5700,7 +5802,6 @@ function updateGalleryRendering(){
   const distance=room.furnishings.visible?7:5.5;
   room.furnishings.visible=room.group.visible&&!!state.upgrades[id]&&dx*dx+dz*dz<=distance*distance;
  }
- refreshNearbyLights();
  const deep=z<ANNEX_ENTRY-(renderingDeepGallery?5:7);
  if(deep===renderingDeepGallery)return;
  renderingDeepGallery=deep;
@@ -5852,4 +5953,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.8 !");
+animate();toast("Business Empire Simulator V0.14.9 !");
