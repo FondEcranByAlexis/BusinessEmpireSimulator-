@@ -6214,7 +6214,7 @@ function updateCustomers(dt){
     c.exitStall=moved?0:(c.exitStall||0)+dt;
     if(c.exitStall>7){if(t===EXIT_GATE&&securityOpen()&&(c.activeTag||c.theftIncident))triggerSecurityCheck(c);else c.waypoint++;c.exitStall=0;c.navTarget=null;c.navRoute=null;}
    }
-   if(c.waypoint>=c.route.length)removeCustomer(c);
+   if(c.phase==="leaving"&&c.waypoint>=c.route.length)removeCustomer(c);
   }
  }
 }
@@ -6432,7 +6432,7 @@ function animate(){
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  if(!paused&&ageOverlay.style.display==="none"){
   movePlayer(dt);updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);
-  updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateRegisterIndicators();updateCheckoutRush(dt);
+  updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateTheftPolice(dt);updateRegisterIndicators();updateCheckoutRush(dt);
  }
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
