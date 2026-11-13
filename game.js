@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.45";
-import { installSurveillance } from "./surveillance.js?v=0.14.45";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.45";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.45";
-// Business Empire Simulator V0.14.45 — version synchronisée
+import { installCity } from "./city.js?v=0.14.46";
+import { installSurveillance } from "./surveillance.js?v=0.14.46";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.46";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.46";
+// Business Empire Simulator V0.14.46 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2816,19 +2816,20 @@ function buildStoreExterior(){
  const part=(x,y,z,w,h,d,mat)=>mallPart(group,x,y,z,w,h,d,mat);
 
  part(0,-.09,20.65,PARKING_HALF_WIDTH*2,.16,20.7,asphalt);
- // Parking élargi à gauche : deux rangées supplémentaires, hors du stockage à droite.
- part(-12,-.09,20.65,24,.16,20.7,asphalt);
- for(const x of [-21,-13]){
-  for(const z of [13.55,25.6]){
-   part(x,.008,z,7.2,.014,.07,paint);
-  }
-  for(const z of [15.5,19.2,22.9])part(x-3.4,.008,z,.07,.014,3.4,paint);
+ // Grand parking latéral : 40 m supplémentaires vers l'ouest, sans toucher aux réserves à l'est.
+ part(-30,-.09,20.65,40,.16,20.7,asphalt);
+ // Quatre rangées de places de 2,5 m, séparées par deux voies de circulation.
+ for(const x of [-47,-44.5,-42,-39.5,-37,-34.5,-32,-29.5,-27,-24.5,-22,-19.5,-17,-14.5,-12]){
+  for(const z of [12.3,24.9])part(x,.013,z,.065,.016,3.3,paint);
  }
+ for(const z of [15.6,21.6])part(-30,.013,z,39,.016,.08,paint);
+ // Liaison transversale avec l'allée centrale.
+ part(-29.5,-.088,31.7,41,.16,2.2,asphalt);
  // Route d'accès vers la ville : aucune place de parking au-delà du parking principal.
  part(0,-.09,72,PARKING_HALF_WIDTH*2,.16,82,asphalt);
  for(let z=37;z<=108;z+=11)part(0,.005,z,.10,.012,4.2,paint);
  // La chaussée reste dégagée à la sortie du parking.
- part(-14.05,-.19,21.55,8.5,.19,23.3,grass);
+ // Ancienne pelouse supprimée : elle recouvrait une partie du parking élargi.
  part(0,-.04,12.22,PARKING_HALF_WIDTH*2,.10,3.94,concrete);
  part(0,-.033,20.1,3.1,.076,12.2,concrete);
  part(0,3.24,10.98,10.8,.22,1.95,trim);
@@ -4902,7 +4903,7 @@ function blocked(x,z,r=.4){
  const electronicsReserveDoor=state.upgrades.store2&&x>=15.0-r&&x<=15.6+r&&z>34+r&&z<35.8-r;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
- const wideParking=x>-23.5+r&&x<-9.3-r&&z>10.4+r&&z<31-r;
+ const wideParking=x>-49.6+r&&x<-9.3-r&&z>10.4+r&&z<33-r;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
  const cityWalk=x>-105+r&&x<105-r&&z>76+r&&z<232-r;
@@ -6521,4 +6522,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.45 !");
+animate();toast("Business Empire Simulator V0.14.46 !");
