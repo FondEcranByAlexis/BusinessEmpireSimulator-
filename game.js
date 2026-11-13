@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.66";
-import { installSurveillance } from "./surveillance.js?v=0.14.66";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.66";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.66";
-// Business Empire Simulator V0.14.66 — version synchronisée
+import { installCity } from "./city.js?v=0.14.67";
+import { installSurveillance } from "./surveillance.js?v=0.14.67";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.67";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.67";
+// Business Empire Simulator V0.14.67 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2320,15 +2320,16 @@ function corridorPart(x,y,z,w,h,d,color){
  coldToLogisticsPassage.push(m);
  return m;
 }
-corridorPart(19.7,-.13,5.45,8.75,.26,2.4,0x94a3b8);
+corridorPart(20.95,-.13,5.45,11.5,.26,2.4,0x94a3b8);
 for(const z of [4.18,6.72]){
- corridorPart(19.7,.09,z,8.75,.18,.08,0xf8fafc);
+ corridorPart(20.95,.09,z,11.5,.18,.08,0xf8fafc);
 }
-for(const x of [17.1,20.1,22.8]){
+for(const x of [17.1,20.1,22.8,25.6]){
  corridorPart(x,4.84,5.45,1.7,.06,.55,0xf8fafc);
 }
-// Suppression complète de la chambre froide, sans effacer les stocks sauvegardés.
-for(const mesh of scene.children.slice(removedColdMeshStart))mesh.visible=false;
+// Retirer uniquement les éléments de l'ancienne chambre froide, et non le nouveau passage.
+const coldRemovedEnd=scene.children.indexOf(coldToLogisticsPassage[0]);
+for(const mesh of scene.children.slice(removedColdMeshStart,coldRemovedEnd))mesh.visible=false;
 for(const hit of colliders.slice(removedColdColliderStart))hit.disabled=true;
 cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Passage libre entre ancienne réserve et agrandissement (ancien mur du fond supprimé).
@@ -5023,7 +5024,7 @@ function blocked(x,z,r=.4){
  // Le volume accessible suit les extensions physiques de la réserve.
  const reserveDepth=23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
- const cold=x>15.55&&x<23.95&&z>4.25&&z<6.65; // Passage vers le couloir logistique
+ const cold=x>15.05&&x<27.1&&z>4.25&&z<6.65; // Passage vers le couloir logistique
  const electronicsReserve=!STORAGE_REBUILD_PENDING&&state.upgrades.store2&&x>29.55&&x<34.05&&z>-6.25&&z<6.7;
  const relocatedDry=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>34.25&&x<38.85&&z>-6.55&&z<(state.upgrades.store2?0.35:-6.5);
  const electronicsReserveDoor=state.upgrades.store2&&x>30.55&&x<33.35&&z>-7.4&&z<-5.7;
@@ -5038,7 +5039,7 @@ function blocked(x,z,r=.4){
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
  const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
- const serviceCorridor=x>24.3&&x<29.7&&z>-24.0&&z<6.6;
+ const serviceCorridor=x>24.0&&x<29.7&&z>-24.0&&z<7.4;
  const logisticsAccess=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>24.3&&x<39&&z>-14.0&&z<8.0;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
@@ -6682,4 +6683,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.66 !");
+animate();toast("Business Empire Simulator V0.14.67 !");
