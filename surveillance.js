@@ -1,4 +1,4 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.35)
+// FBA Supermarket — PC de vidéosurveillance (V0.14.36)
 export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true,autoUnlocked=()=>false}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
@@ -10,7 +10,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   {name:"Chambre froide",x:18.4,z:3.5,look:[18.4,1.3,8.6]},
   {name:"Zone de livraison",x:26,z:-10,look:[26,1.2,-17]},
   {name:"Première extension",x:0,z:-13.5,look:[0,1.2,-8],unlocked:extensionUnlocked},
-  {name:"Vue générale des caisses",x:3.5,z:10,look:[5,1.15,4],wide:true}
+  {name:"Vue générale des caisses",x:7.7,z:7.1,look:[4.2,1.05,5.6],wide:true}
  ];
  departments.forEach((d,i)=>stations.push({name:"Galerie · "+d.name,x:d.x,z:d.z,look:[d.x,1.15,d.front+1.5],department:d}));
  // Deux caméras par zone, placées aux extrémités et orientées l'une vers l'autre.
@@ -26,7 +26,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
    department:station.department,unlocked:station.unlocked,wide:station.wide
   });
  }
- // Supprimer les anciennes CAM 30, 31, 35 et 39 (numérotation V0.14.35).
+ // Supprimer les anciennes CAM 30, 31, 35 et 39 (numérotation V0.14.36).
  const removed=new Set([29,30,34,38]);
  const retained=stations.map((station,index)=>({...station,legacyIndex:index})).filter(station=>!removed.has(station.legacyIndex));
  stations.length=0;stations.push(...retained);
@@ -44,8 +44,8 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   const dx=station.look[0]-station.x,dy=station.look[1]-3.32,dz=station.look[2]-(originZ+.42);
   station.defaultYaw=Math.atan2(dx,dz);
   station.defaultPitch=Math.atan2(dy,Math.hypot(dx,dz));
-  station.yaw=Number.isFinite(savedAngles[station.legacyIndex??(100+i)]?.yaw)?savedAngles[i].yaw:station.defaultYaw;
-  station.pitch=Number.isFinite(savedAngles[station.legacyIndex??(100+i)]?.pitch)?savedAngles[i].pitch:station.defaultPitch;
+  station.yaw=station.name==="Vue générale des caisses"?station.defaultYaw:Number.isFinite(savedAngles[station.legacyIndex??(100+i)]?.yaw)?savedAngles[station.legacyIndex??(100+i)].yaw:station.defaultYaw;
+  station.pitch=station.name==="Vue générale des caisses"?station.defaultPitch:Number.isFinite(savedAngles[station.legacyIndex??(100+i)]?.pitch)?savedAngles[station.legacyIndex??(100+i)].pitch:station.defaultPitch;
  });
  const staff=["Camille — rayons","Rayan — caisses","Nora — incidents"];
  const position={x:-13,z:8.1};
