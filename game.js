@@ -4167,29 +4167,29 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// Deux parois continues : côté chambre froide la paroi existante sert de mur,
-// puis un prolongement prend le relais jusqu'à l'arrière du magasin.
-// Porte de 2,6 m découpée dans la paroi ouest du couloir : accès à la salle de repos.
-cube(24.1,2.5,-15.65,.25,5,16.7,0xe2e8f0,true);
+// V0.14.74 : le couloir logistique possède deux portes distinctes sur son
+// mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
+// Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
+// Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
+cube(24.1,2.5,-18.3,.25,5,11.4,0xe2e8f0,true);
+cube(24.1,2.5,-8.65,.25,5,2.7,0xe2e8f0,true);
+cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0,true); // linteau stockage
+// Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.14.73 : porte des réserves sèches et électroniques située en face de
-// la salle de pause, sur le côté est du couloir logistique (x=27.2, z=-6).
-// Le mur est réellement découpé, et non recouvert d'un faux encadrement.
-cube(27.2,2.5,-15.65,.25,5,16.7,0xe2e8f0,true); // z -24 à -7.3
-cube(27.2,2.5,1.35,.25,5,12.1,0xe2e8f0,true);  // z -4.7 à 7.4
-cube(27.2,4.2,-6,.25,1.6,2.6,0xe2e8f0,true);   // linteau
-// Huisserie métallique et seuil mince, identiques aux finitions logistiques.
-for(const z of [-7.3,-4.7])cube(27.06,1.65,z,.095,3.3,.10,0x64748b);
-cube(27.06,3.33,-6,.095,.12,2.65,0x64748b);
-cube(27.05,.035,-6,.52,.035,2.55,0x94a3b8);
-// Panneau de porte opaque : accès fermé tant que les nouvelles réserves
-// ne sont pas reconstruites. Son collider correspond exactement au vantail.
-const storageAccessDoor=cube(27.2,1.65,-6,.12,3.3,2.48,0x475569,true);
-cube(27.115,1.55,-5.03,.05,.28,.055,0xcbd5e1);
+// V0.14.73 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
+cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
+// Nouvelle entrée de stockage dans le mur OUEST (repère vert).
+// La porte demeure fermée jusqu'à la reconstruction des réserves annexes.
+for(const z of [-12.6,-10.0])cube(24.24,1.65,z,.095,3.3,.10,0x64748b);
+cube(24.24,3.33,-11.3,.095,.12,2.65,0x64748b);
+cube(24.27,.035,-11.3,.52,.035,2.55,0x94a3b8);
+const storageAccessDoor=cube(24.1,1.65,-11.3,.12,3.3,2.48,0x475569,true);
+cube(24.205,1.55,-10.33,.05,.28,.055,0xcbd5e1);
 const storageAccessSign=brandPanel("STOCKAGE SEC","& ÉLECTRONIQUE",2.75,.68);
-storageAccessSign.position.set(27.035,4.04,-6);
-storageAccessSign.rotation.y=-Math.PI/2;
+storageAccessSign.position.set(24.29,4.04,-11.3);
+storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 cube(25.65,5.1,-8.3,3.1,.2,31.4,0xf1f5f9);
 // Annexe du personnel à l'ouest du couloir logistique, hors des axes des livraisons.
