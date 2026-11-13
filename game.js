@@ -1,7 +1,8 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.24";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.24";
-// Business Empire Simulator V0.14.24 — version synchronisée
+import { installSurveillance } from "./surveillance.js?v=0.14.25";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.25";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.25";
+// Business Empire Simulator V0.14.25 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -5745,6 +5746,7 @@ function updateSecurityDesk(dt){
 function showSecurityDesk(){
  if(!securityOpen())return;
  openPanel("Poste de sécurité");
+ button(panel,"Accéder aux caméras de surveillance",()=>surveillance.show());
  paragraph("Portiques de sortie · "+securityChecks.length+" contrôle(s) en attente.");
  for(const customer of securityChecks){
   const product=catalog.find(p=>p.id===customer.activeTag);
@@ -6329,6 +6331,7 @@ function showAdultNotice(){
 function closeAgePrompt(){
  ageOverlay.style.display="none";sync();refreshDeliveryDock();
 }
+const surveillance=installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook});
 const clock=new THREE.Clock();
 let contextLost=false,refreshOnResume=false;
 function refreshWhenVisible(){
@@ -6375,9 +6378,9 @@ function animate(){
   bakeryScene.glass.emissiveIntensity=batch&&state.day*1440+state.hour*60<batch.ready ? .9 : 0;
  }
  renderCustomerFeedback(dt);
- renderer.render(scene,camera);
+ if(!surveillance.render())renderer.render(scene,camera);
 }
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.24 !");
+animate();toast("Business Empire Simulator V0.14.25 !");
