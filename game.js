@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.68";
-import { installSurveillance } from "./surveillance.js?v=0.14.68";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.68";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.68";
-// Business Empire Simulator V0.14.68 — version synchronisée
+import { installCity } from "./city.js?v=0.14.69";
+import { installSurveillance } from "./surveillance.js?v=0.14.69";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.69";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.69";
+// Business Empire Simulator V0.14.69 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2311,33 +2311,33 @@ for(const x of [16.35,20.15]){
 }
 const coldSign=(()=>{const c=document.createElement("canvas");c.width=512;c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="#0c4a6e";ctx.fillRect(0,0,512,128);ctx.fillStyle="#e0f2fe";ctx.textAlign="center";ctx.font="bold 45px Arial";ctx.fillText("CHAMBRE FROIDE",256,80);const m=new THREE.Mesh(new THREE.PlaneGeometry(2.8,.7),new THREE.MeshBasicMaterial({map:gameTexture(c),side:THREE.DoubleSide}));m.position.set(15.08,4.1,5.45);m.rotation.y=-Math.PI/2;scene.add(m);return m;})();
 
-// Nouveau passage piéton à l'emplacement de la chambre froide retirée :
-// liaison entre la réserve existante (porte x=15.3) et le couloir logistique (x=24.1).
-// Sol continu, bordures de guidage, éclairage ; aucun obstacle dans l'axe.
+// Galerie logistique élargie (4,4 m) avec séparation réelle côté réserve.
+// La construction est indépendante des maillages frigorifiques supprimés.
 const coldToLogisticsPassage=[];
-function corridorPart(x,y,z,w,h,d,color){
+const corridorHits=[];
+function corridorPart(x,y,z,w,h,d,color,solid=false){
  const m=cube(x,y,z,w,h,d,color);
  coldToLogisticsPassage.push(m);
+ if(solid){const hit={minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2};colliders.push(hit);corridorHits.push(hit);}
  return m;
 }
-corridorPart(20.95,-.13,5.45,11.5,.26,2.4,0x94a3b8);
-for(const z of [4.18,6.72]){
- corridorPart(20.95,.09,z,11.5,.18,.08,0xf8fafc);
+corridorPart(20.95,-.12,5.45,11.5,.26,4.4,0x94a3b8);
+for(const z of [3.17,7.73]){
+ corridorPart(20.95,.07,z,11.5,.12,.07,0xf8fafc);
 }
-for(const x of [17.1,20.1,22.8,25.6]){
- corridorPart(x,4.84,5.45,1.7,.06,.55,0xf8fafc);
+// Cloison de réserve : deux panneaux et une large baie centrale de 4,4 m.
+corridorPart(15.3,2.5,2.35,.3,5,1.8,0xe2e8f0,true);
+corridorPart(15.3,2.5,8.55,.3,5,1.8,0xe2e8f0,true);
+corridorPart(15.3,4.5,5.45,.3,1,4.4,0xe2e8f0);
+for(const z of [3.25,7.65]){
+ corridorPart(19.65,2.4,z,8.7,4.8,.16,0xd5dee6,true);
 }
-// Galerie de liaison clairement matérialisée : murs latéraux et plafond
-// au lieu d'un simple revêtement au sol difficile à distinguer.
-for(const z of [3.85,7.05]){
- corridorPart(19.65,2.4,z,8.7,4.8,.16,0xd5dee6);
-}
-corridorPart(19.65,4.9,5.45,8.7,.18,3.36,0xf1f5f9);
-// Portiques d'entrée/sortie, ouverture centrale entièrement libre.
+corridorPart(19.65,4.9,5.45,8.7,.18,4.56,0xf1f5f9);
 for(const x of [15.32,23.98]){
- for(const z of [4.05,6.85])corridorPart(x,2.05,z,.12,4.1,.16,0x64748b);
- corridorPart(x,4.18,5.45,.12,.16,2.96,0x64748b);
+ for(const z of [3.25,7.65])corridorPart(x,2.05,z,.12,4.1,.12,0x64748b);
+ corridorPart(x,4.18,5.45,.12,.16,4.4,0x64748b);
 }
+for(const x of [17.1,20.1,22.8,25.6])corridorPart(x,4.76,5.45,1.7,.06,.55,0xfff7db);
 // Retirer uniquement les éléments de l'ancienne chambre froide, et non le nouveau passage.
 const coldRemovedEnd=scene.children.indexOf(coldToLogisticsPassage[0]);
 for(const mesh of scene.children.slice(removedColdMeshStart,coldRemovedEnd))mesh.visible=false;
@@ -5036,7 +5036,7 @@ function blocked(x,z,r=.4){
  // Le volume accessible suit les extensions physiques de la réserve.
  const reserveDepth=23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
- const cold=x>15.05&&x<27.1&&z>4.25&&z<6.65; // Passage vers le couloir logistique
+ const cold=x>15.05&&x<27.1&&z>3.35&&z<7.55; // Passage vers le couloir logistique
  const electronicsReserve=!STORAGE_REBUILD_PENDING&&state.upgrades.store2&&x>29.55&&x<34.05&&z>-6.25&&z<6.7;
  const relocatedDry=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>34.25&&x<38.85&&z>-6.55&&z<(state.upgrades.store2?0.35:-6.5);
  const electronicsReserveDoor=state.upgrades.store2&&x>30.55&&x<33.35&&z>-7.4&&z<-5.7;
@@ -5049,8 +5049,8 @@ function blocked(x,z,r=.4){
  // Quartier piétonnier et intérieurs accessibles des immeubles.
  const cityWalk=x>-105+r&&x<105-r&&z>76+r&&z<232-r;
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
- const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
- const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
+ const coldDoor=x>=15.0-r&&x<=15.6+r&&z>3.35+r&&z<7.55-r;
+ const serviceDoor=x>23.65&&x<25.3&&z>3.35+r&&z<7.55-r;
  const serviceCorridor=x>24.0&&x<29.7&&z>-24.0&&z<7.4;
  const logisticsAccess=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>24.3&&x<39&&z>-14.0&&z<8.0;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
@@ -6695,4 +6695,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.68 !");
+animate();toast("Business Empire Simulator V0.14.69 !");
