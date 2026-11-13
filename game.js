@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.75";
-import { installSurveillance } from "./surveillance.js?v=0.14.75";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.75";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.75";
-// Business Empire Simulator V0.14.75 — version synchronisée
+import { installCity } from "./city.js?v=0.14.76";
+import { installSurveillance } from "./surveillance.js?v=0.14.76";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.76";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.76";
+// Business Empire Simulator V0.14.76 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2170,7 +2170,7 @@ function updateLighting(){
   ["office",-14.65,-5.55,-10.1,-2.05,directorOpen()],
   ["outside",-PARKING_HALF_WIDTH,10.14,PARKING_HALF_WIDTH,31],
   ["dry",19.2,-22.4,24,-9.45],
-  ["electronics",14.4,-22.4,19.2,-9.45]
+  ["electronics",14.4,-22.4,19.2,-2.85]
  ];
  for(const [i,[zone,x0,z0,x1,z1,active=true]] of regions.entries()){
   // Les améliorations verrouillées ne modifient aucune surface.
@@ -4077,7 +4077,7 @@ function atReserve(){return camera.position.x>19.2&&camera.position.x<24&&camera
 function atColdRoom(){return inStorageWing("cold",camera.position.x,camera.position.z)||camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
 function atElectronicsReserve(){
  const {x,z}=camera.position;
- return x>14.4&&x<19.2&&z>-22.5&&z<-9.5||inStorageWing("electronics",x,z)||!!state.upgrades.store2&&x>=15.3&&x<20.35&&z>30.75&&z<43.7;
+ return (x>14.4&&x<19.2&&z>-22.5&&z<-9.5)||(x>14.4&&x<17.8&&z>=-9.5&&z<-3)||inStorageWing("electronics",x,z)||!!state.upgrades.store2&&x>=15.3&&x<20.35&&z>30.75&&z<43.7;
 }
 function currentStorageKind(){
  if(atElectronicsReserve())return "electronics";
@@ -4169,7 +4169,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.14.75 : le couloir logistique possède deux portes distinctes sur son
+// V0.14.76 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4179,7 +4179,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0,true); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.14.75 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.14.76 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4188,20 +4188,33 @@ for(const z of [-12.6,-10.0])cube(24.24,1.65,z,.095,3.3,.10,0x64748b);
 cube(24.24,3.33,-11.3,.095,.12,2.65,0x64748b);
 cube(24.27,.035,-11.3,.52,.035,2.55,0x94a3b8);
 // Vantail ouvert vers la pièce : le passage est utilisable.
-const storageAccessDoor=cube(23.83,1.65,-12.43,.58,3.3,.075,0x475569);
-cube(23.55,1.55,-12.395,.05,.28,.09,0xcbd5e1);
+// L'ancien vantail empiétait sur la collision du passage : battant rangé
+// contre le mur à l'intérieur, hors de la baie de 2,60 m.
+const storageAccessDoor=cube(23.55,1.65,-13.45,.58,3.3,.07,0x475569);
+cube(23.27,1.55,-13.41,.045,.25,.08,0xcbd5e1);
 const storageAccessSign=brandPanel("STOCKAGE SEC","& ÉLECTRONIQUE",2.75,.68);
 storageAccessSign.position.set(24.29,4.04,-11.3);
 storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
-// V0.14.75 : pièce commune derrière la porte, deux zones séparées.
+// V0.14.76 : pièce commune derrière la porte, deux zones séparées.
 // x=14.4..24.1 ; z=-22.5..-9.5, hors salle de pause et couloir.
 cube(19.25,-.15,-16,9.7,.30,13,0xb9c1c8);
 tileFloor(9.35,12.65,19.25,-16);
 cube(19.25,5.1,-16,9.7,.20,13,0xf1f5f9);
 cube(14.4,2.5,-16,.25,5,13,0xe2e8f0,true);
 cube(19.25,2.5,-22.5,9.7,5,.25,0xe2e8f0,true);
-cube(19.25,2.5,-9.5,9.7,5,.25,0xe2e8f0,true);
+// L'ancien mur z=-9.5 bloquait la liaison avec la partie latérale.
+ // On ne conserve une fermeture qu'à l'arrière de la salle de pause.
+cube(20.95,2.5,-9.5,6.3,5,.25,0xe2e8f0,true);
+ // Prolongement sur tout le côté OUEST de la salle de pause (x14.4..17.8,
+ // z=-9.5..-3) avec sol/plafond raccordés et sans mur dans la jonction.
+cube(16.10,-.15,-6.25,3.4,.30,6.5,0xb9c1c8);
+tileFloor(3.10,6.2,16.10,-6.25);
+cube(16.10,5.1,-6.25,3.4,.20,6.5,0xf1f5f9);
+cube(14.4,2.5,-6.25,.25,5,6.5,0xe2e8f0,true);
+cube(16.10,2.5,-3.0,3.4,5,.25,0xe2e8f0,true);
+ // La cloison x=17.8 de la salle de pause reste intacte.
+
 // Cloison centrale : produits secs côté entrée, électronique à l'ouest.
 // Porte intérieure de 2,4 m (z=-14.7..-12.3).
 cube(19.2,2.5,-18.6,.23,5,7.8,0xdbeafe,true);
@@ -4241,6 +4254,14 @@ for(const z of [-12,-15,-18,-21]){
  for(const x of [20.35,22.55])newRoomRack("dry",x,z);
  for(const x of [15.65,17.7])newRoomRack("electronics",x,z);
 }
+// Deux racks supplémentaires sur la partie longeant la salle de pause.
+for(const z of [-4.7,-7.35])newRoomRack("electronics",15.15,z);
+// Éclairage et caméra supplémentaires dans l'aile latérale.
+for(const z of [-4.8,-7.5]){
+ cube(16.10,4.93,z,1.35,.055,.52,0x94a3b8);
+ cube(16.10,4.89,z,1.25,.026,.42,0xfff7db).material=zonePanel("electronics");
+}
+roomCamera(16.15,-3.65,Math.PI);
 const dryRoomSign=brandPanel("RÉSERVE SÈCHE","PRODUITS SECS",2.1,.58);
 dryRoomSign.position.set(22.2,4.1,-22.3);scene.add(dryRoomSign);
 const electronicsRoomSign=brandPanel("ÉLECTRONIQUE","STOCKAGE",2.1,.58);
@@ -5125,8 +5146,10 @@ function blocked(x,z,r=.4){
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>3.35+r&&z<7.55-r;
  const serviceDoor=x>23.65&&x<25.3&&z>3.35+r&&z<7.55-r;
  const serviceCorridor=x>24.0&&x<29.7&&z>-24.0&&z<7.4;
- const newStorageRoom=x>14.55+r&&x<23.97&&z>-22.35+r&&z<-9.65-r;
- const newStorageDoor=x>23.4&&x<24.5&&z>-12.5+r&&z<-10.1-r;
+ // Réserve en L autour de la salle de pause : aile arrière + aile latérale.
+ const newStorageRoom=(x>14.55+r&&x<23.97&&z>-22.35+r&&z<-9.5)
+  ||(x>14.55+r&&x<17.65&&z>=-9.5&&z<-3.15-r);
+ const newStorageDoor=x>23.3&&x<24.5&&z>-12.6+r&&z<-10.0-r;
  const logisticsAccess=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>24.3&&x<39&&z>-14.0&&z<8.0;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
@@ -6770,4 +6793,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.75 !");
+animate();toast("Business Empire Simulator V0.14.76 !");
