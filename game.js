@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.12";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.12";
-// Business Empire Simulator V0.14.12 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.13";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.13";
+// Business Empire Simulator V0.14.13 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -770,6 +770,24 @@ function addSupplierItem(p){
  if(cartCount(kind)>=cartCapacity(kind)){toast(storageName(kind)+" pleine — pas de nouvelle commande possible");return;}
  supplierCart[p.id]=(supplierCart[p.id]||0)+1;showOrders();
 }
+function addMissingSupplierItems(){
+ const free=Object.fromEntries(STORAGE_KINDS.map(kind=>[kind,cartCapacity(kind)-cartCount(kind)]));
+ const missing=unlockedProducts()
+  .filter(p=>stockAlert(p)!=="OK"&&!supplierCart[p.id]&&!pendingBoxes(p.id))
+  .sort((a,b)=>(productStoredUnits(a)+state.inventory[a.id].shelf)-
+   (productStoredUnits(b)+state.inventory[b.id].shelf));
+ let added=0;
+ for(const p of missing){
+  const kind=storageKind(p);
+  if(free[kind]<=0||state.inventory[p.id].boxes>=MAX_BOXES_PER_PRODUCT)continue;
+  supplierCart[p.id]=1;
+  free[kind]--;added++;
+ }
+ showOrders();
+ if(!missing.length){toast("Aucun produit en manque à ajouter");return;}
+ const skipped=missing.length-added;
+ toast(added+" carton(s) ajouté(s)"+(skipped?" · "+skipped+" référence(s) sans place disponible":""));
+}
 function processSupplierOrders(){
  let changed=false;
  for(const order of state.supplierOrders.slice()){
@@ -806,6 +824,13 @@ function checkoutSupplier(express){
 function showOrders(){
  processSupplierOrders();
  openPanel("FOURNISSEURS — Mon panier");
+ button(panel,"Ajouter les produits en manque",addMissingSupplierItems);
+ paragraph("Ajoute un carton par produit en rupture ou en stock faible, selon la place disponible. Les références déjà dans le panier ou en livraison sont ignorées.");
+ paragraph("SOUS-TOTAL : "+euro(cartSubtotal())+" — "+cartCount()+" carton(s)");
+ if(cartCount()){
+  button(panel,"PAYER — Normale 30 s : "+euro(cartSubtotal()),()=>checkoutSupplier(false));
+  button(panel,"PAYER — Express 5 s (+20 %) : "+euro(Math.round(cartSubtotal()*120)/100),()=>checkoutSupplier(true));
+ }
  const capacity=renderStockCapacity(panel);
  paragraph("Chaque zone possède sa capacité indépendante. Limite : "+MAX_BOXES_PER_PRODUCT+" cartons par produit, commandes en attente comprises.");
  if(Object.values(capacity).some(zone=>zone.free===0))paragraph("Tu peux commander pour les zones qui ont encore de la place.");
@@ -819,11 +844,6 @@ function showOrders(){
   add.disabled=a.boxes+pending+qty>=MAX_BOXES_PER_PRODUCT||cartCapacity(kind)<=cartCount(kind);
   if(add.disabled)add.style.opacity=".45";
   if(qty)button(panel,"− Retirer 1 carton de "+p.name,()=>{supplierCart[p.id]--;if(!supplierCart[p.id])delete supplierCart[p.id];showOrders();});
- }
- paragraph("SOUS-TOTAL : "+euro(cartSubtotal())+" — "+cartCount()+" carton(s)");
- if(cartCount()){
-  button(panel,"PAYER — Normale 30 s : "+euro(cartSubtotal()),()=>checkoutSupplier(false));
-  button(panel,"PAYER — Express 5 s (+20 %) : "+euro(Math.round(cartSubtotal()*120)/100),()=>checkoutSupplier(true));
  }
  if(state.deliveryDock.length)paragraph("CAMION À DÉCHARGER : "+state.deliveryDock.length+" carton(s) — quai de déchargement à l’arrière du supermarché.");
  if(state.supplierOrders.length){
@@ -6001,4 +6021,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.12 !");
+animate();toast("Business Empire Simulator V0.14.13 !");
