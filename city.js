@@ -1,6 +1,6 @@
 // FBA City — première périphérie urbaine, décor optimisé sans textures externes.
 export function installCity({THREE,scene}){
- const root=new THREE.Group();root.name="FBA City";root.position.z+=95;scene.add(root);
+ const root=new THREE.Group();root.name="FBA City";root.position.z+=45;scene.add(root);
  const mats={road:0x303944,walk:0xabb6bf,grass:0x638b61,wall:0xd8d3c9,roof:0x495769,glass:0x779bb1,tree:0x35734d,wood:0x765d49,mark:0xe8e6d7};
  const material={};for(const [k,v] of Object.entries(mats))material[k]=new THREE.MeshLambertMaterial({color:v});
  const box=(x,y,z,w,h,d,mat)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material[mat]);m.position.set(x,y,z);root.add(m);return m};
@@ -17,11 +17,20 @@ export function installCity({THREE,scene}){
  // Immeubles, maisons et commerces de quartier.
  const blocks=[[-52,83,13,13,12],[-30,88,15,12,17],[-8,89,14,14,11],[15,91,15,15,20],[40,88,17,13,15],[58,92,12,12,11],[-52,119,16,14,16],[-27,120,14,12,10],[0,120,18,14,21],[29,121,17,13,13],[54,121,16,15,18]];
  blocks.forEach(([x,z,w,d,h],i)=>{
-  box(x,h/2,z,w,h,d,"wall");box(x,h+.35,z,w+.6,.7,d+.6,"roof");
+  // Façades creuses : entrée centrale ouverte et rez-de-chaussée visitable.
+  box(x,.04,z,w,.08,d,"walk");
+  box(x-w/2,h/2,z,.3,h,d,"wall");
+  box(x+w/2,h/2,z,.3,h,d,"wall");
+  box(x,h/2,z+d/2,w,h,.3,"wall");
+  const door=2.6, side=(w-door)/2;
+  box(x-(door+side)/2,h/2,z-d/2,side,h,.3,"wall");
+  box(x+(door+side)/2,h/2,z-d/2,side,h,.3,"wall");
+  box(x,h-1.45,z-d/2,door,h-2.9,.3,"wall");
+  box(x,h+.35,z,w+.6,.7,d+.6,"roof");
   for(let floor=0;floor<Math.floor(h/3);floor++)for(let col=-1;col<=1;col++){
-   box(x+col*w*.25,2.1+floor*3,z-d/2-.035,1.3,1.45,.08,"glass");
+   if(col!==0)box(x+col*w*.25,3.8+floor*3,z-d/2-.19,1.3,1.45,.08,"glass");
   }
-  box(x,h*.14,z-d/2-.12,1.8,2.5,.12,"wood");
+  // L’ouverture centrale est libre : aucune porte décorative ne bloque le passage.
  });
  // Arbres et éclairage urbain, géométries partagées pour limiter les appels de rendu.
  const trunk=new THREE.CylinderGeometry(.18,.25,2.2,6),crown=new THREE.ConeGeometry(1.55,3.4,7);
