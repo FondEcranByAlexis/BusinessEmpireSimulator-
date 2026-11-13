@@ -1,4 +1,4 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.30)
+// FBA Supermarket — PC de vidéosurveillance (V0.14.31)
 export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
@@ -141,5 +141,17 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   renderer.render(scene,cctv);
   return true;
  }
- return {show,showDesk,render,isOpen:()=>opened,nearRoom:()=>near(position.x,position.z,3.5)};
+ function detectAt(x,z){
+  // Détection de proximité dans le champ de vision horizontal de la caméra.
+  return stations.some(station=>{
+   if(station.department&&!station.department.unlocked())return false;
+   if(station.unlocked&&!station.unlocked())return false;
+   const px=station.fixture.position.x,pz=station.fixture.position.z+.42;
+   const dx=x-px,dz=z-pz,dist=Math.hypot(dx,dz);
+   if(dist<.5||dist>11)return false;
+   const delta=Math.atan2(Math.sin(Math.atan2(dx,dz)-station.yaw),Math.cos(Math.atan2(dx,dz)-station.yaw));
+   return Math.abs(delta)<(station.wide?95:66)*Math.PI/360;
+  });
+ }
+ return {show,showDesk,render,detectAt,isOpen:()=>opened,nearRoom:()=>near(position.x,position.z,3.5)};
 }
