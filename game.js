@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.18";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.18";
-// Business Empire Simulator V0.14.18 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.19";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.19";
+// Business Empire Simulator V0.14.19 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -886,6 +886,8 @@ let paused=false;
 const menuButton=button(actions,"☰ Menu",showMainMenu);
 menuButton.style.background="#334155";
 button(actions,"Interagir",interact).style.background="#15803d";
+const handtruckButton=button(actions,"Utiliser le diable",useHandtruck);
+handtruckButton.style.display="none";
 function showProfile(){
  openPanel("Profil du commerçant");
  paragraph("Commerçant · "+state.playerName);
@@ -4040,13 +4042,23 @@ const heldPlatform=handtruckHeldVisual.children[handtruckVisual.children.indexOf
 const heldTrolleyBoxes=handtruckHeldVisual.children.slice(-trolleyBoxes.length);
 camera.add(handtruckHeldVisual);
 scene.add(camera);
+const HANDTRUCK_PARKING={x:25.3,z:-24};
+function canUseHandtruck(){
+ return canLookAround()&&state.upgrades.handtruck&&
+  (state.trolleyCargo.length>0||near(HANDTRUCK_PARKING.x,HANDTRUCK_PARKING.z,2.3));
+}
+function useHandtruck(){
+ if(!canUseHandtruck())return;
+ if(near(25.65,-24.3,3.2))showDeliveryDock();
+ else showTrolley();
+}
 function updateHandtruck(){
  const purchased=!!state.upgrades.handtruck;
  const carrying=purchased&&state.trolleyCargo.length>0;
  handtruckVisual.visible=purchased&&!carrying;
  handtruckHeldVisual.visible=carrying;
  if(!purchased)return;
- handtruckVisual.position.set(25.3,0,-24.0);
+ handtruckVisual.position.set(HANDTRUCK_PARKING.x,0,HANDTRUCK_PARKING.z);
  handtruckVisual.rotation.y=0;
  // First-person attachment: in front of the camera, not behind the player's view.
  handtruckHeldVisual.position.set(0,-1.02,-1.95);
@@ -4661,27 +4673,42 @@ document.addEventListener("mousemove",e=>{
 canvas.addEventListener("pointerleave",()=>{mousePosition=null;});
 
 // Ouvrir le dialogue sur click, après la fin du geste tactile.
-const checkoutRaycaster=new THREE.Raycaster();
+const interactionRaycaster=new THREE.Raycaster();
+function pointInteractionRay(event){
+ const rect=canvas.getBoundingClientRect();
+ const pointer=new THREE.Vector2(((event.clientX-rect.left)/rect.width)*2-1,-((event.clientY-rect.top)/rect.height)*2+1);
+ camera.updateMatrixWorld();
+ interactionRaycaster.setFromCamera(pointer,camera);
+}
+function pointsAtHandtruck(event){
+ if(!canUseHandtruck())return false;
+ const model=state.trolleyCargo.length?handtruckHeldVisual:handtruckVisual;
+ model.updateWorldMatrix(true,true);
+ pointInteractionRay(event);
+ return interactionRaycaster.intersectObjects(model.children.filter(part=>part.visible)).length>0;
+}
+let handtruckTapStart=null,handtruckTapDragged=false;
 canvas.addEventListener("click",e=>{
  if(e.button!==0||document.pointerLockElement===canvas)return;
  if(checkoutUI.style.display!=="none"||panel.style.display!=="none")return;
+ if(!handtruckTapDragged&&pointsAtHandtruck(e)){useHandtruck();return;}
  if(!cashier||!checkoutVisual?.models.length||(!seatedAtCheckout&&!near(6.5,6.5,3.5)))return;
- const rect=canvas.getBoundingClientRect();
- const pointer=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);
- checkoutRaycaster.setFromCamera(pointer,camera);
- const hits=checkoutRaycaster.intersectObjects(checkoutVisual.models,true);
+ pointInteractionRay(e);
+ const hits=interactionRaycaster.intersectObjects(checkoutVisual.models,true);
  // Le premier objet touché détermine l'article retiré, même au milieu du tapis.
  const hit=hits.find(h=>h.object.userData.checkoutArticle);
  if(hit)scanCheckoutArticle(hit.object.userData.checkoutSlot);
 });
 canvas.addEventListener("pointerdown",e=>{
+ handtruckTapDragged=false;
  if(e.pointerType==="mouse"){
   const scanning=cashier&&checkoutVisual?.models.length&&near(6.5,6.5,3.5);
-  if(e.button===0&&!scanning)captureMouseLook();
+  if(e.button===0&&!scanning&&!pointsAtHandtruck(e))captureMouseLook();
   return;
  }
  if(lookPointer!==null)return;
  lookPointer=e.pointerId;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId);
+ handtruckTapStart={x:e.clientX,y:e.clientY};
 });
 canvas.addEventListener("pointermove",e=>{
  if(e.pointerType==="mouse"){
@@ -4691,13 +4718,14 @@ canvas.addEventListener("pointermove",e=>{
   return;
  }
  if(e.pointerId!==lookPointer)return;
+ if(handtruckTapStart&&Math.hypot(e.clientX-handtruckTapStart.x,e.clientY-handtruckTapStart.y)>12)handtruckTapDragged=true;
  const dx=THREE.MathUtils.clamp(e.clientX-lastX,-65,65);
  const dy=THREE.MathUtils.clamp(e.clientY-lastY,-65,65);
  lastX=e.clientX;lastY=e.clientY;
  if(seatedAtCheckout)return;
  turnCamera(dx,dy);
 });
-function stopLook(e){if(e.pointerId===lookPointer)lookPointer=null;}
+function stopLook(e){if(e.pointerId===lookPointer){lookPointer=null;handtruckTapStart=null;}}
 for(const type of ["pointerup","pointercancel","lostpointercapture"])canvas.addEventListener(type,stopLook);
 // Joystick tactile analogique indépendant de la caméra.
 const joystick=$("joystick"),stick=$("joystickStick");
@@ -6037,6 +6065,7 @@ function animate(){
  }
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
+ handtruckButton.style.display=canUseHandtruck()?"block":"none";
  updateGalleryRendering();
  if(bakeryScene&&state.upgrades[BAKERY_ID]){
   bakeryScene.baker.visible=bakerOnDuty();
@@ -6049,4 +6078,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.18 !");
+animate();toast("Business Empire Simulator V0.14.19 !");
