@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.47";
-import { installSurveillance } from "./surveillance.js?v=0.14.47";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.47";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.47";
-// Business Empire Simulator V0.14.47 — version synchronisée
+import { installCity } from "./city.js?v=0.14.48";
+import { installSurveillance } from "./surveillance.js?v=0.14.48";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.48";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.48";
+// Business Empire Simulator V0.14.48 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -4911,7 +4911,7 @@ function blocked(x,z,r=.4){
  const electronicsReserveDoor=state.upgrades.store2&&x>=15.0-r&&x<=15.6+r&&z>34+r&&z<35.8-r;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
- const wideParking=x>-49.6+r&&x<-9.3-r&&z>10.4+r&&z<79-r;
+ const wideParking=x>-50+r&&x<-9.2-r&&z>10.38+r&&z<82-r;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
  const cityWalk=x>-105+r&&x<105-r&&z>76+r&&z<232-r;
@@ -5205,7 +5205,8 @@ function updateCustomerVisual(c,dt){
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
 // Le joueur conserve son accès à l'ordinateur et au poste de travail.
 function customerBlocked(x,z,r=.28){
- if(z>13.45||blocked(x,z,r))return true;
+ if(z>13.45)return blocked(x,z,r);
+ if(blocked(x,z,r))return true;
  return x+r>4.7&&x-r<9.45&&z+r>7.25&&z-r<9.95;
 }
 // Navigation A* sur grille invisible : évite les collisions avec les rayons et la caisse.
@@ -5277,6 +5278,25 @@ function findNavPath(from,to){
 function walk(c,t,dt){
  if(!t)return false;
  const p=c.group.position,goal=t.x.toFixed(2)+","+t.z.toFixed(2);
+ // À l'extérieur, les clients suivent les voies piétonnes sans utiliser
+ // la grille A* intérieure, qui s'arrête à l'entrée du magasin.
+ if(p.z>13.45&&t.z>=12.5){
+  const dx=t.x-p.x,dz=t.z-p.z,dist=Math.hypot(dx,dz);
+  if(dist<.22)return true;
+  const step=Math.min(c.speed*dt,dist);
+  const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
+  if(!blocked(nx,nz,.26)){p.x=nx;p.z=nz;c.walkTime+=dt*8;faceNpc(c.group,dx,dz,dt);}
+  return Math.hypot(p.x-t.x,p.z-t.z)<.22;
+ }
+ if(p.z>13.45&&t.z<13.45){
+  const entry={x:0,z:12.5},dx=entry.x-p.x,dz=entry.z-p.z,dist=Math.hypot(dx,dz);
+  if(dist>.25){
+   const step=Math.min(c.speed*dt,dist),nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
+   if(!blocked(nx,nz,.26)){p.x=nx;p.z=nz;c.walkTime+=dt*8;faceNpc(c.group,dx,dz,dt);}
+   return false;
+  }
+ }
+
  if(Math.hypot(p.x-t.x,p.z-t.z)<.22){c.navTarget=null;c.navRoute=null;c.stuckTime=0;return true;}
  if(c.navTarget!==goal||!c.navRoute){
   c.navTarget=goal;c.navRoute=navPath(p,t);c.navIndex=0;
@@ -6533,4 +6553,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.47 !");
+animate();toast("Business Empire Simulator V0.14.48 !");
