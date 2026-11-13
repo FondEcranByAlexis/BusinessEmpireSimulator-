@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.49";
-import { installSurveillance } from "./surveillance.js?v=0.14.49";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.49";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.49";
-// Business Empire Simulator V0.14.49 — version synchronisée
+import { installCity } from "./city.js?v=0.14.50";
+import { installSurveillance } from "./surveillance.js?v=0.14.50";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.50";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.50";
+// Business Empire Simulator V0.14.50 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -5198,9 +5198,13 @@ function updateCustomerVisual(c,dt){
   c.armLeft.rotation.x=.08*Math.sin(c.visualClock*2.1);
   c.armRight.rotation.x=-.12;c.group.position.y=.009*Math.sin(c.visualClock*1.6);
  }else{
-  c.armLeft.rotation.x=Math.sin(c.walkTime)*.23;
-  c.armRight.rotation.x=-.12;
-  c.group.position.y=Math.abs(Math.sin(c.walkTime))*.015;
+  // Animation de marche synchronisée avec la distance réellement parcourue.
+  const stride=Math.sin(c.walkTime);
+  c.l.rotation.x=stride*.52;
+  c.r.rotation.x=-stride*.52;
+  c.armLeft.rotation.x=-stride*.32;
+  c.armRight.rotation.x=stride*.32;
+  c.group.position.y=Math.abs(stride)*.018;
  }
 }
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
@@ -6550,4 +6554,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.49 !");
+animate();toast("Business Empire Simulator V0.14.50 !");
