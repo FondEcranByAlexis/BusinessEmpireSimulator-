@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.67";
-import { installSurveillance } from "./surveillance.js?v=0.14.67";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.67";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.67";
-// Business Empire Simulator V0.14.67 — version synchronisée
+import { installCity } from "./city.js?v=0.14.68";
+import { installSurveillance } from "./surveillance.js?v=0.14.68";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.68";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.68";
+// Business Empire Simulator V0.14.68 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2327,6 +2327,17 @@ for(const z of [4.18,6.72]){
 for(const x of [17.1,20.1,22.8,25.6]){
  corridorPart(x,4.84,5.45,1.7,.06,.55,0xf8fafc);
 }
+// Galerie de liaison clairement matérialisée : murs latéraux et plafond
+// au lieu d'un simple revêtement au sol difficile à distinguer.
+for(const z of [3.85,7.05]){
+ corridorPart(19.65,2.4,z,8.7,4.8,.16,0xd5dee6);
+}
+corridorPart(19.65,4.9,5.45,8.7,.18,3.36,0xf1f5f9);
+// Portiques d'entrée/sortie, ouverture centrale entièrement libre.
+for(const x of [15.32,23.98]){
+ for(const z of [4.05,6.85])corridorPart(x,2.05,z,.12,4.1,.16,0x64748b);
+ corridorPart(x,4.18,5.45,.12,.16,2.96,0x64748b);
+}
 // Retirer uniquement les éléments de l'ancienne chambre froide, et non le nouveau passage.
 const coldRemovedEnd=scene.children.indexOf(coldToLogisticsPassage[0]);
 for(const mesh of scene.children.slice(removedColdMeshStart,coldRemovedEnd))mesh.visible=false;
@@ -2733,6 +2744,7 @@ function refreshExtension(){
  reserve2Gate.visible=unlocked&&!electronicsUnlocked&&!STORAGE_REBUILD_PENDING;
  reserve2GateCollider.disabled=electronicsUnlocked||!unlocked;
  for(const mesh of reserve2Meshes)mesh.visible=electronicsUnlocked&&!STORAGE_REBUILD_PENDING;
+ for(const mesh of coldToLogisticsPassage)mesh.visible=true;
  for(const mesh of retiredLogisticsMeshes)mesh.visible=!STORAGE_REBUILD_PENDING;
  for(const hit of retiredStorageColliders)hit.disabled=STORAGE_REBUILD_PENDING;
  for(const kind of STORAGE_KINDS){
@@ -6683,4 +6695,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.67 !");
+animate();toast("Business Empire Simulator V0.14.68 !");
