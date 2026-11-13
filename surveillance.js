@@ -1,4 +1,4 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.28)
+// FBA Supermarket — PC de vidéosurveillance (V0.14.29)
 export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
@@ -13,6 +13,18 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   {name:"Vue générale des caisses",x:3.5,z:10,look:[5,1.15,4],wide:true}
  ];
  departments.forEach((d,i)=>stations.push({name:"Galerie · "+d.name,x:d.x,z:d.z,look:[d.x,1.15,d.front+1.5],department:d}));
+ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+ const PTZ_KEY="fba-cctv-orientations-v1";
+ let savedAngles={};
+ try{savedAngles=JSON.parse(localStorage.getItem(PTZ_KEY)||"{}")||{};}catch{}
+ stations.forEach((station,i)=>{
+  const originZ=station.department?station.z-2.8:station.z;
+  const dx=station.look[0]-station.x,dy=station.look[1]-2.92,dz=station.look[2]-(originZ+.42);
+  station.defaultYaw=Math.atan2(dx,dz);
+  station.defaultPitch=Math.atan2(dy,Math.hypot(dx,dz));
+  station.yaw=Number.isFinite(savedAngles[i]?.yaw)?savedAngles[i].yaw:station.defaultYaw;
+  station.pitch=Number.isFinite(savedAngles[i]?.pitch)?savedAngles[i].pitch:station.defaultPitch;
+ });
  const staff=["Camille — rayons","Rayan — caisses","Nora — incidents"];
  const position={x:-13,z:8.1};
  let active=-1,opened=false;
@@ -54,15 +66,45 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   fixture.rotation.y=Math.atan2(target.x-fixture.position.x,target.z-fixture.position.z);
   scene.add(fixture);
   station.fixture=fixture;
+  fixture.rotation.y=station.yaw;
  }
  const panel=document.createElement("div");
  Object.assign(panel.style,{display:"none",position:"fixed",inset:"0",zIndex:"95",pointerEvents:"none",color:"#fff",font:"13px system-ui"});
  panel.innerHTML='<div style="position:absolute;top:0;left:0;right:0;background:#07111de8;padding:8px;pointer-events:auto;max-height:30vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>PC SÉCURITÉ · DIRECT</strong><button id="fbaCctvClose" style="padding:7px 12px">Quitter ✕</button></div><div id="fbaCctvNow" style="margin:4px 0"></div><div id="fbaCctvButtons" style="display:flex;gap:5px;flex-wrap:wrap"></div></div><div style="position:absolute;bottom:8px;left:10px;background:#07111dc9;padding:6px;border-radius:5px;pointer-events:none">● EN DIRECT · 3 opérateurs</div>';
  document.body.appendChild(panel);
+ const controls=document.createElement("div");
+ Object.assign(controls.style,{position:"absolute",right:"10px",bottom:"10px",display:"grid",gridTemplateColumns:"repeat(3,42px)",gap:"5px",pointerEvents:"auto",background:"#07111dcc",padding:"8px",borderRadius:"10px"});
+ panel.appendChild(controls);
+ const adjust=(yaw,pitch)=>{
+  if(active<0)return;
+  const station=stations[active];
+  station.yaw+=yaw;station.pitch=clamp(station.pitch+pitch,-1.35,1.1);
+  station.fixture.rotation.y=station.yaw;
+  try{localStorage.setItem(PTZ_KEY,JSON.stringify(Object.fromEntries(stations.map((s,i)=>[i,{yaw:s.yaw,pitch:s.pitch}]))));}catch{}
+ };
+ const control=(symbol,dy,dp)=>{
+  const b=document.createElement("button");b.textContent=symbol;
+  Object.assign(b.style,{height:"38px",minWidth:"38px",fontSize:"19px",background:"#164e63",color:"white",border:"1px solid #67e8f9",borderRadius:"6px",cursor:"pointer"});
+  if(symbol==="↺")b.addEventListener("click",()=>{if(active<0)return;const a=stations[active];adjust(a.defaultYaw-a.yaw,a.defaultPitch-a.pitch);});
+  else b.addEventListener("click",()=>adjust(dy,dp));
+  controls.appendChild(b);
+ };
+ control("↺",0,0);control("↑",0,.09);control("·",0,0);
+ control("←",-.12,0);control("↓",0,-.09);control("→",.12,0);
  const btns=panel.querySelector("#fbaCctvButtons");
  const close=()=>{opened=false;active=-1;panel.style.display="none";};
  panel.querySelector("#fbaCctvClose").addEventListener("click",close);
- window.addEventListener("keydown",e=>{if(e.key==="Escape"&&opened){e.preventDefault();close();}});
+ window.addEventListener("keydown",e=>{
+  if(!opened)return;
+  if(e.key==="Escape"){e.preventDefault();close();return;}
+  const keys={ArrowLeft:[-.08,0],ArrowRight:[.08,0],ArrowUp:[0,.07],ArrowDown:[0,-.07]};
+  if(keys[e.key]){e.preventDefault();adjust(...keys[e.key]);}
+ });
+ let drag=null;
+ renderer.domElement.addEventListener("pointerdown",e=>{if(!opened)return;drag={x:e.clientX,y:e.clientY,id:e.pointerId};renderer.domElement.setPointerCapture?.(e.pointerId);});
+ renderer.domElement.addEventListener("pointermove",e=>{if(!opened||!drag||drag.id!==e.pointerId)return;adjust((e.clientX-drag.x)*.005,(drag.y-e.clientY)*.004);drag.x=e.clientX;drag.y=e.clientY;});
+ renderer.domElement.addEventListener("pointerup",()=>drag=null);
+ renderer.domElement.addEventListener("pointercancel",()=>drag=null);
  const buttons=[];
  stations.forEach((station,i)=>{
   const b=document.createElement("button");b.textContent="CAM "+String(i+1).padStart(2,"0")+" · "+station.name;
@@ -93,7 +135,8 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   if(!opened||active<0)return false;
   const s=stations[active];
   cctv.position.set(s.fixture.position.x,2.92,s.fixture.position.z+.42);
-  cctv.fov=s.wide?95:66;cctv.lookAt(...s.look);
+  cctv.fov=s.wide?95:66;
+  cctv.rotation.order="YXZ";cctv.rotation.set(-s.pitch,s.yaw,0);
   cctv.aspect=camera.aspect;cctv.updateProjectionMatrix();
   renderer.render(scene,cctv);
   return true;
