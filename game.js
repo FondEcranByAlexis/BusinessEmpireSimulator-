@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.44";
-import { installSurveillance } from "./surveillance.js?v=0.14.44";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.44";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.44";
-// Business Empire Simulator V0.14.44 — version synchronisée
+import { installCity } from "./city.js?v=0.14.45";
+import { installSurveillance } from "./surveillance.js?v=0.14.45";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.45";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.45";
+// Business Empire Simulator V0.14.45 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2824,16 +2824,10 @@ function buildStoreExterior(){
   }
   for(const z of [15.5,19.2,22.9])part(x-3.4,.008,z,.07,.014,3.4,paint);
  }
- // Allée d'accès à la ville : passage central uniquement, sans voie sur les réserves.
+ // Route d'accès vers la ville : aucune place de parking au-delà du parking principal.
  part(0,-.09,72,PARKING_HALF_WIDTH*2,.16,82,asphalt);
- for(let z=38;z<=109;z+=8){
-  for(const side of [-1,1]){
-   part(side*4.6,.008,z,8.3,.014,.065,paint);
-   part(side*8.7,.008,z+3.8,.065,.014,7.5,paint);
-  }
- }
- part(0,-.035,72,2.6,.07,82,concrete);
- part(0,-.19,32.1,PARKING_HALF_WIDTH*2,.19,2.2,grass);
+ for(let z=37;z<=108;z+=11)part(0,.005,z,.10,.012,4.2,paint);
+ // La chaussée reste dégagée à la sortie du parking.
  part(-14.05,-.19,21.55,8.5,.19,23.3,grass);
  part(0,-.04,12.22,PARKING_HALF_WIDTH*2,.10,3.94,concrete);
  part(0,-.033,20.1,3.1,.076,12.2,concrete);
@@ -6527,4 +6521,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.44 !");
+animate();toast("Business Empire Simulator V0.14.45 !");
