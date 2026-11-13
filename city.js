@@ -1,6 +1,6 @@
 // FBA City — première périphérie urbaine, décor optimisé sans textures externes.
 export function installCity({THREE,scene}){
- const root=new THREE.Group();root.name="FBA City";root.position.z+=45;scene.add(root);
+ const root=new THREE.Group();root.name="FBA City";root.position.z+=65;scene.add(root);
  const mats={road:0x303944,walk:0xabb6bf,grass:0x638b61,wall:0xd8d3c9,roof:0x495769,glass:0x779bb1,tree:0x35734d,wood:0x765d49,mark:0xe8e6d7};
  const material={};for(const [k,v] of Object.entries(mats))material[k]=new THREE.MeshLambertMaterial({color:v});
  const box=(x,y,z,w,h,d,mat)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material[mat]);m.position.set(x,y,z);root.add(m);return m};
