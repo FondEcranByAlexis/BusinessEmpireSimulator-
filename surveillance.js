@@ -44,8 +44,8 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   const dx=station.look[0]-station.x,dy=station.look[1]-2.92,dz=station.look[2]-(originZ+.42);
   station.defaultYaw=Math.atan2(dx,dz);
   station.defaultPitch=Math.atan2(dy,Math.hypot(dx,dz));
-  station.yaw=Number.isFinite(savedAngles[station.legacyIndex??(i+4)]?.yaw)?savedAngles[i].yaw:station.defaultYaw;
-  station.pitch=Number.isFinite(savedAngles[station.legacyIndex??(i+4)]?.pitch)?savedAngles[i].pitch:station.defaultPitch;
+  station.yaw=Number.isFinite(savedAngles[station.legacyIndex??(100+i)]?.yaw)?savedAngles[i].yaw:station.defaultYaw;
+  station.pitch=Number.isFinite(savedAngles[station.legacyIndex??(100+i)]?.pitch)?savedAngles[i].pitch:station.defaultPitch;
  });
  const staff=["Camille — rayons","Rayan — caisses","Nora — incidents"];
  const position={x:-13,z:8.1};
@@ -102,7 +102,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   const station=stations[active];
   station.yaw+=yaw;station.pitch=clamp(station.pitch+pitch,-1.35,1.1);
   station.fixture.rotation.y=station.yaw;
-  try{localStorage.setItem(PTZ_KEY,JSON.stringify(Object.fromEntries(stations.map((s,i)=>[s.legacyIndex??(i+4),{yaw:s.yaw,pitch:s.pitch}]))));}catch{}
+  try{localStorage.setItem(PTZ_KEY,JSON.stringify(Object.fromEntries(stations.map((s,i)=>[s.legacyIndex??(100+i),{yaw:s.yaw,pitch:s.pitch}]))));}catch{}
  };
  const control=(symbol,dy,dp)=>{
   const b=document.createElement("button");b.textContent=symbol;
