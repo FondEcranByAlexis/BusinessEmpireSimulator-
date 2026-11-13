@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.43";
-import { installSurveillance } from "./surveillance.js?v=0.14.43";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.43";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.43";
-// Business Empire Simulator V0.14.43 — version synchronisée
+import { installCity } from "./city.js?v=0.14.44";
+import { installSurveillance } from "./surveillance.js?v=0.14.44";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.44";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.44";
+// Business Empire Simulator V0.14.44 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -4907,7 +4907,8 @@ function blocked(x,z,r=.4){
  const electronicsReserve=state.upgrades.store2&&x>15.55&&x<20.35&&z>30.75&&z<43.7;
  const electronicsReserveDoor=state.upgrades.store2&&x>=15.0-r&&x<=15.6+r&&z>34+r&&z<35.8-r;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
- const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;\n const wideParking=x>-23.5+r&&x<-9.3-r&&z>10.4+r&&z<31-r;
+ const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
+ const wideParking=x>-23.5+r&&x<-9.3-r&&z>10.4+r&&z<31-r;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
  const cityWalk=x>-105+r&&x<105-r&&z>76+r&&z<232-r;
@@ -6526,4 +6527,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.43 !");
+animate();toast("Business Empire Simulator V0.14.44 !");
