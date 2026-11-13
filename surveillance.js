@@ -1,4 +1,4 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.33)
+// FBA Supermarket — PC de vidéosurveillance (V0.14.34)
 export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true,autoUnlocked=()=>false}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
@@ -26,7 +26,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
    department:station.department,unlocked:station.unlocked,wide:station.wide
   });
  }
- // Supprimer les anciennes CAM 30, 31, 35 et 39 (numérotation V0.14.33).
+ // Supprimer les anciennes CAM 30, 31, 35 et 39 (numérotation V0.14.34).
  const removed=new Set([29,30,34,38]);
  const retained=stations.map((station,index)=>({...station,legacyIndex:index})).filter(station=>!removed.has(station.legacyIndex));
  stations.length=0;stations.push(...retained);
@@ -49,7 +49,8 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  });
  const staff=["Camille — rayons","Rayan — caisses","Nora — incidents"];
  const position={x:-13,z:8.1};
- let active=-1,opened=false;
+ let active=-1,opened=false,page=0;
+ const PER_PAGE=6;
  const cctv=new THREE.PerspectiveCamera(66,1,0.1,120);
  const root=new THREE.Group();root.position.set(position.x,0,position.z);scene.add(root);
  const mat=(color)=>new THREE.MeshStandardMaterial({color,roughness:.75});
@@ -92,10 +93,10 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  }
  const panel=document.createElement("div");
  Object.assign(panel.style,{display:"none",position:"fixed",inset:"0",zIndex:"95",pointerEvents:"none",color:"#fff",font:"13px system-ui"});
- panel.innerHTML='<div style="position:absolute;top:0;left:0;right:0;background:#07111de8;padding:8px;pointer-events:auto;max-height:30vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>PC SÉCURITÉ · DIRECT</strong><button id="fbaCctvClose" style="padding:7px 12px">Quitter ✕</button></div><div id="fbaCctvNow" style="margin:4px 0"></div><div id="fbaCctvButtons" style="display:flex;gap:5px;flex-wrap:wrap"></div></div><div style="position:absolute;bottom:8px;left:10px;background:#07111dc9;padding:6px;border-radius:5px;pointer-events:none">● EN DIRECT · 3 opérateurs</div>';
+ panel.innerHTML='<div style="position:absolute;top:0;left:0;right:0;background:#07111de8;padding:8px;pointer-events:auto"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>PC SÉCURITÉ · 6 CAMÉRAS</strong><button id="fbaCctvClose" style="padding:7px 12px">Quitter ✕</button></div><div style="display:flex;align-items:center;gap:8px;margin-top:5px"><button id="fbaCctvPrev">◀ Précédent</button><strong id="fbaCctvPage"></strong><button id="fbaCctvNext">Suivant ▶</button><span id="fbaCctvNow"></span></div></div><div id="fbaCctvTiles" style="position:absolute;inset:78px 0 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));pointer-events:none"></div>';
  document.body.appendChild(panel);
  const controls=document.createElement("div");
- Object.assign(controls.style,{position:"absolute",right:"10px",bottom:"10px",display:"grid",gridTemplateColumns:"repeat(3,42px)",gap:"5px",pointerEvents:"auto",background:"#07111dcc",padding:"8px",borderRadius:"10px"});
+ Object.assign(controls.style,{position:"absolute",right:"10px",top:"88px",display:"grid",gridTemplateColumns:"repeat(3,42px)",gap:"5px",pointerEvents:"auto",background:"#07111dcc",padding:"8px",borderRadius:"10px"});
  panel.appendChild(controls);
  const adjust=(yaw,pitch)=>{
   if(active<0)return;
@@ -127,24 +128,40 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  renderer.domElement.addEventListener("pointermove",e=>{if(!opened||!drag||drag.id!==e.pointerId)return;adjust((e.clientX-drag.x)*.005,(drag.y-e.clientY)*.004);drag.x=e.clientX;drag.y=e.clientY;});
  renderer.domElement.addEventListener("pointerup",()=>drag=null);
  renderer.domElement.addEventListener("pointercancel",()=>drag=null);
+ const tiles=panel.querySelector("#fbaCctvTiles");
  const buttons=[];
- stations.forEach((station,i)=>{
-  const b=document.createElement("button");b.textContent="CAM "+String(i+1).padStart(2,"0")+" · "+station.name;
-  Object.assign(b.style,{padding:"6px",borderRadius:"5px",border:"1px solid #38bdf8",background:"#12273c",color:"white",cursor:"pointer",fontSize:"11px"});
-  b.addEventListener("click",()=>select(i));btns.appendChild(b);buttons.push(b);
- });
- function select(i){
-  const station=stations[i];
-  if((station.department&&!station.department.unlocked())||(station.unlocked&&!station.unlocked())){
-   toast("Cette zone de galerie n'est pas encore ouverte.");return;
-  }
-  active=i;
-  panel.querySelector("#fbaCctvNow").textContent="CAM "+String(i+1).padStart(2,"0")+" — "+station.name;
-  buttons.forEach((b,j)=>b.style.background=j===i?"#075985":"#12273c");
+ for(let i=0;i<PER_PAGE;i++){
+  const b=document.createElement("button");
+  Object.assign(b.style,{alignSelf:"start",justifySelf:"start",margin:"6px",padding:"5px 8px",background:"#07111de8",border:"1px solid #38bdf8",borderRadius:"5px",color:"white",fontSize:"11px",pointerEvents:"auto",cursor:"pointer",maxWidth:"90%"});
+  b.addEventListener("click",()=>select(page*PER_PAGE+i));
+  tiles.appendChild(b);buttons.push(b);
  }
+ const locked=station=>(station.department&&!station.department.unlocked())||(station.unlocked&&!station.unlocked());
+ const pageCount=Math.ceil(stations.length/PER_PAGE);
+ function refreshPage(){
+  panel.querySelector("#fbaCctvPage").textContent="Écran "+(page+1)+" / "+pageCount;
+  panel.querySelector("#fbaCctvPrev").disabled=page===0;
+  panel.querySelector("#fbaCctvNext").disabled=page>=pageCount-1;
+  buttons.forEach((b,j)=>{
+   const i=page*PER_PAGE+j,station=stations[i];
+   b.style.display=station?"block":"none";
+   if(!station)return;
+   b.textContent="CAM "+String(i+1).padStart(2,"0")+" · "+station.name+(locked(station)?" · VERROUILLÉE":"");
+   b.style.background=active===i?"#075985":"#07111de8";
+  });
+ }
+ function select(i){
+  const station=stations[i];if(!station)return;
+  if(locked(station)){toast("Cette zone n'est pas encore ouverte.");return;}
+  active=i;page=Math.floor(i/PER_PAGE);
+  panel.querySelector("#fbaCctvNow").textContent="· Orientation : CAM "+String(i+1).padStart(2,"0");
+  refreshPage();
+ }
+ panel.querySelector("#fbaCctvPrev").addEventListener("click",()=>{if(page>0){page--;active=page*PER_PAGE;refreshPage();}});
+ panel.querySelector("#fbaCctvNext").addEventListener("click",()=>{if(page<pageCount-1){page++;active=page*PER_PAGE;refreshPage();}});
  function show(){
   if(!securityOpen()){toast("PC Sécurité disponible au niveau 22 avec le hall débloqué.");return;}
-  releaseMouseLook();opened=true;panel.style.display="block";select(0);
+  releaseMouseLook();opened=true;page=0;panel.style.display="block";select(0);refreshPage();
  }
  function showDesk(){
   if(!securityOpen())return;
@@ -154,13 +171,35 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  }
  // Rend la vue CCTV sur le moteur 3D existant, sans créer un second contexte WebGL.
  function render(){
-  if(!opened||active<0)return false;
-  const s=stations[active];
-  cctv.position.set(s.fixture.position.x,2.92,s.fixture.position.z+.42);
-  cctv.fov=s.wide?95:66;
-  cctv.lookAt(cctv.position.x+Math.sin(s.yaw)*Math.cos(s.pitch),cctv.position.y+Math.sin(s.pitch),cctv.position.z+Math.cos(s.yaw)*Math.cos(s.pitch));
-  cctv.aspect=camera.aspect;cctv.updateProjectionMatrix();
-  renderer.render(scene,cctv);
+  if(!opened)return false;
+  const size=renderer.getSize(new THREE.Vector2());
+  const w=size.x,h=size.y,top=78;
+  const availableHeight=Math.max(1,h-top);
+  const tileW=w/3,tileH=availableHeight/2;
+  const previousAutoClear=renderer.autoClear;
+  renderer.autoClear=false;
+  renderer.setScissorTest(true);
+  try{
+   for(let j=0;j<PER_PAGE;j++){
+    const i=page*PER_PAGE+j,station=stations[i];
+    const col=j%3,row=Math.floor(j/3);
+    const x=Math.floor(col*tileW),y=Math.floor((1-row)*tileH);
+    const vw=Math.ceil(tileW),vh=Math.ceil(tileH);
+    renderer.setViewport(x,y,vw,vh);
+    renderer.setScissor(x,y,vw,vh);
+    renderer.setClearColor(0x07111d,1);renderer.clear(true,true,true);
+    if(!station||locked(station))continue;
+    cctv.position.set(station.fixture.position.x,2.92,station.fixture.position.z+.42);
+    cctv.fov=station.wide?95:66;
+    cctv.lookAt(cctv.position.x+Math.sin(station.yaw)*Math.cos(station.pitch),cctv.position.y+Math.sin(station.pitch),cctv.position.z+Math.cos(station.yaw)*Math.cos(station.pitch));
+    cctv.aspect=vw/vh;cctv.updateProjectionMatrix();
+    renderer.render(scene,cctv);
+   }
+  }finally{
+   renderer.setScissorTest(false);
+   renderer.setViewport(0,0,w,h);
+   renderer.autoClear=previousAutoClear;
+  }
   return true;
  }
  function detectAt(x,z){
