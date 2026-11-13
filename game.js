@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.79";
-import { installSurveillance } from "./surveillance.js?v=0.14.79";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.79";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.79";
-// Business Empire Simulator V0.14.79 — version synchronisée
+import { installCity } from "./city.js?v=0.14.80";
+import { installSurveillance } from "./surveillance.js?v=0.14.80";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.80";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.80";
+// Business Empire Simulator V0.14.80 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -464,6 +464,7 @@ function load(){
    if(Array.isArray(current.supplierOrders))s.supplierOrders=current.supplierOrders.filter(o=>o&&Array.isArray(o.items)&&Number.isFinite(o.due));
    if(Array.isArray(current.deliveryDock))s.deliveryDock=current.deliveryDock.filter(it=>it&&typeof it.id==="string"&&Number.isFinite(it.qty));
    if(current.management&&typeof current.management==="object")s.management=current.management;
+    if(current.goldenCollection&&typeof current.goldenCollection==="object")s.goldenCollection=current.goldenCollection;
    // Une session rechargée démarre en préparation à 07:00.
    s.hour=7;
    for(const p of catalog){
@@ -489,6 +490,15 @@ function load(){
  return s;
 }
 const state=load();
+const GOLDEN_TOTAL=100,GOLDEN_REWARD=100000;
+const goldenPrevious=state.goldenCollection&&typeof state.goldenCollection==="object"?state.goldenCollection:{};
+state.goldenCollection={
+ found:[...new Set((Array.isArray(goldenPrevious.found)?goldenPrevious.found:[])
+   .filter(id=>Number.isInteger(id)&&id>=1&&id<=100))].sort((a,b)=>a-b),
+ rewardClaimed:goldenPrevious.rewardClaimed===true,
+ positions:goldenPrevious.positions
+};
+
 // Un chantier déjà payé dans une ancienne sauvegarde de test est livré au chargement.
 if(DEV_MODE&&state.construction){
  state.upgrades[state.construction.target]=true;
@@ -1019,6 +1029,15 @@ function showDevTools(){
   button(panel,"Réinitialiser le mode test",showTestReset);
  button(panel,"Retour à la partie normale",()=>switchDevMode(false));
 }
+function showGoldenCollection(){
+ openPanel("Collection secrète — 100 figurines dorées");
+ paragraph("Progression : "+state.goldenCollection.found.length+"/100 figurines.");
+ paragraph("Toutes sont accessibles dès le niveau 1, sans extension obligatoire.");
+ paragraph("Approche-toi d'une figurine et utilise Interagir (E au clavier).");
+ paragraph("Récompense finale : "+euro(100000)+", une seule fois.");
+ paragraph(state.goldenCollection.rewardClaimed?"Récompense reçue.":"Récompense non encore débloquée.");
+ button(panel,"Retour",showMainMenu);
+}
 function showMainMenu(){
  openPanel("☰ Menu principal");
  paragraph("Business Empire Simulator — Gestion du magasin"+(DEV_MODE?" | MODE TEST":""));
@@ -1029,6 +1048,7 @@ function showMainMenu(){
  });
  button(panel,"Paramètres",showSettings);
  button(panel,"Profil",showProfile);
+ button(panel,"Figurines dorées : "+state.goldenCollection.found.length+"/100",showGoldenCollection);
  button(panel,"Progression des niveaux",showProgression);
  if(openDepartmentCount())button(panel,"Plan de la galerie",showMallMap);
  if(camera.position.z<ANNEX_ENTRY-1)button(panel,"Retour à la caisse",()=>{
@@ -4169,7 +4189,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.14.79 : le couloir logistique possède deux portes distinctes sur son
+// V0.14.80 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4180,7 +4200,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.14.79 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.14.80 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4199,7 +4219,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.14.79 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.14.80 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -4862,6 +4882,7 @@ function showCheckoutSeatPrompt(){
  button(panel,"Ordinateur de gestion",showComputer);
 }
 function interact(){
+ if(!held&&collectNearbyGolden())return;
  if(seatedAtCheckout){
   if(checkoutUI.style.display==="none")showCheckout();
   return;
@@ -6809,7 +6830,76 @@ function animate(){
  renderCustomerFeedback(dt);
  if(!surveillance.render())renderer.render(scene,camera);
 }
-batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
+batchShelfDisplays();indexColliders();
+// Collection de 100 figurines dorées : le magasin, la réserve initiale
+// et le parking sont accessibles dès le niveau 1, indépendamment des niveaux 100+.
+const goldenFound=new Set(state.goldenCollection.found);
+const goldenFigures=[];
+const goldenMaterials=[
+ new THREE.MeshStandardMaterial({color:0xffc928,metalness:.8,roughness:.2,emissive:0x503000,emissiveIntensity:.25}),
+ new THREE.MeshStandardMaterial({color:0x8b6919,metalness:.7,roughness:.32})
+];
+const goldenParts=[
+ [new THREE.CylinderGeometry(.15,.17,.10,10),.08,1],
+ [new THREE.CylinderGeometry(.105,.14,.30,10),.29,0],
+ [new THREE.SphereGeometry(.11,10,8),.55,0],
+ [new THREE.BoxGeometry(.30,.07,.08),.39,0],
+ [new THREE.ConeGeometry(.145,.12,8),.70,0]
+];
+function goldenCandidates(){
+ const c=[];
+ for(const z of [-7.5,-5,-2.5,0,2.5,6.6])for(const x of [-7.7,-5.3,-2.9,-.5,1.9,4.3,6.7])c.push([x,z,"magasin"]);
+ for(const z of [2.65,4.1,9,11.3,13.6,15.9,18.2,20.5,22])
+  for(const x of [11.65,12.65,13.65])c.push([x,z,"reserve"]);
+ for(const z of [15,19,23,27,35,39,43,47,51,55,59,63,67,71,75,79])
+  for(const x of [-46,-42,-38,-34,-30,-26,-22,-18,-14])c.push([x,z,"parking"]);
+ return c;
+}
+function goldenPositions(){
+ const saved=state.goldenCollection.positions;
+ if(Array.isArray(saved)&&saved.length===GOLDEN_TOTAL&&saved.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)))return saved;
+ const selected=[],groups={magasin:[],reserve:[],parking:[]};
+ for(const [x,z,zone] of goldenCandidates()){
+  if(blocked(x,z,.40))continue;
+  if(groups[zone].some(([px,pz])=>Math.hypot(px-x,pz-z)<1.9))continue;
+  groups[zone].push([x,z]);
+ }
+ selected.push(...groups.magasin.slice(0,18),...groups.reserve.slice(0,12),...groups.parking);
+ if(selected.length<GOLDEN_TOTAL)throw Error("Pas assez d'emplacements de figurines : "+selected.length);
+ state.goldenCollection.positions=selected.slice(0,GOLDEN_TOTAL);
+ return state.goldenCollection.positions;
+}
+function spawnGoldenFigures(){
+ for(const [i,[x,z]] of goldenPositions().entries()){
+  const id=i+1,group=new THREE.Group();group.position.set(x,0,z);
+  for(const [geo,y,material] of goldenParts){
+   const m=new THREE.Mesh(geo,goldenMaterials[material]);m.position.y=y;group.add(m);
+  }
+  group.visible=!goldenFound.has(id);
+  group.userData.goldenId=id;scene.add(group);goldenFigures.push({id,x,z,group});
+ }
+}
+function collectNearbyGolden(){
+ let nearest=null,distance=1.75;
+ for(const figure of goldenFigures){
+  if(goldenFound.has(figure.id))continue;
+  const d=Math.hypot(camera.position.x-figure.x,camera.position.z-figure.z);
+  if(d<distance){nearest=figure;distance=d;}
+ }
+ if(!nearest)return false;
+ goldenFound.add(nearest.id);nearest.group.visible=false;
+ state.goldenCollection.found=[...goldenFound].sort((a,b)=>a-b);
+ const count=goldenFound.size;
+ let msg="Figurine dorée n°"+nearest.id+" récupérée ! "+count+"/100";
+ if(count===GOLDEN_TOTAL&&!state.goldenCollection.rewardClaimed){
+  state.goldenCollection.rewardClaimed=true;state.money+=GOLDEN_REWARD;
+  msg="100/100 ! Récompense unique : +100 000 € !";
+ }
+ save();hud();toast(msg);return true;
+}
+
+spawnGoldenFigures();save();
+sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.79 !");
+animate();toast("Business Empire Simulator V0.14.80 !");
