@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.1";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.1";
-// Business Empire Simulator V0.14.1 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.2";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.2";
+// Business Empire Simulator V0.14.2 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -36,8 +36,8 @@ const catalog=[
  {id:"sucre",name:"Sucre",cost:3,price:7,color:0x93c5fd,x:0,z:1,starter:true},
  {id:"farine",name:"Farine",cost:3,price:7,color:0xfde68a,x:5,z:1,starter:true},
  {id:"riz",name:"Riz",cost:4,price:8,color:0xfde68a,x:-8.5,z:-7,level:2,kind:"sec"},
- {id:"conserves",name:"Conserves",cost:4,price:9,color:0xf97316,x:-8.9,z:5.9,level:2,kind:"wall",rotation:1},
- {id:"papier",name:"Papier toilette",cost:5,price:11,color:0xe2e8f0,x:-5.2,z:7.8,level:2,kind:"wall",rotation:2},
+ {id:"conserves",name:"Conserves",cost:4,price:9,color:0xf97316,x:-6.7,z:-8.85,level:2,kind:"wall",rotation:0},
+ {id:"papier",name:"Papier toilette",cost:5,price:11,color:0xe2e8f0,x:-6.75,z:8.95,level:2,kind:"wall",rotation:2},
  {id:"biscuits",name:"Biscuits",cost:5,price:11,color:0xf59e0b,x:8.5,z:-7,level:3,kind:"sec"},
  {id:"fromage",name:"Fromage",cost:8,price:17,color:0xfef08a,x:-8.5,z:-3.5,level:4,kind:"froid"},
  {id:"surgeles",name:"Pizza surgelée",cost:9,price:20,color:0x60a5fa,x:8.5,z:-3.5,level:4,kind:"congelateur"},
@@ -73,7 +73,7 @@ for(const [id,name,cost,price,color,z] of [
  ["energie_agrumes","Énergie agrumes",2,6,0xf97316,-4],
  ["energie_sans_sucre","Énergie sans sucre",3,7,0x7c3aed,-7],
 ]){
- catalog.push({id,name,cost,price,color,x:-27,z,rotation:1,level:16,kind:"wall",license:"energyLicense",requiresShelf:"checkoutHall",can:true});
+ catalog.push({id,name,cost,price,color,x:-38.7,z,rotation:1,level:16,kind:"wall",license:"energyLicense",requiresShelf:"checkoutHall",can:true});
 }
 for(const [id,name,cost,price,color,x] of [
  ["preservatifs","Préservatifs",3,7,0x496789,-28],
@@ -103,6 +103,7 @@ DEPARTMENTS.forEach((department,index)=>{
 });
 const CAPACITY=30, BOX_UNITS=10;
 const FRONT_HALL="checkoutHall", AUTO_SHOWROOM="autoShowroom";
+const HALL_WEST=-40;
 const EMPLOYEE_DEFAULTS={
  baker:"Louis",picker:"Nina",builder1:"Antoine",builder2:"Yanis",
  main:"Sofia",second:"Hugo",
@@ -2923,35 +2924,36 @@ function mallSign(group,title,subtitle,x,z,rotation=0,width=6){
 const mallWallMaterial=new THREE.MeshStandardMaterial({color:0xcbd5e1});
 const hallGroup=new THREE.Group(),showroomGroup=new THREE.Group();
 scene.add(hallGroup,showroomGroup);
-hallGroup.add(tileFloor(19.7,21.6,-20,-1.2));
+hallGroup.add(tileFloor(-HALL_WEST-10,21.6,(HALL_WEST-10)/2,-1.2));
 showroomGroup.add(tileFloor(19.7,9.9,-20,-16.95));
 const hallTrim=new THREE.MeshStandardMaterial({color:0x29465b});
 const hallLight=new THREE.MeshBasicMaterial({color:0xfff7db});
 const hallStripe=new THREE.MeshBasicMaterial({color:0x258691});
 const laneStripe=new THREE.MeshBasicMaterial({color:0xe4c261});
-mallPart(hallGroup,-19.6,.017,5,18.9,.009,.11,hallStripe);
-mallPart(hallGroup,-27.95,.017,-1.8,.11,.009,13.1,hallStripe);
+mallPart(hallGroup,(HALL_WEST-10)/2,.017,5,-HALL_WEST-11,.009,.11,hallStripe);
+mallPart(hallGroup,-37.45,.017,-1.8,.11,.009,13.1,hallStripe);
 mallPart(hallGroup,-17.3,2.48,9.38,14,.21,.045,hallTrim);
 for(const x of [-25,-20,-15])mallPart(hallGroup,x,.15,9.37,4.45,.24,.12,hallTrim);
 for(const [x,z,title] of [[-4.6,7.95,"ÉPICERIE"],[4,-7.9,"FRAIS & SURGELÉS"]]){
  mallSign(hallGroup,title,"FBA SUPERMARKET",x-11,z,0,3.2);
 }
-mallPart(hallGroup,-20,5.1,-1.2,20,.2,21.6,mallWallMaterial);
-mallPart(hallGroup,-30,2.5,-1.2,.24,5,21.6,mallWallMaterial);
-mallPart(hallGroup,-20,2.5,9.55,20,5,.24,mallWallMaterial);
+mallPart(hallGroup,(HALL_WEST-10)/2,5.1,-1.2,-HALL_WEST-10,.2,21.6,mallWallMaterial);
+mallPart(hallGroup,HALL_WEST,2.5,-1.2,.24,5,21.6,mallWallMaterial);
+mallPart(hallGroup,(HALL_WEST-10)/2,2.5,9.55,-HALL_WEST-10,5,.24,mallWallMaterial);
 mallPart(hallGroup,-10,2.5,-11,.24,5,2,mallWallMaterial);
-for(const x of [-26,-14])mallPart(hallGroup,x,2.5,-12,8,5,.24,mallWallMaterial);
+mallPart(hallGroup,(HALL_WEST-22)/2,2.5,-12,-22-HALL_WEST,5,.24,mallWallMaterial);
+mallPart(hallGroup,-14,2.5,-12,8,5,.24,mallWallMaterial);
 const showroomGate=mallPart(hallGroup,-20,2.5,-12,4,5,.24,hallTrim);
 mallPart(showroomGroup,-20,5.1,-17,20,.2,10,mallWallMaterial);
 mallPart(showroomGroup,-20,2.5,-22,20,5,.24,mallWallMaterial);
 for(const x of [-30,-10])mallPart(showroomGroup,x,2.5,-17,.24,5,10,mallWallMaterial);
-for(const x of [-26,-20,-14])for(const z of [-8,-2,4]){
+for(const x of [-37,-31,-25,-19,-13])for(const z of [-8,-2,4]){
  mallPart(hallGroup,x,4.91,z,2.4,.065,.32,hallLight);
 }
 for(const x of [-26,-20,-14])mallPart(showroomGroup,x,4.91,-17,2.4,.065,.32,hallLight);
 const intimateSign=mallSign(hallGroup,"BIEN-ÊTRE INTIME","RAYON RÉSERVÉ AUX ADULTES",-25,-11.78,0,5.5);
 mallSign(hallGroup,"CAISSES","← LIBRE-SERVICE · RAYONS →",-17,4.2,Math.PI,6.6);
-mallSign(hallGroup,"BOISSONS ÉNERGISANTES","ALLÉE OUEST",-26,-4,Math.PI/2,4.7);
+mallSign(hallGroup,"BOISSONS ÉNERGISANTES","ALLÉE OUEST",-39.1,-4,Math.PI/2,4.7);
 mallSign(hallGroup,"FBA AUTOMOBILE","SHOWROOM · ÉLECTRIQUE & THERMIQUE",-20,-11.85,0,5.4);
 mallSign(showroomGroup,"FBA AUTOMOBILE","COMMANDES ET VENTES · INTERAGIR AU COMPTOIR",-20,-19.6,0,7);
 mallPart(showroomGroup,-20,.54,-17,2.1,1.08,.74,hallTrim);
@@ -3325,6 +3327,13 @@ function refreshBoxes(){
 function sync(){
  hud();refreshDisplays();refreshBoxes();refreshExtension();updateLighting();
  if(checkoutVisual)renderCheckoutVisual(checkoutVisual.customer);
+ const second=extraRegisters[0];
+ const {x,z}=state.upgrades[FRONT_HALL]?REGISTER_ROW:second.origin;
+ second.x=x;second.z=z;second.queueX=x+second.origin.queueX-second.origin.x;second.queueZ=z+second.origin.queueZ-second.origin.z;
+ second.meshes.forEach((mesh,index)=>{
+  const offset=second.offsets[index];mesh.position.x=x+offset.x;mesh.position.z=z+offset.z;
+ });
+ second.staff.group.position.x=x-.96;second.staff.group.position.z=z+.15;
  for(const register of extraRegisters)for(const mesh of register.meshes)mesh.visible=registerUnlocked(register);
  save();
 }
@@ -4252,7 +4261,7 @@ function blocked(x,z,r=.4){
   const wing=STORAGE_WINGS[kind];
   return inStorageWing(kind,x,z)&&x>wing.minX+.7+r&&x<wing.maxX-.7-r;
  });
- const hall=state.upgrades[FRONT_HALL]&&x>-29.8+r&&x<-9.45&&z>-11.8+r&&z<9.45-r;
+ const hall=state.upgrades[FRONT_HALL]&&x>HALL_WEST+.2+r&&x<-9.45&&z>-11.8+r&&z<9.45-r;
  const hallDoor=state.upgrades[FRONT_HALL]&&Math.abs(x+10)<1.35&&z>2.5+r&&z<7.5-r;
  const auto=state.upgrades[AUTO_SHOWROOM]&&x>-29.8+r&&x<-10.2-r&&z>-21.8+r&&z<-11.45;
  const autoDoor=state.upgrades[AUTO_SHOWROOM]&&Math.abs(x+20)<2-r&&Math.abs(z+12)<1.1;
@@ -4535,7 +4544,7 @@ function customerBlocked(x,z,r=.28){
  return x+r>4.7&&x-r<9.45&&z+r>7.25&&z-r<9.95;
 }
 // Navigation A* sur grille invisible : évite les collisions avec les rayons et la caisse.
-const NAV_STEP=.35,NAV_MIN_X=-MALL_HALF_WIDTH,NAV_MIN_Z=MALL_MIN_Z,NAV_W=Math.ceil(2*MALL_HALF_WIDTH/NAV_STEP),NAV_H=Math.ceil((13.6-NAV_MIN_Z)/NAV_STEP);
+const NAV_STEP=.35,NAV_MIN_X=HALL_WEST,NAV_MIN_Z=MALL_MIN_Z,NAV_W=Math.ceil((MALL_HALF_WIDTH-NAV_MIN_X)/NAV_STEP),NAV_H=Math.ceil((13.6-NAV_MIN_Z)/NAV_STEP);
 function navNode(x,z){
  return {i:Math.max(0,Math.min(NAV_W-1,Math.round((x-NAV_MIN_X)/NAV_STEP))),
  j:Math.max(0,Math.min(NAV_H-1,Math.round((z-NAV_MIN_Z)/NAV_STEP)))};
@@ -4812,11 +4821,13 @@ function updateExpandedTeam(dt){
  mainCashierAvatar.carton.visible=false;
 }
 
+// Le hall prolonge le rang de la caisse 2 vers l’ouest.
+const REGISTER_ROW={x:-12.8,z:1.2,spacing:3.2};
 const extraRegisters=[
  {id:"second",label:"Caisse 2",level:20,x:-2.4,z:5.05,queueX:-1.15,queueZ:5.25,queue:[],client:null},
  {id:"legacyExpress",label:"Caisse 3 · express",level:110,x:2.1,z:3.9,queueX:1.05,queueZ:4.05,legacy:true,queue:[],client:null},
  ...[21,24,27,30,33,36,39,42].map((level,index)=>{
-  const x=-25+index%4*3.65,z=index<4?-6:1.2;
+  const x=REGISTER_ROW.x-(index+1)*REGISTER_ROW.spacing,z=REGISTER_ROW.z;
   return {id:"lane"+(index+3),label:"Caisse "+(index+3),level,x,z,queueX:x+1.2,queueZ:z+.2,hall:true,queue:[],client:null};
  }),
  ...[26,34].map((level,index)=>{
@@ -4826,6 +4837,7 @@ const extraRegisters=[
 ];
 for(const register of extraRegisters){
  const {x,z,level}=register;
+ register.origin={x,z,queueX:register.queueX,queueZ:register.queueZ};
  register.meshes=[
   cube(x,.54,z,1.1,1.08,1.45,register.self?0x0e7490:0x475569),
   cube(x,1.11,z,1.19,.11,1.54,0x172033),
@@ -4839,8 +4851,14 @@ for(const register of extraRegisters){
   register.meshes.push(stripe);
  }
  if(!register.self&&!register.legacy)register.staff=teamAvatar("checkout",x-.96,z+.15);
- colliders.push({minX:x-.59,maxX:x+.59,minZ:z-.77,maxZ:z+.77,level,
-  requiresUpgrade:register.hall?FRONT_HALL:undefined,lockedBy:register.legacy?FRONT_HALL:undefined});
+ const collider={minX:x-.59,maxX:x+.59,minZ:z-.77,maxZ:z+.77,level,
+  requiresUpgrade:register.hall?FRONT_HALL:undefined,lockedBy:register.legacy||register.id==="second"?FRONT_HALL:undefined};
+ colliders.push(collider);
+ if(register.id==="second"){
+  colliders.push({minX:REGISTER_ROW.x-.59,maxX:REGISTER_ROW.x+.59,minZ:REGISTER_ROW.z-.77,
+   maxZ:REGISTER_ROW.z+.77,level,requiresUpgrade:FRONT_HALL});
+  register.offsets=register.meshes.map(mesh=>({x:mesh.position.x-x,z:mesh.position.z-z}));
+ }
 }
 function registerUnlocked(register){return playerLevel()>=register.level&&(!register.hall||state.upgrades[FRONT_HALL])&&(!register.legacy||!state.upgrades[FRONT_HALL]);}
 function activeRegisters(){return extraRegisters.filter(registerUnlocked);}
@@ -4938,7 +4956,7 @@ function updateAuxiliaryQueue(client,dt){
 }
 const CHECKOUT_APPROACH_FALLBACK={x:3.35,z:6.5};
 function queueSpot(i,register){
- if(register)return {x:register.queueX,z:register.queueZ-Math.min(i+Number(!!register.client),register.hall?2:4)*.65};
+ if(register)return {x:register.queueX,z:register.queueZ-Math.min(i+Number(!!register.client),register.hall||register.id==="second"&&state.upgrades[FRONT_HALL]?2:4)*.65};
  return {x:3.65,z:6.25-Math.min(i+Number(!!cashier),4)*.78};
 }
 function sendToQueue(c){
@@ -5320,4 +5338,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.1 !");
+animate();toast("Business Empire Simulator V0.14.2 !");
