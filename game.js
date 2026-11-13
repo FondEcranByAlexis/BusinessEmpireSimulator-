@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.19";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.19";
-// Business Empire Simulator V0.14.19 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.20";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.20";
+// Business Empire Simulator V0.14.20 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -886,7 +886,8 @@ let paused=false;
 const menuButton=button(actions,"☰ Menu",showMainMenu);
 menuButton.style.background="#334155";
 button(actions,"Interagir",interact).style.background="#15803d";
-const handtruckButton=button(actions,"Utiliser le diable",useHandtruck);
+const handtruckButton=button(actions,"Utiliser le diable (T)",useHandtruck);
+handtruckButton.setAttribute("aria-keyshortcuts","T");
 handtruckButton.style.display="none";
 function showProfile(){
  openPanel("Profil du commerçant");
@@ -4769,6 +4770,7 @@ document.addEventListener("keydown",e=>{
  if(!e.repeat&&panel.style.display==="none"&&checkoutUI.style.display==="none"&&!levelModalShowing){
   if(e.key?.toLowerCase()==="m"){e.preventDefault();showMainMenu();}
   if(e.code==="KeyE"&&!paused&&(seatedAtCheckout||canLookAround())){e.preventDefault();interact();}
+  if(e.code==="KeyT"&&canUseHandtruck()){e.preventDefault();useHandtruck();}
  }
 });
 document.addEventListener("keyup",e=>{
@@ -6078,4 +6080,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.19 !");
+animate();toast("Business Empire Simulator V0.14.20 !");
