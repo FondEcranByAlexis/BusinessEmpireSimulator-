@@ -136,7 +136,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   const s=stations[active];
   cctv.position.set(s.fixture.position.x,2.92,s.fixture.position.z+.42);
   cctv.fov=s.wide?95:66;
-  cctv.rotation.order="YXZ";cctv.rotation.set(-s.pitch,s.yaw,0);
+  cctv.lookAt(cctv.position.x+Math.sin(s.yaw)*Math.cos(s.pitch),cctv.position.y+Math.sin(s.pitch),cctv.position.z+Math.cos(s.yaw)*Math.cos(s.pitch));
   cctv.aspect=camera.aspect;cctv.updateProjectionMatrix();
   renderer.render(scene,cctv);
   return true;
