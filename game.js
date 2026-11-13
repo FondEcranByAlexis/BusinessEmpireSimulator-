@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.11";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.11";
-// Business Empire Simulator V0.14.11 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.12";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.12";
+// Business Empire Simulator V0.14.12 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1766,6 +1766,7 @@ function showAntitheftRemoval(c){
  checkoutUI.replaceChildren();checkoutUI.style.display="block";
  checkoutText("CAISSE 1 · ANTIVOL",true);
  checkoutText(product.name+" · antivol actif");
+ checkoutText("Confirme le retrait pour scanner cet article.");
  checkoutButton("Retirer l’antivol et scanner",()=>resolveAntitheft(c,pending,true));
  checkoutButton("Scanner sans retirer l’antivol",()=>resolveAntitheft(c,pending,false));
 }
@@ -2038,6 +2039,7 @@ function zonePanel(zone){
  return zonePanels.get(zone);
 }
 const reserveLightPositions=[3.5,7.5,11.5,15,18.5,22];
+const PARKING_HALF_WIDTH=9.8;
 function updateLighting(){
  const daylight=Math.max(.12,Math.min(1,(20-state.hour)/3.5));
  scene.background.setRGB(.055+.55*daylight,.09+.69*daylight,.17+.74*daylight);
@@ -2057,7 +2059,7 @@ function updateLighting(){
   ["logistics",24,-27.5,28.5,7.5],
   ["staff",17.8,-9,24.1,-3],
   ["office",-14.65,-5.55,-10.1,-2.05,directorOpen()],
-  ["outside",-14,10.14,14,31]
+  ["outside",-PARKING_HALF_WIDTH,10.14,PARKING_HALF_WIDTH,31]
  ];
  for(const [i,[zone,x0,z0,x1,z1,active=true]] of regions.entries()){
   // Les améliorations verrouillées ne modifient aucune surface.
@@ -2699,10 +2701,10 @@ function buildStoreExterior(){
  const trunk=standardMaterial({color:0x685141,roughness:1});
  const part=(x,y,z,w,h,d,mat)=>mallPart(group,x,y,z,w,h,d,mat);
 
- part(0,-.09,20.65,28,.16,20.7,asphalt);
- part(0,-.19,32.1,45,.19,2.2,grass);
- for(const side of [-1,1])part(side*18.25,-.19,21.55,8.5,.19,23.3,grass);
- part(0,-.04,12.22,28,.10,3.94,concrete);
+ part(0,-.09,20.65,PARKING_HALF_WIDTH*2,.16,20.7,asphalt);
+ part(0,-.19,32.1,PARKING_HALF_WIDTH*2,.19,2.2,grass);
+ part(-14.05,-.19,21.55,8.5,.19,23.3,grass);
+ part(0,-.04,12.22,PARKING_HALF_WIDTH*2,.10,3.94,concrete);
  part(0,-.033,20.1,3.1,.076,12.2,concrete);
  part(0,3.24,10.98,10.8,.22,1.95,trim);
  part(0,3.31,11.94,10.8,.27,.14,blue);
@@ -2722,11 +2724,11 @@ function buildStoreExterior(){
   }
   const column=part(side*5.15,1.57,11.61,.27,3.14,.27,trim);
   colliders.push({minX:column.position.x-.135,maxX:column.position.x+.135,minZ:11.475,maxZ:11.745});
-  for(const offset of [2.35,4.9,7.45,10,12.55])part(side*offset,.004,18.1,.06,.009,5.2,paint);
-  part(side*7.45,.008,15.52,10.2,.014,.065,paint);
-  for(const x of [3.55,9.9])part(side*x,.042,15.78,1.35,.10,.16,curb);
-  for(const z of [15.4,25.6]){
-   const x=side*12.8;
+  for(const offset of [2.1,4.55,7,9.45])part(side*offset,.004,18.1,.06,.009,5.2,paint);
+  part(side*5.775,.008,15.52,7.35,.014,.065,paint);
+  for(const x of [3.325,8.225])part(side*x,.042,15.78,1.35,.10,.16,curb);
+  for(const z of [13.55,25.6]){
+   const x=side*8.7;
    part(x,.10,z,1.35,.23,1.35,curb);
    colliders.push({minX:x-.675,maxX:x+.675,minZ:z-.675,maxZ:z+.675});
    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.07,.12,1.75,8),trunk);
@@ -2736,7 +2738,7 @@ function buildStoreExterior(){
     crown.position.set(x+dx,y,z+dz);crown.scale.y=1.12;group.add(crown);
    }
   }
-  const poleX=side*10.95;
+  const poleX=side*9.2;
   part(poleX,2.15,25.2,.09,4.3,.09,trim);
   part(poleX-side*.22,4.24,25.2,.59,.11,.23,trim);
   part(poleX-side*.22,4.17,25.2,.51,.04,.17,zonePanel("outside"));
@@ -2746,7 +2748,7 @@ function buildStoreExterior(){
  const parking=brandPanel("PARKING","ENTRÉE DU SUPERMARCHÉ",2.55,.62);
  parking.position.set(4.15,2.25,26.55);group.add(parking);
  part(4.15,1.02,26.49,.12,2.04,.12,trim);
- for(const [x,z,color] of [[-6.18,18.1,0x2d6987],[8.72,18.1,0x9b392e]]){
+ for(const [x,z,color] of [[-5.775,18.1,0x2d6987],[8.225,18.1,0x9b392e]]){
   const body=standardMaterial({color,roughness:.34,metalness:.32});
   part(x,.48,z,1.72,.52,3.95,body);
   part(x,.90,z-.20,1.43,.36,1.94,windowGlass);
@@ -4610,10 +4612,11 @@ document.addEventListener("mousemove",e=>{
 });
 canvas.addEventListener("pointerleave",()=>{mousePosition=null;});
 
-// Un toucher sur un article 3D déclenche directement son scan.
+// Ouvrir le dialogue sur click, après la fin du geste tactile.
 const checkoutRaycaster=new THREE.Raycaster();
-canvas.addEventListener("pointerup",e=>{
+canvas.addEventListener("click",e=>{
  if(e.button!==0||document.pointerLockElement===canvas)return;
+ if(checkoutUI.style.display!=="none"||panel.style.display!=="none")return;
  if(!cashier||!checkoutVisual?.models.length||(!seatedAtCheckout&&!near(6.5,6.5,3.5)))return;
  const rect=canvas.getBoundingClientRect();
  const pointer=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);
@@ -4717,7 +4720,7 @@ function blocked(x,z,r=.4){
  const electronicsReserve=state.upgrades.store2&&x>15.55&&x<20.35&&z>30.75&&z<43.7;
  const electronicsReserveDoor=state.upgrades.store2&&x>=15.0-r&&x<=15.6+r&&z>34+r&&z<35.8-r;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
- const forecourt=x>-14+r&&x<14-r&&z>10.38+r&&z<31-r;
+ const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<31-r;
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
  const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
@@ -5998,4 +6001,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.11 !");
+animate();toast("Business Empire Simulator V0.14.12 !");
