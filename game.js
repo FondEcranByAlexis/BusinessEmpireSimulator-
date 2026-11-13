@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.5";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.5";
-// Business Empire Simulator V0.14.5 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.6";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.6";
+// Business Empire Simulator V0.14.6 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -125,10 +125,18 @@ const STAFF_PLANS={
  security:{label:"Sécurité",levels:[22,30,38,46],wage:75},
 };
 const FAST_RESTOCK_LIMIT=15;
-const TROLLEY_BASE_CAPACITY=3;
+const TROLLEY_BASE_CAPACITY=3, DOCK_CARRY_LIMIT=3, SHELF_CARRY_LIMIT=2;
+const HAND_CARRY_UPGRADES=[
+ {id:"carryTwo",name:"Port de deux cartons",level:12,cost:650,category:"competences",handCapacity:2,description:"Porte deux cartons de la même référence à la main."},
+ {id:"carryThree",name:"Port de trois cartons",level:24,cost:1500,requires:"carryTwo",category:"competences",handCapacity:3,description:"Porte trois cartons de la même référence à la main."},
+];
+function handCapacity(){
+ return HAND_CARRY_UPGRADES.reduce((limit,upgrade)=>state.upgrades[upgrade.id]?upgrade.handCapacity:limit,1);
+}
 const TROLLEY_UPGRADES=[
  {id:"handtruckReinforced",name:"Diable renforcé",level:12,cost:750,requires:"handtruck",category:"stock",trolleyCapacity:5,description:"Permet de transporter jusqu’à 5 cartons par trajet."},
  {id:"handtruckPlatform",name:"Plateforme de manutention",level:24,cost:2200,requires:"handtruckReinforced",category:"stock",trolleyCapacity:8,description:"Permet de transporter jusqu’à 8 cartons par trajet."},
+ {id:"handtruckLarge",name:"Plateforme grande capacité",level:35,cost:6500,requires:"handtruckPlatform",category:"stock",trolleyCapacity:28,description:"Ajoute 20 places à la plateforme, pour un total de 28 cartons."},
 ];
 function trolleyCapacity(){
  return TROLLEY_UPGRADES.reduce((capacity,upgrade)=>state.upgrades[upgrade.id]?upgrade.trolleyCapacity:capacity,TROLLEY_BASE_CAPACITY);
@@ -140,6 +148,7 @@ function trolleyLoadLabel(){
 function shelfCapacity(p){return CAPACITY;}
 const upgradeCatalog=[
  ...TROLLEY_UPGRADES,
+ ...HAND_CARRY_UPGRADES,
  {id:"intimateLicense",name:"Licence Bien-être intime",level:ADULT_LEVEL,cost:2200,requires:FRONT_HALL,category:"licences",
   adultOnly:true,description:"Ouvre un rayon de produits intimes et d’accessoires sexuels, en emballages neutres."},
  {id:FRONT_HALL,name:"Hall des caisses",level:15,cost:7500,requires:"store1",category:"extensions",construction:true,description:"Agrandit le magasin côté ouest. Accueille les caisses supplémentaires, les bornes libre-service et le rayon boissons énergisantes."},
@@ -474,10 +483,21 @@ const finance=state.finance;
 function save(){
  try{
   const inTransit=teamUnits.filter(unit=>unit.cargo);
+  if(workerCargo)inTransit.push({role:"dock",cargo:{product:{id:workerCargo.id},quantity:workerCargo.qty}});
+  if(stockerCargo&&stockerUnits)inTransit.push({role:"shelf",cargo:{product:{id:stockerCargo},quantity:stockerUnits}});
+  if(held)inTransit.push({role:held.source==="delivery"?"dock":"shelf",cargo:{product:{id:held.id},quantity:held.quantity}});
   const snapshot=inTransit.length?{...state,inventory:{...state.inventory},deliveryDock:[...state.deliveryDock]}:state;
   for(const unit of inTransit){
    const {product,quantity}=unit.cargo;
-   if(unit.role==="dock")snapshot.deliveryDock.push({id:product.id,qty:quantity});
+   if(unit.role==="dock"){
+    const full=Math.floor(quantity/BOX_UNITS);
+    for(let i=0;i<full;i++)snapshot.deliveryDock.push({id:product.id,qty:BOX_UNITS});
+    const remainder=quantity%BOX_UNITS;
+    if(remainder){
+     const inventory={...snapshot.inventory[product.id]};
+     inventory.reserve+=remainder;snapshot.inventory[product.id]=inventory;
+    }
+   }
    else{
     const inventory={...snapshot.inventory[product.id]};
     inventory.reserve+=quantity;snapshot.inventory[product.id]=inventory;
@@ -588,7 +608,7 @@ function milestoneEntries(level){
   return offers.length?offers.map(u=>u.name+" ("+euro(u.cost)+")").join(" · "):(level===1?"":"Programme · ")+description;
  }).filter(Boolean);
  const additions=upgradeCatalog.filter(u=>contentVisible(u)&&u.level===level&&
-  (u.trolleyCapacity||[FRONT_HALL,AUTO_SHOWROOM,"energyLicense","autoLicense","shelfTraining","dockTraining","checkoutTraining","intimateLicense"].includes(u.id)));
+  (u.trolleyCapacity||u.handCapacity||[FRONT_HALL,AUTO_SHOWROOM,"energyLicense","autoLicense","shelfTraining","dockTraining","checkoutTraining","intimateLicense"].includes(u.id)));
  return [...planned,...staffMilestones(level),...additions.map(u=>u.name+" · "+euro(u.cost)+" · "+u.description)];
 }
 function showProgression(first){
@@ -681,18 +701,16 @@ const supplierCart={};
 function pendingBoxes(id){
  return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+(it.id===id?it.qty:0),0),0)
   +state.deliveryDock.filter(it=>it.id===id).length+state.trolleyCargo.filter(it=>it.id===id).length
-  +Number(workerCargo?.id===id)+Number(held?.source==="delivery"&&held.id===id);
+  +inTransitBoxes(id);
+}
+function inTransitBoxes(id){
+ let count=workerCargo?.id===id?Math.ceil(workerCargo.qty/BOX_UNITS):0;
+ if(held?.source==="delivery"&&held.id===id)count+=Math.ceil(held.quantity/BOX_UNITS);
+ for(const unit of teamUnits)if(unit.role==="dock"&&unit.cargo?.product.id===id)count+=Math.ceil(unit.cargo.quantity/BOX_UNITS);
+ return count;
 }
 function pendingTotal(kind){
- return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>{
-  const p=catalog.find(p=>p.id===it.id);
-  return m+(p&&(!kind||storageKind(p)===kind)?it.qty:0);
- },0),0)+state.deliveryDock.filter(it=>{
-  const p=catalog.find(p=>p.id===it.id);return p&&(!kind||storageKind(p)===kind);
- }).length+state.trolleyCargo.filter(it=>{
-  const p=catalog.find(p=>p.id===it.id);return p&&(!kind||storageKind(p)===kind);
- }).length+(held?.source==="delivery"&&(!kind||storageKind(catalog.find(p=>p.id===held.id))===kind)?1:0)
- +Number(!!workerCargo&&(!kind||storageKind(catalog.find(p=>p.id===workerCargo.id))===kind));
+ return catalog.reduce((total,p)=>total+(!kind||storageKind(p)===kind?pendingBoxes(p.id):0),0);
 }
 function cartCount(kind){
  return Object.entries(supplierCart).reduce((n,[id,qty])=>{
@@ -3462,27 +3480,30 @@ function putBack(){
  if(!held)return;
  const p=catalog.find(p=>p.id===held.id);
  if(!p||!atStorageFor(p))return;
- if(held.source==="delivery"&&held.quantity===BOX_UNITS){
-  if(state.inventory[held.id].boxes>=MAX_BOXES_PER_PRODUCT||
-   storageBoxes(storageKind(p))>=storageLimit(storageKind(p))){
-   toast(storageName(storageKind(p))+" pleine ou limite par produit atteinte");return;
+ const inventory=state.inventory[p.id];
+ if(held.source!=="loose"){
+  const cartons=Math.min(Math.floor(held.quantity/BOX_UNITS),MAX_BOXES_PER_PRODUCT-inventory.boxes,
+   storageLimit(storageKind(p))-storageBoxes(storageKind(p)));
+  if(cartons>0){inventory.boxes+=cartons;held.quantity-=cartons*BOX_UNITS;}
+  if(held.source==="delivery"&&held.quantity>=BOX_UNITS){
+   sync();refreshCarry();showReserve();toast("Réserve pleine ou limite par produit atteinte");return;
   }
-  state.inventory[held.id].boxes++;
  }
- else state.inventory[held.id].reserve+=held.quantity;
+ inventory.reserve+=held.quantity;
  held=null;sync();refreshCarry();showReserve();
 }
 function takeCarton(p,amount,source="box"){
  const a=state.inventory[p.id];
- if(held){toast("Dépose d'abord le carton que tu portes");return;}
+ if(held||!atStorageFor(p)||!productAvailable(p)){toast("Dépose d’abord ce que tu portes et approche-toi de la réserve");return;}
  if(source==="box"&&a.boxes>0){
-  a.boxes--;held={id:p.id,quantity:BOX_UNITS,source:"box"};
+  const cartons=Math.min(amount,a.boxes,handCapacity());
+  a.boxes-=cartons;held={id:p.id,quantity:cartons*BOX_UNITS,source:"box"};
  }else if(source==="loose"&&a.reserve>0){
   const quantity=Math.min(amount,a.reserve);
   a.reserve-=quantity;held={id:p.id,quantity,source:"loose"};
  }else{toast("Aucun produit disponible");return;}
  sync();refreshCarry();panel.style.display="none";
- toast((held.source==="loose"?"Lot en vrac de ":"Carton de ")+p.name+" : "+held.quantity+" produits. Va au rayon.");
+ toast(p.name+" · "+held.quantity+" articles en main. Va au rayon.");
 }
 function removeReserveUnits(inventory,quantity){
  const loose=Math.min(inventory.reserve,quantity);
@@ -3640,11 +3661,15 @@ function updateHandtruck(){
  handtruckHeldVisual.position.set(0,-1.02,-1.95);
  handtruckHeldVisual.rotation.set(-.10,0,0);
  handtruckHeldVisual.scale.set(.95,.95,.95);
+ const large=trolleyCapacity()>8||state.trolleyCargo.length>8;
  const wide=trolleyCapacity()>TROLLEY_BASE_CAPACITY||state.trolleyCargo.length>TROLLEY_BASE_CAPACITY;
- trolleyPlatform.scale.x=heldPlatform.scale.x=wide?1.55:1;
+ trolleyPlatform.scale.x=heldPlatform.scale.x=large?2.5:wide?1.65:1;
+ trolleyPlatform.scale.z=heldPlatform.scale.z=large?1.65:1;
  heldTrolleyBoxes.forEach((box,i)=>{
-  box.position.x=wide?(i%2===0?-.34:.34):0;
-  box.position.y=.39+(wide?Math.floor(i/2):i)*.35;
+  box.scale.setScalar(large?.73:1);
+  box.position.x=large?(i%4-1.5)*.5:wide?(i%2===0?-.34:.34):0;
+  box.position.y=large?.31+Math.floor(i/8)*.25:.39+(wide?Math.floor(i/2):i)*.35;
+  box.position.z=large?(Math.floor(i/4)%2===0?-.19:.19):.02;
   box.visible=i<state.trolleyCargo.length;
   if(box.visible){const p=catalog.find(p=>p.id===state.trolleyCargo[i].id);box.material.color.setHex(p?p.color:0xb98246);}
  });
@@ -3722,13 +3747,37 @@ function faceNpc(group,dx,dz,dt){
  const angle=Math.atan2(-dx,-dz)-group.rotation.y;
  group.rotation.y+=Math.atan2(Math.sin(angle),Math.cos(angle))*(1-Math.exp(-12*dt));
 }
+function takeDockCartons(p,limit){
+ let quantity=0;
+ for(let i=0;i<state.deliveryDock.length&&limit>0;){
+  const item=state.deliveryDock[i];
+  if(item.id!==p.id){i++;continue;}
+  quantity+=item.qty;
+  state.deliveryDock.splice(i,1);limit--;
+ }
+ return quantity;
+}
+function storeDockBatch(p,quantity){
+ const inventory=state.inventory[p.id],kind=storageKind(p);
+ const boxes=Math.max(0,Math.min(Math.floor(quantity/BOX_UNITS),MAX_BOXES_PER_PRODUCT-inventory.boxes,
+  storageLimit(kind)-storageBoxes(kind)));
+ inventory.boxes+=boxes;
+ const remaining=quantity-boxes*BOX_UNITS;
+ for(let i=0;i<Math.floor(remaining/BOX_UNITS);i++)state.deliveryDock.push({id:p.id,qty:BOX_UNITS});
+ inventory.reserve+=remaining%BOX_UNITS;
+ return boxes;
+}
+function dockBatchCapacity(p){
+ return Math.max(0,Math.min(DOCK_CARRY_LIMIT,MAX_BOXES_PER_PRODUCT-state.inventory[p.id].boxes,
+  storageLimit(storageKind(p))-storageBoxes(storageKind(p))));
+}
 let workerRoute=[],workerWaypoint=0,workerPhase="dock",workerCargo=null,workerWait=0,workerTalking=false,workerTalkTimer=0,workerWalkClock=0;
 let workerBreakJourney=null,stockerBreakJourney=null;
 const WORKER_BREAK_SEAT={x:22.2,z:-5.25},STOCKER_BREAK_SEAT={x:22.2,z:-6.75};
 workerGroup.position.set(25.65,0,-23.8);
 function workerTaskLabel(){
  if(employeeBreakLabel(workerBreakJourney))return employeeBreakLabel(workerBreakJourney);
- if(workerCargo){const p=catalog.find(p=>p.id===workerCargo.id);return "Transport d’un carton"+(p?" de "+p.name:"");}
+ if(workerCargo){const p=catalog.find(p=>p.id===workerCargo.id);return "Transport de "+Math.ceil(workerCargo.qty/BOX_UNITS)+" carton(s)"+(p?" de "+p.name:"");}
  if(workerRoute.length&&workerPhase==="pickup")return "En route pour décharger le quai";
  if(workerRoute.length&&workerPhase==="dock")return "Retour au quai";
  if(state.deliveryDock.length)return state.deliveryDock.length+" carton(s) à prendre en charge";
@@ -3875,9 +3924,9 @@ function updateStocker(dt){
   if(stockerRoute.length){stockerTarget=stockerRoute.shift();}
   else if(stockerPhase==="reserve"||stockerPhase==="shelf"||stockerPhase==="placing"||stockerPhase==="idle-return"){
    if(stockerPhase==="reserve"){
-    const a=state.inventory[stockerCargo];
-    if(a.boxes>0){a.boxes--;stockerUnits=BOX_UNITS;stockerCarton.visible=true;}
-    else if(a.reserve>0){stockerUnits=Math.min(BOX_UNITS,a.reserve);a.reserve-=stockerUnits;stockerCarton.visible=true;}
+    const p=catalog.find(p=>p.id===stockerCargo),a=state.inventory[p.id];
+    stockerUnits=Math.max(0,Math.min(SHELF_CARRY_LIMIT*BOX_UNITS,productStoredUnits(p),shelfCapacity(p)-a.shelf));
+    if(stockerUnits){removeReserveUnits(a,stockerUnits);stockerCarton.visible=true;}
     else{stockerCargo=null;stockerPhase="idle";}
     if(stockerCargo){
      const p=catalog.find(p=>p.id===stockerCargo);
@@ -3893,7 +3942,7 @@ function updateStocker(dt){
     const p=catalog.find(x=>x.id===stockerCargo),a=state.inventory[p.id];
     const qty=Math.max(0,Math.min(stockerUnits,shelfCapacity(p)-a.shelf));
     a.shelf+=qty;a.reserve+=stockerUnits-qty;
-    stockerCargo=null;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;sync();
+    stockerCargo=null;stockerUnits=0;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;sync();
    }else stockerPhase="idle";
    return;
   }else{
@@ -3958,7 +4007,7 @@ function updateWorker(dt){
    });
    const p=idx<0?null:catalog.find(p=>p.id===state.deliveryDock[idx].id);
    if(!p||!workerGo(storageWorkPoint(p),"storage")){workerWait=2;return;}
-   workerCargo=state.deliveryDock.splice(idx,1)[0];workerCarton.visible=true;
+   workerCargo={id:p.id,qty:takeDockCartons(p,dockBatchCapacity(p))};workerCarton.visible=true;
    refreshDeliveryDock();sync();workerWait=.55;return;
   }else{workerPhase="dock";stop();return;}
  }
@@ -3982,9 +4031,10 @@ function updateWorker(dt){
  workerRoute=[];workerWait=.7;
  if(workerPhase==="storage"&&workerCargo){
   const p=catalog.find(p=>p.id===workerCargo.id);
-  if(p&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&storageBoxes(storageKind(p))<storageLimit(storageKind(p))){
-   state.inventory[p.id].boxes++;toast("Manutentionnaire : carton de "+p.name+" rangé");
-  }else state.deliveryDock.push(workerCargo);
+  if(p){
+   const boxes=storeDockBatch(p,workerCargo.qty);
+   if(boxes)toast("Manutentionnaire · "+boxes+" carton(s) de "+p.name+" rangés");
+  }
   workerCargo=null;workerCarton.visible=false;sync();refreshDeliveryDock();
  }
 }
@@ -4004,7 +4054,7 @@ function showDeliveryDock(){
   paragraph("DIABLE DE MANUTENTION — "+trolleyLoadLabel()+" chargés.");
   if(state.trolleyCargo.length)button(panel,"Voir les cartons sur le diable",showTrolley);
  }
- if(held){paragraph("Rends-toi dans la réserve correspondante pour ranger ton carton.");return;}
+ if(held){paragraph("Rends-toi dans la réserve correspondante pour ranger tes cartons.");return;}
  if(!state.deliveryDock.length){paragraph("Aucun camion à décharger pour le moment.");return;}
  paragraph(state.deliveryDock.length+" carton(s) à ranger. Chaque carton contient 10 produits.");
  for(const p of catalog.filter(contentVisible)){
@@ -4016,13 +4066,28 @@ function showDeliveryDock(){
    state.deliveryDock.splice(i,1);state.trolleyCargo.push({id:p.id});
    sync();refreshDeliveryDock();showDeliveryDock();toast("Diable : "+trolleyLoadLabel());
   });
-  button(panel,"Prendre 1 carton — "+p.name+" ("+qty+" restant(s))",()=>{
-   const i=state.deliveryDock.findIndex(it=>it.id===p.id);
-   if(i<0||held)return;
-   state.deliveryDock.splice(i,1);held={id:p.id,quantity:BOX_UNITS,source:"delivery"};
-   sync();refreshDeliveryDock();refreshCarry();panel.style.display="none";
-   toast("Carton de "+p.name+" à ranger : "+storageName(storageKind(p)));
+  const freeSlots=trolleyCapacity()-state.trolleyCargo.length;
+  const batch=Math.min(qty,freeSlots);
+  if(state.upgrades.handtruck&&batch>1)button(panel,"Charger "+batch+" cartons — "+p.name,()=>{
+   if(held||!state.upgrades.handtruck||!near(25.65,-24.3,3.2))return;
+   const count=Math.max(0,Math.min(batch,trolleyCapacity()-state.trolleyCargo.length));
+   for(let i=0,loaded=0;i<state.deliveryDock.length&&loaded<count;){
+    if(state.deliveryDock[i].id!==p.id){i++;continue;}
+    state.deliveryDock.splice(i,1);state.trolleyCargo.push({id:p.id});loaded++;
+   }
+   sync();refreshDeliveryDock();showDeliveryDock();toast("Diable : "+trolleyLoadLabel());
   });
+  const cartons=Math.min(qty,handCapacity());
+  const pickUp=count=>{
+   if(held||!near(25.65,-24.3,3.2))return;
+   const quantity=takeDockCartons(p,Math.min(count,handCapacity()));
+   if(!quantity)return;
+   held={id:p.id,quantity,source:"delivery"};
+   sync();refreshDeliveryDock();refreshCarry();panel.style.display="none";
+   toast(p.name+" · à ranger dans "+storageName(storageKind(p)));
+  };
+  button(panel,"Prendre 1 carton — "+p.name+" ("+qty+" restant(s))",()=>pickUp(1));
+  if(cartons>1)button(panel,"Prendre "+cartons+" cartons à la main — "+p.name,()=>pickUp(cartons));
  }
 }
 refreshDeliveryDock();
@@ -4030,6 +4095,24 @@ function showTrolley(){
  openPanel("Diable de manutention — "+trolleyLoadLabel());
  if(!state.upgrades.handtruck){paragraph("Achetable dans les améliorations pour 125 €.");return;}
  if(!state.trolleyCargo.length){paragraph("Diable vide. Charge-le au quai de déchargement.");return;}
+ const kind=currentStorageKind();
+ const localCartons=state.trolleyCargo.filter(it=>{
+  const p=catalog.find(p=>p.id===it.id);
+  return p&&contentVisible(p)&&storageKind(p)===kind;
+ });
+ if(localCartons.length>1)button(panel,"Ranger les cartons de cette réserve",()=>{
+  if(currentStorageKind()!==kind)return;
+  let placed=0;
+  for(const it of localCartons){
+   const i=state.trolleyCargo.indexOf(it);
+   if(i<0)continue;
+   const p=catalog.find(p=>p.id===it.id),inventory=state.inventory[it.id];
+   if(inventory.boxes>=MAX_BOXES_PER_PRODUCT||storageBoxes(storageKind(p))>=storageLimit(kind))continue;
+   inventory.boxes++;state.trolleyCargo.splice(i,1);placed++;
+  }
+  if(placed){sync();showTrolley();}
+  toast(placed?placed+" carton(s) rangés":"Réserve pleine ou limite par produit atteinte");
+ });
  for(const [i,it] of state.trolleyCargo.entries()){
   const p=catalog.find(p=>p.id===it.id);
   if(!contentVisible(p))continue;
@@ -4054,14 +4137,18 @@ function showReserve(){
  if(state.upgrades.handtruck&&state.trolleyCargo.length)button(panel,"Décharger le diable ("+state.trolleyCargo.length+" cartons)",showTrolley);
  if(held){
   const p=catalog.find(p=>p.id===held.id);
-  paragraph("Tu portes "+held.quantity+" × "+p.name+(held.source==="loose"?" (en vrac)":" (carton)"));
-  button(panel,held.source==="loose"?"Reposer les produits en vrac":held.source==="delivery"?"Ranger le carton livré":"Reposer le carton",putBack);
+  paragraph("Tu portes "+held.quantity+" × "+p.name+(held.source==="loose"?" (en vrac)":""));
+  button(panel,held.source==="loose"?"Reposer les produits en vrac":held.source==="delivery"?"Ranger la livraison":"Reposer les produits",putBack);
   return;
  }
  for(const p of unlockedProducts().filter(p=>storageKind(p)===kind)){
   const a=state.inventory[p.id];
   paragraph("● "+p.name+" — "+stockAlert(p)+" | Cartons : "+a.boxes+"/5 ("+(a.boxes*BOX_UNITS)+" unités) | Espace vrac : "+a.reserve+" unités | Total réserve : "+(a.reserve+a.boxes*BOX_UNITS));
-  if(a.boxes>0)button(panel,"Prendre un carton de "+p.name+" (10)",()=>takeCarton(p,10,"box"));
+  if(a.boxes>0){
+   const cartons=Math.min(a.boxes,handCapacity());
+   button(panel,"Prendre un carton de "+p.name+" ("+BOX_UNITS+")",()=>takeCarton(p,1,"box"));
+   if(cartons>1)button(panel,"Prendre "+cartons+" cartons — "+p.name,()=>takeCarton(p,cartons,"box"));
+  }
   if(a.reserve>0)button(panel,"PRENDRE EN VRAC — "+p.name+" ("+Math.min(10,a.reserve)+")",()=>takeCarton(p,10,"loose"));
   const batch=Math.min(FAST_RESTOCK_LIMIT,productStoredUnits(p));
   if(state.upgrades.fastRestock&&batch>BOX_UNITS)button(panel,"Prendre un lot de "+batch+" — "+p.name,()=>takeRestockBatch(p));
@@ -4837,6 +4924,8 @@ function showTeamManagement(role="shelf"){
  }
  const roster=teamUnits.filter(unit=>unit.role===role),employees=state.management.team??={};
  paragraph(roster.filter(unit=>employees[unit.id]).length+" / "+roster.length+" recrutés · "+euro(STAFF_PLANS[role].wage)+" par journée de service");
+ if(role==="dock")paragraph("Jusqu’à "+DOCK_CARRY_LIMIT+" cartons de la même référence par trajet.");
+ if(role==="shelf")paragraph("Jusqu’à "+SHELF_CARRY_LIMIT*BOX_UNITS+" articles de la même référence par trajet.");
  if(role==="shelf")button(panel,"Gérer "+state.stockerName,showStockerManagement);
  if(role==="dock")button(panel,"Gérer "+state.workerName,showWorkerManagement);
  for(const unit of roster){
@@ -4854,7 +4943,10 @@ function showTeamManagement(role="shelf"){
 function returnTeamCargo(unit){
  if(!unit.cargo)return;
  const {product,quantity}=unit.cargo;
- if(unit.role==="dock")state.deliveryDock.push({id:product.id,qty:quantity});
+ if(unit.role==="dock"){
+  for(let i=0;i<Math.floor(quantity/BOX_UNITS);i++)state.deliveryDock.push({id:product.id,qty:BOX_UNITS});
+  state.inventory[product.id].reserve+=quantity%BOX_UNITS;
+ }
  else state.inventory[product.id].reserve+=quantity;
  unit.cargo=null;sync();refreshDeliveryDock();
 }
@@ -4884,10 +4976,7 @@ function updateTeamJob(unit){
  if(unit.cargo){
   const {product,quantity}=unit.cargo,a=state.inventory[product.id];
   if(unit.role==="dock"){
-   if(a.boxes>=MAX_BOXES_PER_PRODUCT||storageBoxes(storageKind(product))>=storageLimit(storageKind(product))){
-    returnTeamCargo(unit);return;
-   }
-   a.boxes++;
+   storeDockBatch(product,quantity);
   }else{
    const placed=Math.max(0,Math.min(quantity,shelfCapacity(product)-a.shelf));
    a.shelf+=placed;a.reserve+=quantity-placed;
@@ -4906,13 +4995,12 @@ function updateTeamJob(unit){
   if(index<0)return;
   const product=catalog.find(p=>p.id===state.deliveryDock[index].id);
   if(!teamRouteTo(unit,storageWorkPoint(product)))return;
-  const [item]=state.deliveryDock.splice(index,1);
-  unit.cargo={product,quantity:item.qty};save();refreshDeliveryDock();
+  unit.cargo={product,quantity:takeDockCartons(product,dockBatchCapacity(product))};save();refreshDeliveryDock();
   return;
  }
  if(unit.target){
   const product=unit.target;unit.target=null;
-  const quantity=Math.min(BOX_UNITS,productStoredUnits(product),shelfCapacity(product)-state.inventory[product.id].shelf);
+  const quantity=Math.min(SHELF_CARRY_LIMIT*BOX_UNITS,productStoredUnits(product),shelfCapacity(product)-state.inventory[product.id].shelf);
   if(quantity<=0||!teamRouteTo(unit,stockerShelfPosition(product)))return;
   removeReserveUnits(state.inventory[product.id],quantity);
   unit.cargo={product,quantity};save();return;
@@ -5644,4 +5732,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.5 !");
+animate();toast("Business Empire Simulator V0.14.6 !");
