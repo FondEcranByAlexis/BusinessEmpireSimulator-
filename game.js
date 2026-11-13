@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.50";
-import { installSurveillance } from "./surveillance.js?v=0.14.50";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.50";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.50";
-// Business Empire Simulator V0.14.50 — version synchronisée
+import { installCity } from "./city.js?v=0.14.51";
+import { installSurveillance } from "./surveillance.js?v=0.14.51";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.51";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.51";
+// Business Empire Simulator V0.14.51 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2599,6 +2599,42 @@ function buildStorageWings(){
  }
 }
 buildStorageWings();
+// Réorganisation logistique : réserves sèches et électroniques du côté livraison.
+// Les éléments existants sont translatés avec leurs rayonnages, emplacements
+// de cartons et collisions pour préserver les quantités sauvegardées.
+const moveStorageMesh=(mesh,dx,dz)=>{mesh.position.x+=dx;mesh.position.z+=dz;};
+const moveStorageCollider=(hit,dx,dz)=>{
+ hit.minX+=dx;hit.maxX+=dx;hit.minZ+=dz;hit.maxZ+=dz;
+};
+for(const mesh of storageExtensionMeshes)moveStorageMesh(mesh,24,-37);
+for(const mesh of reserve2Meshes){
+ const dry=mesh.position.x<15.45;
+ moveStorageMesh(mesh,dry?24:14,-37);
+}
+for(const hit of storageExtensionColliders)moveStorageCollider(hit,24,-37);
+for(const hit of colliders){
+ if(hit.requiresUpgrade!=="store2"||hit.minZ<30||hit.maxZ>45)continue;
+ const dry=hit.maxX<=15.5;
+ moveStorageCollider(hit,dry?24:14,-37);
+}
+for(const kind of ["dry","electronics"]){
+ const dx=kind==="dry"?24:14,dz=-37;
+ for(const rack of storageRacks[kind]){
+  if(kind==="dry"&&rack.requiresUpgrade!=="store1"&&rack.requiresUpgrade!=="store2"&&!Number.isInteger(rack.bay))continue;
+  for(const slot of [...rack.slots,...rack.overflow]){slot.x+=dx;slot.z+=dz;}
+ }
+ for(const {group} of storageWingGroups[kind]){group.position.x+=dx;group.position.z+=dz;}
+ STORAGE_WINGS[kind].minX+=dx;STORAGE_WINGS[kind].maxX+=dx;STORAGE_WINGS[kind].start+=dz;
+}
+// Séparation physique entre le quai de livraison et la réserve électronique.
+// Passage libre de 2,6 m au centre (porte de séparation à installer).
+const logisticsWall=(x,z,w,d)=>{
+ const m=cube(x,2.5,z,w,5,d,0xdbeafe);
+ colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2,requiresUpgrade:"store2"});
+ return m;
+};
+logisticsWall(29.25,-5.8,.25,2.2);
+logisticsWall(29.25,4.2,.25,9.6);
 function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
  hallGate.visible=!state.upgrades[FRONT_HALL];
@@ -2625,8 +2661,8 @@ function refreshExtension(){
   if(!state.upgrades[id])room.furnishings.visible=false;
  }
  // La même amélioration agrandit aussi la surface exploitable du stockage.
- oldReserveEndWall.visible=!unlocked;
- oldReserveWallCollider.disabled=unlocked;
+ oldReserveEndWall.visible=true;
+ oldReserveWallCollider.disabled=false;
  for(const mesh of storageExtensionMeshes)mesh.visible=unlocked;
  reserve2Gate.visible=unlocked&&!electronicsUnlocked;
  reserve2GateCollider.disabled=electronicsUnlocked||!unlocked;
@@ -4904,11 +4940,11 @@ function blocked(x,z,r=.4){
  const mall=mallOpen&&Math.abs(x)<=MALL_HALF_WIDTH-.15-r&&z>=MALL_MIN_Z+.15+r&&z<=ANNEX_ENTRY-.15-r;
  const mallDoor=mallOpen&&Math.abs(x)<3.3-r&&z>ANNEX_ENTRY-.8-r&&z<ANNEX_ENTRY+.95+r;
  // Le volume accessible suit les extensions physiques de la réserve.
- const reserveDepth=state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45;
+ const reserveDepth=23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
  const cold=x>15.55&&x<23.75&&z>1.8&&z<16.8;
- const electronicsReserve=state.upgrades.store2&&x>15.55&&x<20.35&&z>30.75&&z<43.7;
- const electronicsReserveDoor=state.upgrades.store2&&x>=15.0-r&&x<=15.6+r&&z>34+r&&z<35.8-r;
+ const electronicsReserve=state.upgrades.store2&&x>29.55&&x<34.05&&z>-6.25&&z<6.7;\n const relocatedDry=state.upgrades.store1&&x>34.35&&x<38.75&&z>-13.4&&z<(state.upgrades.store2?.2:-6.5);
+ const electronicsReserveDoor=state.upgrades.store2&&x>27.0&&x<30.0&&z>-3.55&&z<-.8;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
  const wideParking=x>-50+r&&x<-9.2-r&&z>10.38+r&&z<82-r;
@@ -4919,7 +4955,7 @@ function blocked(x,z,r=.4){
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
  const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
- const serviceCorridor=x>24.3&&x<27.0&&z>-24.0&&z<6.6;
+ const serviceCorridor=x>24.3&&x<29.7&&z>-24.0&&z<6.6;\n const logisticsAccess=state.upgrades.store1&&x>28.7&&x<39&&z>-14.0&&z<8.0;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
  const breakDoor=x>23.5&&x<24.65&&z>-7.25+r&&z<-4.75-r;
@@ -4934,7 +4970,7 @@ function blocked(x,z,r=.4){
  const link=autoLinkOpen()&&x>-35.85+r&&x<-30+r&&z>GALLERY_LINK_Z-1.35+r&&z<SHOWROOM_LINK_Z+1.35-r;
  const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
- if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
+ if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  return candidates?.some(c=>x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ&&
   !c.disabled&&contentVisible(c)&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&
@@ -6554,4 +6590,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.50 !");
+animate();toast("Business Empire Simulator V0.14.51 !");
