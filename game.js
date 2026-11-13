@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.52";
-import { installSurveillance } from "./surveillance.js?v=0.14.52";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.52";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.52";
-// Business Empire Simulator V0.14.52 — version synchronisée
+import { installCity } from "./city.js?v=0.14.53";
+import { installSurveillance } from "./surveillance.js?v=0.14.53";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.53";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.53";
+// Business Empire Simulator V0.14.53 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -4961,7 +4961,8 @@ function blocked(x,z,r=.4){
  const cold=x>15.55&&x<23.75&&z>1.8&&z<16.8;
  const electronicsReserve=state.upgrades.store2&&x>29.55&&x<34.05&&z>-6.25&&z<6.7;
  const relocatedDry=state.upgrades.store1&&x>34.25&&x<38.85&&z>-6.55&&z<(state.upgrades.store2?0.35:-6.5);
- const electronicsReserveDoor=state.upgrades.store2&&x>27.0&&x<30.0&&z>-3.05&&z<-.55;\n const dryElectronicsDoor=state.upgrades.store2&&x>33.9&&x<35.1&&z>-3.85&&z<-1.35;
+ const electronicsReserveDoor=state.upgrades.store2&&x>27.0&&x<30.0&&z>-3.05&&z<-.55;
+ const dryElectronicsDoor=state.upgrades.store2&&x>33.9&&x<35.1&&z>-3.85&&z<-1.35;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
  const wideParking=x>-50+r&&x<-9.2-r&&z>10.38+r&&z<82-r;
@@ -6608,4 +6609,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.52 !");
+animate();toast("Business Empire Simulator V0.14.53 !");
