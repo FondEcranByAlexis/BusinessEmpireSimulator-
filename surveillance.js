@@ -66,7 +66,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  for(const station of stations){
   const fixture=new THREE.Group();
   // En galerie, installer la caméra dans le fond du local, orientée vers l'entrée (+Z).
-  fixture.position.set(station.x,3.05,station.department?station.z-2.8:station.z);
+  fixture.position.set(station.x,3.05,station.fixtureZ??(station.department?station.z-2.8:station.z));
   const mount=new THREE.Mesh(new THREE.CylinderGeometry(.065,.065,.3,10),cameraBody);
   mount.position.y=.17;fixture.add(mount);
   const housing=new THREE.Mesh(new THREE.BoxGeometry(.34,.18,.42),cameraBody);
