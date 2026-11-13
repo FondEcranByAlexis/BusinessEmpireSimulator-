@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.56";
-import { installSurveillance } from "./surveillance.js?v=0.14.56";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.56";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.56";
-// Business Empire Simulator V0.14.56 — version synchronisée
+import { installCity } from "./city.js?v=0.14.57";
+import { installSurveillance } from "./surveillance.js?v=0.14.57";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.57";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.57";
+// Business Empire Simulator V0.14.57 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -988,6 +988,9 @@ function showPlaytime(){
  button(panel,"← Retour aux outils test",showDevTools);
 }
 function showDevTools(){
+ paragraph("Inspection aérienne : active le vol pour observer le magasin et préparer les futures zones.");
+ button(panel,flyMode?"Désactiver le vol et revenir au sol":"Activer le mode vol libre",()=>{toggleFlyMode();panel.style.display="none";});
+ paragraph("Vol : ZQSD/WASD pour avancer · Espace pour monter · Maj gauche pour descendre · souris pour regarder · V pour activer/désactiver.");
  openPanel("FBA GAMES — MODE TEST");
  paragraph("Sauvegarde de test indépendante. Ces commandes ne modifient pas ta partie normale.");
  paragraph("Niveau de test : "+playerLevel()+" | Argent : "+euro(state.money));
@@ -4785,6 +4788,13 @@ refreshCarry();
 // Commandes de déplacement et caméra lissée
 let yaw=0,pitch=0,targetYaw=0,targetPitch=0,lookPointer=null,lastX=0,lastY=0;
 const keys={forward:false,backward:false,left:false,right:false};
+let flyMode=false,flyUp=false,flyDown=false,flyGroundY=1.7;
+function toggleFlyMode(){
+ if(!DEV_MODE)return;
+ flyMode=!flyMode;flyUp=false;flyDown=false;
+ if(flyMode){flyGroundY=camera.position.y;camera.position.y=Math.max(12,camera.position.y);toast("Mode vol activé · Espace monter · Maj descendre · V quitter");}
+ else{camera.position.y=flyGroundY;toast("Mode vol désactivé");}
+}
 const canvas=renderer.domElement;canvas.style.touchAction="none";
 const pressedMovement=new Map();
 const MOUSE_SENSITIVITY_KEY="fba-mouse-sensitivity";
@@ -4832,6 +4842,7 @@ function updateMouseHelp(){
  $("mouseLookHelp").textContent=active?"Souris pour regarder · Échap pour libérer":"Clique dans le jeu pour activer la souris";
 }
 function clearMovement(){
+ flyUp=false;flyDown=false;
  pressedMovement.clear();
  for(const direction of Object.keys(keys))keys[direction]=false;
 }
@@ -4965,6 +4976,8 @@ document.addEventListener("keydown",e=>{
  if(!levelModalShowing&&panel.style.display==="none"&&checkoutUI.style.display==="block"&&terminalKeyHandler?.(e)){
   e.preventDefault();return;
  }
+ if(DEV_MODE&&e.code==="KeyV"&&!e.repeat&&canLookAround()){toggleFlyMode();e.preventDefault();return;}
+ if(flyMode&&canLookAround()&&(e.code==="Space"||e.code==="ShiftLeft"||e.code==="ShiftRight")){if(e.code==="Space")flyUp=true;else flyDown=true;e.preventDefault();return;}
  const direction=keyMap[e.code];
  if(direction&&canLookAround()){
   pressedMovement.set(e.code,direction);
@@ -4977,6 +4990,8 @@ document.addEventListener("keydown",e=>{
  }
 });
 document.addEventListener("keyup",e=>{
+ if(e.code==="Space")flyUp=false;
+ if(e.code==="ShiftLeft"||e.code==="ShiftRight")flyDown=false;
  const direction=pressedMovement.get(e.code);
  if(!direction)return;
  pressedMovement.delete(e.code);
@@ -5151,6 +5166,14 @@ function employeeBreakLabel(journey){
 let stepDistance=0;
 function movePlayer(dt){
  if(seatedAtCheckout||panel.style.display!=="none")return;
+ if(flyMode){
+  const f=Number(keys.forward)-Number(keys.backward)-joyY,side=Number(keys.right)-Number(keys.left)+joyX;
+  const speed=18*dt;
+  camera.position.x+=(-Math.sin(yaw)*f+Math.cos(yaw)*side)*speed;
+  camera.position.z+=(-Math.cos(yaw)*f-Math.sin(yaw)*side)*speed;
+  camera.position.y=Math.max(1.7,Math.min(180,camera.position.y+(Number(flyUp)-Number(flyDown))*speed));
+  return;
+ }
  const f=Number(keys.forward)-Number(keys.backward)-joyY,s=Number(keys.right)-Number(keys.left)+joyX;
  if(!f&&!s)return;
  const len=Math.max(1,Math.hypot(f,s));
@@ -6648,4 +6671,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.56 !");
+animate();toast("Business Empire Simulator V0.14.57 !");
