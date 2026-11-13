@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.57";
-import { installSurveillance } from "./surveillance.js?v=0.14.57";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.57";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.57";
-// Business Empire Simulator V0.14.57 — version synchronisée
+import { installCity } from "./city.js?v=0.14.58";
+import { installSurveillance } from "./surveillance.js?v=0.14.58";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.58";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.58";
+// Business Empire Simulator V0.14.58 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2690,6 +2690,29 @@ const retiredStorageColliders=new Set([
  ...colliders.filter(h=>h.requiresUpgrade==="store1"&&h.minX>=9.8&&h.maxX<=39.2&&h.minZ>=-14.5&&h.maxZ<=50),
  ...colliders.filter(h=>h.requiresUpgrade==="store2"&&h.minX>=29&&h.maxX<=30&&h.minZ>=-8&&h.maxZ<=10)
 ]);
+// Prototype de la nouvelle chambre froide, à l'est du magasin.
+// Bâtiment indépendant, avec porte ouverte côté logistique et cloisonnement.
+const coldAnnexMeshes=[];
+function coldAnnexPart(x,y,z,w,h,d,color,solid=false){
+ const m=cube(x,y,z,w,h,d,color);
+ coldAnnexMeshes.push(m);
+ if(solid)colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2,requiresUpgrade:"store1"});
+ return m;
+}
+// Emprise : x 41–55, z -14–10. La porte est sur la façade ouest.
+coldAnnexPart(48,-.16,-2,14,.32,24,0x9ccbdc);
+coldAnnexPart(48,5.2,-2,14,.25,24,0xf1f5f9);
+coldAnnexPart(48,2.5,-14,14,5,.3,0xdbeafe,true);
+coldAnnexPart(48,2.5,10,14,5,.3,0xdbeafe,true);
+coldAnnexPart(55,2.5,-2,.3,5,24,0xdbeafe,true);
+coldAnnexPart(41,2.5,-10.5,.3,5,7,0xdbeafe,true);
+coldAnnexPart(41,2.5,5.5,.3,5,9,0xdbeafe,true);
+coldAnnexPart(41,4.25,-3,.3,1.5,8,0xdbeafe);
+for(const x of [44,48,52])for(const z of [-10,-4,2,7]){
+ coldAnnexPart(x,.55,z,2,.12,1.2,0x94a3b8);
+ coldAnnexPart(x,1.65,z,2,.12,1.2,0x94a3b8);
+ coldAnnexPart(x,2.75,z,2,.12,1.2,0x94a3b8);
+}
 function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
  hallGate.visible=!state.upgrades[FRONT_HALL];
@@ -2723,6 +2746,7 @@ function refreshExtension(){
  reserve2GateCollider.disabled=electronicsUnlocked||!unlocked;
  for(const mesh of reserve2Meshes)mesh.visible=electronicsUnlocked&&!STORAGE_REBUILD_PENDING;
  for(const mesh of retiredLogisticsMeshes)mesh.visible=!STORAGE_REBUILD_PENDING;
+ for(const mesh of coldAnnexMeshes)mesh.visible=unlocked;
  for(const hit of retiredStorageColliders)hit.disabled=STORAGE_REBUILD_PENDING;
  for(const kind of STORAGE_KINDS){
   const count=storageBayCount(kind);
@@ -6671,4 +6695,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.57 !");
+animate();toast("Business Empire Simulator V0.14.58 !");
