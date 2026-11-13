@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.73";
-import { installSurveillance } from "./surveillance.js?v=0.14.73";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.73";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.73";
-// Business Empire Simulator V0.14.73 — version synchronisée
+import { installCity } from "./city.js?v=0.14.74";
+import { installSurveillance } from "./surveillance.js?v=0.14.74";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.74";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.74";
+// Business Empire Simulator V0.14.74 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -4177,7 +4177,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0,true); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.14.73 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.14.74 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -6714,4 +6714,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.73 !");
+animate();toast("Business Empire Simulator V0.14.74 !");
