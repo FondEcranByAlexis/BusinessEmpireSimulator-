@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.62";
-import { installSurveillance } from "./surveillance.js?v=0.14.62";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.62";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.62";
-// Business Empire Simulator V0.14.62 — version synchronisée
+import { installCity } from "./city.js?v=0.14.63";
+import { installSurveillance } from "./surveillance.js?v=0.14.63";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.63";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.63";
+// Business Empire Simulator V0.14.63 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2275,35 +2275,24 @@ cube(18.35,-.15,5.5,6.1,.3,8,0x9ccbdc);
 cube(18.35,5.1,5.5,6.1,.2,8,0xe0f2fe);
 // Porte technique sur la façade est de la chambre froide, vers le couloir logistique.
 cube(24,2.5,2.875,.3,5,2.75,0xcbd5e1,true);
-cube(24,2.5,11.825,.3,5,10.35,0xcbd5e1,true);
+cube(24,2.5,8.075,.3,5,2.85,0xcbd5e1,true);
 cube(24,4.2,5.45,.3,1.6,2.4,0xcbd5e1);
 cube(19.65,2.5,1.5,8.7,5,.3,0xcbd5e1,true);
-cube(17.975,2.5,17,5.35,5,.3,0xcbd5e1,true);
-storageWingGates.cold=cube(22.325,2.5,17,3.35,5,.3,0xcbd5e1,true);
+cube(19.65,2.5,9.5,8.7,5,.3,0xcbd5e1,true);
+storageWingGates.cold=cube(22.325,2.5,9.5,3.35,5,.3,0xcbd5e1,true);
 colliders.at(-1).storageGate="cold";
-// Extension de la chambre froide vers l'arrière et l'est.
-cube(15.3,2.5,13.25,.3,5,7.5,0xdbeafe,true);
-cube(19.65,-.15,13.25,8.7,.3,7.5,0x9ccbdc);
-cube(19.65,5.1,13.25,8.7,.2,7.5,0xe0f2fe);
-cube(22.7,-.15,5.5,2.6,.3,8,0x9ccbdc);
-cube(22.7,5.1,5.5,2.6,.2,8,0xe0f2fe);
-for(const x of [17.2,21.6])for(const z of [11,15])cube(x,4.87,z,2.0,.04,.55,0xf8fafc).material=zonePanel("cold");
-// Les anciens luminaires ont été remplacés par le modèle LED unique.
-for(const x of [16.6,22.5])for(const z of [11,14.8]){
- for(const y of [.65,1.7,2.75])cube(x,y,z,1.45,.09,1.5,0x94a3b8);
- for(const dx of [-.65,.65])for(const dz of [-.65,.65])cube(x+dx,1.6,z+dz,.07,3.2,.07,0x64748b);
-}
+// Extension arrière de la chambre froide retirée à la demande du joueur.
 // Sol antidérapant et plinthes sanitaires.
 // Revêtement continu, posé légèrement au-dessus des anciens dallages pour supprimer les démarcations.
-const coldFloor=cube(19.65,.055,9.25,8.65,.11,15.45,0xb7dce8);
+const coldFloor=cube(19.65,.055,5.5,8.65,.11,8,0xb7dce8);
 cube(19.65,.14,1.75,8.4,.23,.08,0x64748b);
-cube(18.05,.14,16.82,5.2,.23,.08,0x64748b);
+cube(19.65,.14,9.4,8.4,.23,.08,0x64748b);
 // Plinthes sanitaires le long de la cloison, de part et d’autre de la porte froide.
 cube(15.48,.14,2.9,.08,.23,2.6,0x64748b);
-cube(15.48,.14,11.75,.08,.23,10.0,0x64748b);
+cube(15.48,.14,8.075,.08,.23,2.85,0x64748b);
 // Plinthe interrompue à la porte technique (z=4.25 à 6.65).
 cube(23.82,.14,2.875,.08,.23,2.75,0x64748b);
-cube(23.82,.14,11.825,.08,.23,10.35,0x64748b);
+cube(23.82,.14,8.075,.08,.23,2.85,0x64748b);
 const coldLight=cube(18.35,4.88,5.5,3.4,.045,.55,0xf8fafc);
 coldLight.material=zonePanel("cold");
 // Interrupteur extérieur, côté réserve, à droite de la porte froide.
@@ -6671,4 +6660,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.62 !");
+animate();toast("Business Empire Simulator V0.14.63 !");
