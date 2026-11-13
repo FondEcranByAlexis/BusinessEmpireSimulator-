@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.59";
-import { installSurveillance } from "./surveillance.js?v=0.14.59";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.59";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.59";
-// Business Empire Simulator V0.14.59 — version synchronisée
+import { installCity } from "./city.js?v=0.14.60";
+import { installSurveillance } from "./surveillance.js?v=0.14.60";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.60";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.60";
+// Business Empire Simulator V0.14.60 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2690,10 +2690,21 @@ const retiredStorageColliders=new Set([
  ...colliders.filter(h=>h.requiresUpgrade==="store1"&&h.minX>=9.8&&h.maxX<=39.2&&h.minZ>=-14.5&&h.maxZ<=50),
  ...colliders.filter(h=>h.requiresUpgrade==="store2"&&h.minX>=29&&h.maxX<=30&&h.minZ>=-8&&h.maxZ<=10)
 ]);
+// Retrait de l'ancienne bande longitudinale désignée sur le plan aérien.
+// Ne pas toucher aux murs du magasin ni aux éléments de livraison.
+const removedStripMeshes=[];
+for(const m of scene.children){
+ if(!m.isMesh||!m.geometry?.parameters)continue;
+ const p=m.geometry.parameters;
+ if(m.position.x>=22&&m.position.x<=29.6&&m.position.z>=-2&&m.position.z<=45&&p.depth>=6&&p.width<=4&&m.position.y>=4.8){
+  removedStripMeshes.push(m);
+ }
+}
 // Nouvelle zone logistique compacte, rapprochée du magasin.
 // Chambre froide au sud ; bâtiment commun sec/électronique au nord.
 const coldAnnexMeshes=[],newStorageMeshes=[],newStorageColliders=[];
 function logisticsPart(target,x,y,z,w,h,d,color,solid=false,upgrade="store1"){
+ x-=5.0; // Rapprochement des deux bâtiments vers le magasin.
  const mesh=cube(x,y,z,w,h,d,color);
  target.push(mesh);
  if(solid){
@@ -2770,6 +2781,7 @@ function refreshExtension(){
  for(const mesh of retiredLogisticsMeshes)mesh.visible=!STORAGE_REBUILD_PENDING;
  for(const mesh of coldAnnexMeshes)mesh.visible=unlocked;
  for(const mesh of newStorageMeshes)mesh.visible=unlocked;
+ for(const mesh of removedStripMeshes)mesh.visible=false;
  for(const hit of newStorageColliders)hit.disabled=!unlocked;
  coldRoof.visible=unlocked&&!flyMode;
  storageRoof.visible=unlocked&&!flyMode;
@@ -5078,9 +5090,9 @@ function blocked(x,z,r=.4){
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
  const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
  const serviceCorridor=x>24.3&&x<29.7&&z>-24.0&&z<6.6;
- const logisticsAccess=state.upgrades.store1&&x>24.3&&x<40&&z>-14.0&&z<32.0;
- const newColdInterior=state.upgrades.store1&&x>30.25&&x<39.75&&z>-12.75&&z<6.75;
- const newStorageInterior=state.upgrades.store1&&x>30.25&&x<39.75&&z>9.25&&z<30.75;
+ const logisticsAccess=state.upgrades.store1&&x>24.3&&x<35&&z>-14.0&&z<32.0;
+ const newColdInterior=state.upgrades.store1&&x>25.25&&x<34.75&&z>-12.75&&z<6.75;
+ const newStorageInterior=state.upgrades.store1&&x>25.25&&x<34.75&&z>9.25&&z<30.75;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
  const breakDoor=x>23.5&&x<24.65&&z>-7.25+r&&z<-4.75-r;
@@ -6723,4 +6735,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.59 !");
+animate();toast("Business Empire Simulator V0.14.60 !");
