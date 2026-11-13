@@ -1,5 +1,5 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.36)
-export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true,autoUnlocked=()=>false}){
+// FBA Supermarket — PC de vidéosurveillance (V0.14.37)
+export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true,autoUnlocked=()=>false,checkoutHallUnlocked=()=>false}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
   {name:"Caisses",x:7.5,z:8.5,look:[7,1,-1]},
@@ -10,7 +10,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   {name:"Chambre froide",x:18.4,z:3.5,look:[18.4,1.3,8.6]},
   {name:"Zone de livraison",x:26,z:-10,look:[26,1.2,-17]},
   {name:"Première extension",x:0,z:-13.5,look:[0,1.2,-8],unlocked:extensionUnlocked},
-  {name:"Vue générale des caisses",x:7.7,z:7.1,look:[4.2,1.05,5.6],wide:true}
+  {name:"Vue générale des caisses",x:-12.3,z:7.8,look:[-27,1.05,1.2],wide:true,unlocked:checkoutHallUnlocked}
  ];
  departments.forEach((d,i)=>stations.push({name:"Galerie · "+d.name,x:d.x,z:d.z,look:[d.x,1.15,d.front+1.5],department:d}));
  // Deux caméras par zone, placées aux extrémités et orientées l'une vers l'autre.
@@ -26,7 +26,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
    department:station.department,unlocked:station.unlocked,wide:station.wide
   });
  }
- // Supprimer les anciennes CAM 30, 31, 35 et 39 (numérotation V0.14.36).
+ // Supprimer les anciennes CAM 30, 31, 35 et 39 (numérotation V0.14.37).
  const removed=new Set([29,30,34,38]);
  const retained=stations.map((station,index)=>({...station,legacyIndex:index})).filter(station=>!removed.has(station.legacyIndex));
  stations.length=0;stations.push(...retained);
