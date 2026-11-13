@@ -980,7 +980,8 @@ function showPlaytime(){
  if(!playtime.splits.length)paragraph("Aucun relevé pour le moment.");
  for(const s of playtime.splits.slice(-40))paragraph("Niveau "+s.level+" : "+playtimeFormat(s.ms));
  button(panel,"Copier le bilan des temps",()=>{
-  const report=["FBA GAMES — Test chronométré","Temps : "+playtimeFormat(playtime.ms),"Niveau : "+playerLevel(),...playtime.splits.map(s=>"Niveau "+s.level+" : "+playtimeFormat(s.ms))].join("\n");
+  const report=["FBA GAMES — Test chronométré","Temps : "+playtimeFormat(playtime.ms),"Niveau : "+playerLevel(),...playtime.splits.map(s=>"Niveau "+s.level+" : "+playtimeFormat(s.ms))].join("
+");
   if(navigator.clipboard?.writeText)navigator.clipboard.writeText(report).then(()=>toast("Bilan copié")).catch(()=>toast("Copie impossible"));
   else toast("Presse-papiers indisponible");
  });
@@ -2117,7 +2118,8 @@ function standardMaterial(options){
 function applyFixedLighting(shader){
  shader.uniforms.fbaZoneBounds=fixedLightUniforms.bounds;
  shader.uniforms.fbaZoneLevels=fixedLightUniforms.levels;
- shader.vertexShader="varying vec2 fbaFloorPosition;\n"+shader.vertexShader.replace("#include <project_vertex>",`
+ shader.vertexShader="varying vec2 fbaFloorPosition;
+"+shader.vertexShader.replace("#include <project_vertex>",`
   #include <project_vertex>
   vec4 floorPosition = vec4(transformed, 1.0);
   #ifdef USE_INSTANCING
@@ -2634,7 +2636,10 @@ const logisticsWall=(x,z,w,d)=>{
  return m;
 };
 logisticsWall(29.25,-5.8,.25,2.2);
-logisticsWall(29.25,4.2,.25,9.6);\n// Porte de séparation ouverte vers le quai (passage libre pour le joueur).\nconst logisticsDoor=cube(28.05,1.45,-3.35,2.4,2.9,.12,0x7c96aa);\nlogisticsDoor.rotation.y=Math.PI/2;
+logisticsWall(29.25,4.2,.25,9.6);
+// Porte de séparation ouverte vers le quai (passage libre pour le joueur).
+const logisticsDoor=cube(28.05,1.45,-3.35,2.4,2.9,.12,0x7c96aa);
+logisticsDoor.rotation.y=Math.PI/2;
 function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
  hallGate.visible=!state.upgrades[FRONT_HALL];
@@ -4943,7 +4948,8 @@ function blocked(x,z,r=.4){
  const reserveDepth=23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
  const cold=x>15.55&&x<23.75&&z>1.8&&z<16.8;
- const electronicsReserve=state.upgrades.store2&&x>29.55&&x<34.05&&z>-6.25&&z<6.7;\n const relocatedDry=state.upgrades.store1&&x>34.35&&x<38.75&&z>-13.4&&z<(state.upgrades.store2?0.2:-6.5);
+ const electronicsReserve=state.upgrades.store2&&x>29.55&&x<34.05&&z>-6.25&&z<6.7;
+ const relocatedDry=state.upgrades.store1&&x>34.35&&x<38.75&&z>-13.4&&z<(state.upgrades.store2?0.2:-6.5);
  const electronicsReserveDoor=state.upgrades.store2&&x>27.0&&x<30.0&&z>-3.55&&z<-.8;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
@@ -4955,7 +4961,8 @@ function blocked(x,z,r=.4){
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
  const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
- const serviceCorridor=x>24.3&&x<29.7&&z>-24.0&&z<6.6;\n const logisticsAccess=state.upgrades.store1&&x>28.7&&x<39&&z>-14.0&&z<8.0;
+ const serviceCorridor=x>24.3&&x<29.7&&z>-24.0&&z<6.6;
+ const logisticsAccess=state.upgrades.store1&&x>28.7&&x<39&&z>-14.0&&z<8.0;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
  const breakDoor=x>23.5&&x<24.65&&z>-7.25+r&&z<-4.75-r;
