@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.46";
-import { installSurveillance } from "./surveillance.js?v=0.14.46";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.46";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.46";
-// Business Empire Simulator V0.14.46 — version synchronisée
+import { installCity } from "./city.js?v=0.14.47";
+import { installSurveillance } from "./surveillance.js?v=0.14.47";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.47";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.47";
+// Business Empire Simulator V0.14.47 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2825,6 +2825,14 @@ function buildStoreExterior(){
  for(const z of [15.6,21.6])part(-30,.013,z,39,.016,.08,paint);
  // Liaison transversale avec l'allée centrale.
  part(-29.5,-.088,31.7,41,.16,2.2,asphalt);
+ // Extension du parking en direction de la ville, exclusivement côté ouest des réserves.
+ part(-30,-.09,55,40,.16,48,asphalt);
+ for(const z of [36,48,60,72]){
+  for(let x=-48;x<=-12;x+=3)part(x,.013,z,.07,.016,4.4,paint);
+  part(-30,.013,z+2.3,39,.016,.07,paint);
+ }
+ // Bande de circulation centrale, réservée aux véhicules et piétons.
+ part(-9,-.088,55,3,.16,48,asphalt);
  // Route d'accès vers la ville : aucune place de parking au-delà du parking principal.
  part(0,-.09,72,PARKING_HALF_WIDTH*2,.16,82,asphalt);
  for(let z=37;z<=108;z+=11)part(0,.005,z,.10,.012,4.2,paint);
@@ -4903,7 +4911,7 @@ function blocked(x,z,r=.4){
  const electronicsReserveDoor=state.upgrades.store2&&x>=15.0-r&&x<=15.6+r&&z>34+r&&z<35.8-r;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
- const wideParking=x>-49.6+r&&x<-9.3-r&&z>10.4+r&&z<33-r;
+ const wideParking=x>-49.6+r&&x<-9.3-r&&z>10.4+r&&z<79-r;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
  const cityWalk=x>-105+r&&x<105-r&&z>76+r&&z<232-r;
@@ -5130,7 +5138,10 @@ function makeCustomer(){
  const count=1+Math.floor(Math.random()*4);
  const choices=available.filter(p=>p===first||Math.hypot(p.x-first.x,p.z-first.z)<15).slice(0,count);
  const speed=1.35+Math.random()*.42;
- const route=[{x:0,z:8}];
+ // Les clients arrivent depuis des points aléatoires de la ville et rejoignent le magasin à pied.
+ const citySpawnX=(Math.random()-.5)*12;
+ const citySpawnZ=85+Math.random()*27;
+ const route=[{x:citySpawnX,z:76},{x:0,z:62},{x:0,z:38},{x:0,z:12.5},{x:0,z:8}];
  if(autoLinkOpen()&&first?.department&&Math.random()<.45){
   route.push({x:-11.8,z:5},{x:-20,z:-10.7},{x:-22.1,z:-14.6},{x:AUTO_LINK_X,z:SHOWROOM_LINK_Z},
    {x:AUTO_LINK_X,z:GALLERY_LINK_Z},{x:-17.8,z:GALLERY_LINK_Z},{x:0,z:MALL_PLAZA_Z});
@@ -5140,16 +5151,16 @@ function makeCustomer(){
   route.push({x,z,shop:p.id});
  }
  const distance=route.reduce((length,point,i)=>{
-  const previous=i?route[i-1]:{x:0,z:12.5};
+  const previous=i?route[i-1]:{x:citySpawnX,z:citySpawnZ};
   return length+Math.hypot(point.x-previous.x,point.z-previous.z);
  },0);
  group.scale.setScalar((woman?.89:.95)+Math.random()*.15);
- group.position.set(0,0,12.5);scene.add(group);
+ group.position.set(citySpawnX,0,citySpawnZ);scene.add(group);
  customers.push({
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
   speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,priceTolerance:1.12+Math.random()*.33,
   visualClock:Math.random()*6,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
-  stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:0,lastNavZ:12.5
+  stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:citySpawnX,lastNavZ:citySpawnZ
  });
 }
 function updateCustomerVisual(c,dt){
@@ -6522,4 +6533,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.46 !");
+animate();toast("Business Empire Simulator V0.14.47 !");
