@@ -1,12 +1,16 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.27)
-export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[]}){
+// FBA Supermarket — PC de vidéosurveillance (V0.14.28)
+export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
   {name:"Caisses",x:7.5,z:8.5,look:[7,1,-1]},
   {name:"Rayons alimentaires",x:0,z:-1.5,look:[0,1,-6]},
   {name:"Électronique",x:0,z:-26,look:[0,1,-31]},
   {name:"Réserve",x:12,z:5,look:[13,1,11]},
-  {name:"Zone de sortie",x:-3,z:8,look:[0,1,9]}
+  {name:"Zone de sortie",x:-3,z:8,look:[0,1,9]},
+  {name:"Chambre froide",x:18.4,z:3.5,look:[18.4,1.3,8.6]},
+  {name:"Zone de livraison",x:26,z:13,look:[24,1.2,7]},
+  {name:"Première extension",x:0,z:-13.5,look:[0,1.2,-8],unlocked:extensionUnlocked},
+  {name:"Vue générale des caisses",x:3.5,z:10,look:[5,1.15,4],wide:true}
  ];
  departments.forEach((d,i)=>stations.push({name:"Galerie · "+d.name,x:d.x,z:d.z,look:[d.x,1.15,d.front+1.5],department:d}));
  const staff=["Camille — rayons","Rayan — caisses","Nora — incidents"];
@@ -37,7 +41,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  for(const station of stations){
   const fixture=new THREE.Group();
   // En galerie, installer la caméra dans le fond du local, orientée vers l'entrée (+Z).
-  fixture.position.set(station.x,2.85,station.department?station.z-2.8:station.z);
+  fixture.position.set(station.x,3.05,station.department?station.z-2.8:station.z);
   const mount=new THREE.Mesh(new THREE.CylinderGeometry(.065,.065,.3,10),cameraBody);
   mount.position.y=.17;fixture.add(mount);
   const housing=new THREE.Mesh(new THREE.BoxGeometry(.34,.18,.42),cameraBody);
@@ -67,7 +71,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  });
  function select(i){
   const station=stations[i];
-  if(station.department&&!station.department.unlocked()){
+  if((station.department&&!station.department.unlocked())||(station.unlocked&&!station.unlocked())){
    toast("Cette zone de galerie n'est pas encore ouverte.");return;
   }
   active=i;
@@ -88,7 +92,8 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  function render(){
   if(!opened||active<0)return false;
   const s=stations[active];
-  cctv.position.set(s.fixture.position.x,2.72,s.fixture.position.z+.42);cctv.lookAt(...s.look);
+  cctv.position.set(s.fixture.position.x,2.92,s.fixture.position.z+.42);
+  cctv.fov=s.wide?95:66;cctv.lookAt(...s.look);
   cctv.aspect=camera.aspect;cctv.updateProjectionMatrix();
   renderer.render(scene,cctv);
   return true;
