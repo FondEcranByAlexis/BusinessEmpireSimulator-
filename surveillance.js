@@ -1,5 +1,5 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.32)
-export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true}){
+// FBA Supermarket — PC de vidéosurveillance (V0.14.33)
+export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true,autoUnlocked=()=>false}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
   {name:"Caisses",x:7.5,z:8.5,look:[7,1,-1]},
@@ -26,6 +26,15 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
    department:station.department,unlocked:station.unlocked,wide:station.wide
   });
  }
+ // Supprimer les anciennes CAM 30, 31, 35 et 39 (numérotation V0.14.33).
+ const removed=new Set([29,30,34,38]);
+ const retained=stations.map((station,index)=>({...station,legacyIndex:index})).filter(station=>!removed.has(station.legacyIndex));
+ stations.length=0;stations.push(...retained);
+ // Showroom automobile : deux angles opposés dans le volume intérieur x=-30..-10, z=-22..-12.
+ stations.push(
+  {name:"Zone automobile · côté ouest",x:-28.3,z:-20.2,look:[-12.3,1.2,-14.1],unlocked:autoUnlocked},
+  {name:"Zone automobile · côté est",x:-11.7,z:-13.8,look:[-27.5,1.2,-19.7],unlocked:autoUnlocked}
+ );
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
  const PTZ_KEY="fba-cctv-orientations-v1";
  let savedAngles={};
@@ -35,8 +44,8 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   const dx=station.look[0]-station.x,dy=station.look[1]-2.92,dz=station.look[2]-(originZ+.42);
   station.defaultYaw=Math.atan2(dx,dz);
   station.defaultPitch=Math.atan2(dy,Math.hypot(dx,dz));
-  station.yaw=Number.isFinite(savedAngles[i]?.yaw)?savedAngles[i].yaw:station.defaultYaw;
-  station.pitch=Number.isFinite(savedAngles[i]?.pitch)?savedAngles[i].pitch:station.defaultPitch;
+  station.yaw=Number.isFinite(savedAngles[station.legacyIndex??(i+4)]?.yaw)?savedAngles[i].yaw:station.defaultYaw;
+  station.pitch=Number.isFinite(savedAngles[station.legacyIndex??(i+4)]?.pitch)?savedAngles[i].pitch:station.defaultPitch;
  });
  const staff=["Camille — rayons","Rayan — caisses","Nora — incidents"];
  const position={x:-13,z:8.1};
@@ -93,7 +102,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   const station=stations[active];
   station.yaw+=yaw;station.pitch=clamp(station.pitch+pitch,-1.35,1.1);
   station.fixture.rotation.y=station.yaw;
-  try{localStorage.setItem(PTZ_KEY,JSON.stringify(Object.fromEntries(stations.map((s,i)=>[i,{yaw:s.yaw,pitch:s.pitch}]))));}catch{}
+  try{localStorage.setItem(PTZ_KEY,JSON.stringify(Object.fromEntries(stations.map((s,i)=>[s.legacyIndex??(i+4),{yaw:s.yaw,pitch:s.pitch}]))));}catch{}
  };
  const control=(symbol,dy,dp)=>{
   const b=document.createElement("button");b.textContent=symbol;
