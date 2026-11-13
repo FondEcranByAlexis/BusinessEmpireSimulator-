@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.74";
-import { installSurveillance } from "./surveillance.js?v=0.14.74";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.74";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.74";
-// Business Empire Simulator V0.14.74 — version synchronisée
+import { installCity } from "./city.js?v=0.14.75";
+import { installSurveillance } from "./surveillance.js?v=0.14.75";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.75";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.75";
+// Business Empire Simulator V0.14.75 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2109,7 +2109,7 @@ const lightOn=zone=>lightSettings[zone]!==false;
 const COMMERCIAL_LIGHTS=["sales","hall","gallery","auto"];
 const STORAGE_LIGHTS=["dry","electronics"];
 const zonePanels=new Map(),zoneBounds=[],zoneLevels=[];
-const LIGHT_REGION_COUNT=13;
+const LIGHT_REGION_COUNT=15;
 for(let i=0;i<LIGHT_REGION_COUNT;i++){zoneBounds.push(new THREE.Vector4());zoneLevels.push(1);}
 const fixedLightUniforms={bounds:{value:zoneBounds},levels:{value:zoneLevels}};
 function standardMaterial(options){
@@ -2168,7 +2168,9 @@ function updateLighting(){
   ["logistics",24,-27.5,28.5,7.5],
   ["staff",17.8,-9,24.1,-3],
   ["office",-14.65,-5.55,-10.1,-2.05,directorOpen()],
-  ["outside",-PARKING_HALF_WIDTH,10.14,PARKING_HALF_WIDTH,31]
+  ["outside",-PARKING_HALF_WIDTH,10.14,PARKING_HALF_WIDTH,31],
+  ["dry",19.2,-22.4,24,-9.45],
+  ["electronics",14.4,-22.4,19.2,-9.45]
  ];
  for(const [i,[zone,x0,z0,x1,z1,active=true]] of regions.entries()){
   // Les améliorations verrouillées ne modifient aucune surface.
@@ -4004,7 +4006,7 @@ function refreshBoxes(){
   const bays=storageBayCount(kind);
   const racks=storageRacks[kind].filter(rack=>(!rack.requiresUpgrade||state.upgrades[rack.requiresUpgrade])&&
    (rack.bay===undefined||rack.bay<bays)&&
-   (!STORAGE_REBUILD_PENDING||kind==="cold"||(kind==="dry"&&!rack.requiresUpgrade&&rack.bay===undefined))).map(rack=>({rack,used:0}));
+   (!STORAGE_REBUILD_PENDING||rack.newStorageRoom||kind==="cold"||(kind==="dry"&&!rack.requiresUpgrade&&rack.bay===undefined))).sort((a,b)=>Number(!!b.newStorageRoom)-Number(!!a.newStorageRoom)).map(rack=>({rack,used:0}));
   const products=catalog.filter(product=>storageKind(product)===kind&&contentVisible(product));
   const cartons=new Map();
   // Grouper les cartons fermés sur un même meuble lorsque la place le permet.
@@ -4071,11 +4073,11 @@ function refreshCarry(){
  updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
-function atReserve(){return inStorageWing("dry",camera.position.x,camera.position.z)||camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<(state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45);}
+function atReserve(){return camera.position.x>19.2&&camera.position.x<24&&camera.position.z>-22.5&&camera.position.z<-9.5||inStorageWing("dry",camera.position.x,camera.position.z)||camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<(state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45);}
 function atColdRoom(){return inStorageWing("cold",camera.position.x,camera.position.z)||camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
 function atElectronicsReserve(){
  const {x,z}=camera.position;
- return inStorageWing("electronics",x,z)||!!state.upgrades.store2&&x>=15.3&&x<20.35&&z>30.75&&z<43.7;
+ return x>14.4&&x<19.2&&z>-22.5&&z<-9.5||inStorageWing("electronics",x,z)||!!state.upgrades.store2&&x>=15.3&&x<20.35&&z>30.75&&z<43.7;
 }
 function currentStorageKind(){
  if(atElectronicsReserve())return "electronics";
@@ -4167,7 +4169,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.14.74 : le couloir logistique possède deux portes distinctes sur son
+// V0.14.75 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4177,7 +4179,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0,true); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.14.74 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.14.75 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4185,12 +4187,64 @@ cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 for(const z of [-12.6,-10.0])cube(24.24,1.65,z,.095,3.3,.10,0x64748b);
 cube(24.24,3.33,-11.3,.095,.12,2.65,0x64748b);
 cube(24.27,.035,-11.3,.52,.035,2.55,0x94a3b8);
-const storageAccessDoor=cube(24.1,1.65,-11.3,.12,3.3,2.48,0x475569,true);
-cube(24.205,1.55,-10.33,.05,.28,.055,0xcbd5e1);
+// Vantail ouvert vers la pièce : le passage est utilisable.
+const storageAccessDoor=cube(23.83,1.65,-12.43,.58,3.3,.075,0x475569);
+cube(23.55,1.55,-12.395,.05,.28,.09,0xcbd5e1);
 const storageAccessSign=brandPanel("STOCKAGE SEC","& ÉLECTRONIQUE",2.75,.68);
 storageAccessSign.position.set(24.29,4.04,-11.3);
 storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
+// V0.14.75 : pièce commune derrière la porte, deux zones séparées.
+// x=14.4..24.1 ; z=-22.5..-9.5, hors salle de pause et couloir.
+cube(19.25,-.15,-16,9.7,.30,13,0xb9c1c8);
+tileFloor(9.35,12.65,19.25,-16);
+cube(19.25,5.1,-16,9.7,.20,13,0xf1f5f9);
+cube(14.4,2.5,-16,.25,5,13,0xe2e8f0,true);
+cube(19.25,2.5,-22.5,9.7,5,.25,0xe2e8f0,true);
+cube(19.25,2.5,-9.5,9.7,5,.25,0xe2e8f0,true);
+// Cloison centrale : produits secs côté entrée, électronique à l'ouest.
+// Porte intérieure de 2,4 m (z=-14.7..-12.3).
+cube(19.2,2.5,-18.6,.23,5,7.8,0xdbeafe,true);
+cube(19.2,2.5,-10.9,.23,5,2.8,0xdbeafe,true);
+cube(19.2,4.2,-13.5,.23,1.6,2.4,0xdbeafe,true);
+for(const z of [-14.7,-12.3])cube(19.2,1.65,z,.09,3.3,.09,0x64748b);
+// Douze dalles LED connectées aux circuits de stockage.
+for(const [kind,xs] of [["dry",[20.5,22.6]],["electronics",[15.7,17.8]]])
+ for(const x of xs)for(const z of [-12,-16,-20]){
+  cube(x,4.93,z,1.60,.055,.52,0x94a3b8);
+  cube(x,4.89,z,1.47,.026,.42,0xfff7db).material=zonePanel(kind);
+ }
+// Cinq caméras visibles : quatre angles et point central.
+function roomCamera(x,z,angle){
+ const group=new THREE.Group();group.position.set(x,4.58,z);group.rotation.y=angle;scene.add(group);
+ const mat=standardMaterial({color:0xe2e8f0,metalness:.25});
+ const body=new THREE.Mesh(new THREE.BoxGeometry(.22,.18,.32),mat);group.add(body);
+ const arm=new THREE.Mesh(new THREE.BoxGeometry(.05,.36,.05),mat);arm.position.y=.23;group.add(arm);
+ const lens=new THREE.Mesh(new THREE.CylinderGeometry(.075,.075,.055,12),standardMaterial({color:0x0f172a}));
+ lens.rotation.x=Math.PI/2;lens.position.z=.18;group.add(lens);
+ const led=new THREE.Mesh(new THREE.SphereGeometry(.025,8,6),new THREE.MeshBasicMaterial({color:0x22c55e}));
+ led.position.set(.075,.03,.15);group.add(led);
+}
+for(const [x,z,a] of [[14.85,-10.2,.8],[23.45,-10.2,-.8],[14.85,-21.8,2.4],[23.45,-21.8,-2.4],[19.3,-16,1.57]])roomCamera(x,z,a);
+// Racks 3 niveaux, collisions et emplacements réels pour les cartons.
+function newRoomRack(kind,x,z){
+ for(const y of [.62,1.62,2.62]){
+  cube(x,y,z,.83,.075,1.65,0x94a3b8);
+  cube(x,y+.065,z+.80,.83,.065,.035,0x64748b);
+ }
+ for(const dx of [-.38,.38])for(const dz of [-.79,.79])cube(x+dx,1.67,z+dz,.055,3.34,.055,0x64748b);
+ cube(x,3.35,z,.83,.07,1.65,0x64748b);
+ colliders.push({minX:x-.45,maxX:x+.45,minZ:z-.84,maxZ:z+.84});
+ addStorageRack(kind,x,z,[.62,1.62,2.62],1.55,Math.PI/2,{newStorageRoom:true});
+}
+for(const z of [-12,-15,-18,-21]){
+ for(const x of [20.35,22.55])newRoomRack("dry",x,z);
+ for(const x of [15.65,17.7])newRoomRack("electronics",x,z);
+}
+const dryRoomSign=brandPanel("RÉSERVE SÈCHE","PRODUITS SECS",2.1,.58);
+dryRoomSign.position.set(22.2,4.1,-22.3);scene.add(dryRoomSign);
+const electronicsRoomSign=brandPanel("ÉLECTRONIQUE","STOCKAGE",2.1,.58);
+electronicsRoomSign.position.set(16.7,4.1,-22.3);scene.add(electronicsRoomSign);
 cube(25.65,5.1,-8.3,3.1,.2,31.4,0xf1f5f9);
 // Annexe du personnel à l'ouest du couloir logistique, hors des axes des livraisons.
 cube(20.95,-.15,-6,6.3,.3,6,0xa8b5c6);
@@ -5071,6 +5125,8 @@ function blocked(x,z,r=.4){
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>3.35+r&&z<7.55-r;
  const serviceDoor=x>23.65&&x<25.3&&z>3.35+r&&z<7.55-r;
  const serviceCorridor=x>24.0&&x<29.7&&z>-24.0&&z<7.4;
+ const newStorageRoom=x>14.55+r&&x<23.97&&z>-22.35+r&&z<-9.65-r;
+ const newStorageDoor=x>23.4&&x<24.5&&z>-12.5+r&&z<-10.1-r;
  const logisticsAccess=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>24.3&&x<39&&z>-14.0&&z<8.0;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
@@ -5086,7 +5142,7 @@ function blocked(x,z,r=.4){
  const link=autoLinkOpen()&&x>-35.85+r&&x<-30+r&&z>GALLERY_LINK_Z-1.35+r&&z<SHOWROOM_LINK_Z+1.35-r;
  const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
- if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
+ if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  return candidates?.some(c=>x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ&&
   !c.disabled&&contentVisible(c)&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&
@@ -6714,4 +6770,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.74 !");
+animate();toast("Business Empire Simulator V0.14.75 !");
