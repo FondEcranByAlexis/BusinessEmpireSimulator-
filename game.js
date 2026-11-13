@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.2";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.2";
-// Business Empire Simulator V0.14.2 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.3";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.3";
+// Business Empire Simulator V0.14.3 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -104,8 +104,12 @@ DEPARTMENTS.forEach((department,index)=>{
 const CAPACITY=30, BOX_UNITS=10;
 const FRONT_HALL="checkoutHall", AUTO_SHOWROOM="autoShowroom";
 const HALL_WEST=-40;
+const DIRECTOR_LEVEL=15, SECURITY_LEVEL=22, SELF_HELP_LEVEL=26, SELF_HELP_WAGE=65;
+const DIRECTOR_DESK={x:-12.2,z:-4.3}, SECURITY_DESK={x:-13,z:8.1};
+const EXIT_GATE={x:0,z:9.1};
+const TAGGED_PRODUCTS=new Set(["smartphones","tablettes","ordinateurs","drones","appareils_photo","consoles_jeu"]);
 const EMPLOYEE_DEFAULTS={
- baker:"Louis",picker:"Nina",builder1:"Antoine",builder2:"Yanis",
+ baker:"Louis",picker:"Nina",selfHelp:"Émilie",builder1:"Antoine",builder2:"Yanis",
  main:"Sofia",second:"Hugo",
  lane3:"Lina",lane4:"Arthur",lane5:"Inès",lane6:"Noah",lane7:"Jade",lane8:"Adam",lane9:"Emma",lane10:"Lucas",
  shelf1:"Léa",shelf2:"Nathan",shelf3:"Chloé",shelf4:"Gabriel",shelf5:"Manon",
@@ -113,6 +117,7 @@ const EMPLOYEE_DEFAULTS={
  dock1:"Karim",dock2:"Tom",dock3:"Youssef",dock4:"Maxime",dock5:"Romain",
  security1:"Malik",security2:"Aïcha",security3:"Victor",security4:"Maya"
 };
+const WOMEN_ON_STAFF=new Set(["main","lane3","lane5","lane7","lane9","shelf1","shelf3","shelf5","shelf7","shelf9","security2","security4","selfHelp"]);
 function employeeName(id){return state.employeeNames[id]??EMPLOYEE_DEFAULTS[id];}
 const STAFF_PLANS={
  shelf:{label:"Mise en rayon",levels:[12,14,17,20,23,27,31,36,42,48],wage:60,training:"shelfTraining"},
@@ -551,6 +556,9 @@ function staffMilestones(level){
   const index=plan.levels.indexOf(level);
   return index<0?[]:[plan.label+" · poste "+(index+1)+" disponible au recrutement"];
  });
+ if(level===DIRECTOR_LEVEL)notes.push("Bureau du directeur · après ouverture du hall des caisses");
+ if(level===SECURITY_LEVEL)notes.push("Poste de sécurité et portiques antivol · après ouverture du hall des caisses");
+ if(level===SELF_HELP_LEVEL)notes.push("Assistance libre-service · recrutement de "+employeeName("selfHelp")+" · "+euro(SELF_HELP_WAGE)+" par journée de service");
  if(level===20)notes.push("Recrutement aux caisses 1 et 2");
  for(const register of extraRegisters){
   if(register.hall&&register.level===level)notes.push(register.label+" · après ouverture du hall des caisses");
@@ -1448,7 +1456,7 @@ function showEmployeeNames(role,title){
   }
  }
  if(role==="other"){
-  for(const [id,label] of [["baker","Boulanger"],["picker","Préparateur de commandes"],["builder1","Ouvrier de chantier 1"],["builder2","Ouvrier de chantier 2"]]){
+  for(const [id,label] of [["baker","Boulanger"],["picker","Préparateur de commandes"],["selfHelp","Assistance libre-service"],["builder1","Ouvrier de chantier 1"],["builder2","Ouvrier de chantier 2"]]){
    fields.push([id,nameField(label,employeeName(id)),EMPLOYEE_DEFAULTS[id]]);
   }
  }
@@ -2313,6 +2321,7 @@ function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
  hallGate.visible=!state.upgrades[FRONT_HALL];
  hallGroup.visible=!!state.upgrades[FRONT_HALL];
+ directorRoom.visible=directorOpen();securityStation.visible=exitPorticoes.visible=securityOpen();
  intimateSign.visible=adultContentAllowed()&&playerLevel()>=ADULT_LEVEL&&!!state.upgrades.intimateLicense;
  showroomGroup.visible=!!state.upgrades[AUTO_SHOWROOM];
  showroomGate.visible=!!state.upgrades[FRONT_HALL]&&!state.upgrades[AUTO_SHOWROOM];
@@ -2959,6 +2968,50 @@ mallSign(showroomGroup,"FBA AUTOMOBILE","COMMANDES ET VENTES · INTERAGIR AU COM
 mallPart(showroomGroup,-20,.54,-17,2.1,1.08,.74,hallTrim);
 mallPart(showroomGroup,-20,1.1,-17,2.2,.1,.84,mallWallMaterial);
 colliders.push({minX:-21.1,maxX:-18.9,minZ:-17.42,maxZ:-16.58,requiresUpgrade:AUTO_SHOWROOM});
+const directorRoom=new THREE.Group(),securityStation=new THREE.Group();
+hallGroup.add(directorRoom,securityStation);
+function serviceFurniture(group,x,y,z,w,h,d,material,solid=false,level=DIRECTOR_LEVEL){
+ mallPart(group,x,y,z,w,h,d,material);
+ if(solid)colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2,level,requiresUpgrade:FRONT_HALL});
+}
+const officeWood=new THREE.MeshStandardMaterial({color:0x99684c,roughness:.6});
+const officeGlass=new THREE.MeshStandardMaterial({color:0x9bcde8,transparent:true,opacity:.26,depthWrite:false});
+serviceFurniture(directorRoom,-12.35,1.55,-5.5,4.55,3.1,.16,hallTrim,true);
+serviceFurniture(directorRoom,-14.6,1.45,-3.8,.14,2.9,3.4,officeGlass,true);
+serviceFurniture(directorRoom,-12.2,.52,-4.3,2.15,1.04,.77,officeWood,true);
+serviceFurniture(directorRoom,-12.2,1.08,-4.3,2.28,.10,.88,hallTrim);
+serviceFurniture(directorRoom,-12.4,1.31,-4.48,.58,.39,.09,hallTrim);
+serviceFurniture(directorRoom,-12.4,1.32,-4.426,.50,.31,.012,hallLight);
+serviceFurniture(directorRoom,-12.4,1.15,-4.07,.48,.045,.20,mallWallMaterial);
+serviceFurniture(directorRoom,-12.2,.47,-5.1,.55,.10,.57,hallTrim);
+serviceFurniture(directorRoom,-12.2,.8,-5.37,.55,.68,.10,hallTrim);
+serviceFurniture(directorRoom,-10.35,1.05,-4.6,.48,2.10,1.35,officeWood,true);
+mallSign(directorRoom,"BUREAU DU DIRECTEUR","FINANCES · PERSONNEL · STOCKS",-12.2,-5.36,0,3.85);
+serviceFurniture(securityStation,-13,.50,8.1,2,1,.68,hallTrim,true,SECURITY_LEVEL);
+serviceFurniture(securityStation,-13,1.05,8.1,2.12,.09,.79,mallWallMaterial);
+serviceFurniture(securityStation,-13.29,1.30,8.29,.53,.38,.09,hallTrim);
+serviceFurniture(securityStation,-13.29,1.30,8.233,.45,.29,.015,hallLight);
+mallSign(securityStation,"POSTE DE SÉCURITÉ","ALERTES DES PORTIQUES",-13,9.2,0,3.5).rotation.y=Math.PI;
+const exitPorticoes=new THREE.Group();scene.add(exitPorticoes);
+const gateIndicator=new THREE.MeshBasicMaterial({color:0x4ade80});
+for(const x of [-1.68,1.68]){
+ mallPart(exitPorticoes,x,.94,EXIT_GATE.z,.12,1.88,.36,mallWallMaterial);
+ mallPart(exitPorticoes,x,1.87,EXIT_GATE.z,.13,.13,.37,gateIndicator);
+}
+function directorOpen(){return playerLevel()>=DIRECTOR_LEVEL&&!!state.upgrades[FRONT_HALL];}
+function securityOpen(){return playerLevel()>=SECURITY_LEVEL&&!!state.upgrades[FRONT_HALL];}
+function showDirectorOffice(){
+ if(!directorOpen())return;
+ openPanel("Bureau du directeur");
+ paragraph(state.storeName+" · Direction "+state.playerName);
+ for(const [label,action] of [
+  ["Bilan financier",showFinance],["Recrutement et équipes",()=>showTeamManagement()],
+  ["Présence et missions",showEmployeeOverview],["Stocks du magasin",showStocks],
+  ["Remarques des clients",showCustomerFeedback],["Calendrier et horaires",showCalendar]
+ ])button(panel,label,action);
+ if(securityOpen())button(panel,"Journal de sécurité",showSecurityDesk);
+}
+
 const AUTO_MODELS=[
  {id:"city",name:"FBA City",fuel:"Électrique",cost:12500,price:15900,x:-25.4,z:-18.3,color:0x0e7490},
  {id:"touring",name:"FBA Touring",fuel:"Thermique",cost:14200,price:17900,x:-14.6,z:-18.3,color:0xb91c1c},
@@ -4033,6 +4086,8 @@ function interact(){
  if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
  if(near(10.2,7.8,1.45)&&camera.position.x>10.2){toggleStockroomLights();return;}
  if(currentStorageKind()){showReserve();return;}
+ if(directorOpen()&&near(DIRECTOR_DESK.x,DIRECTOR_DESK.z,2.5)){showDirectorOffice();return;}
+ if(securityOpen()&&(near(SECURITY_DESK.x,SECURITY_DESK.z,2.15)||securityChecks.length&&near(EXIT_GATE.x,EXIT_GATE.z,2))){showSecurityDesk();return;}
  if(state.upgrades[AUTO_SHOWROOM]&&near(-20,-15.5,2.6)){showAutoService();return;}
  if(openDepartmentCount()&&near(0,MALL_PLAZA_Z,3)){showMallMap();return;}
  const register=activeRegisters().find(r=>near(r.x,r.z,1.65));
@@ -4415,6 +4470,7 @@ function updateTime(){
 }
 function makeCustomer(){
  const group=new THREE.Group();
+ const woman=Math.random()<.5;
  const shirts=[0xef4444,0x2563eb,0x16a34a,0xf59e0b,0x9333ea,0x0891b2,0x64748b];
  const skinTones=[0xf0c9a6,0xd9a884,0xb77c5c,0x8c593f];
  const hairColors=[0x251b18,0x553724,0x986d36,0x3a3435];
@@ -4430,10 +4486,16 @@ function makeCustomer(){
   const mesh=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),mat);
   mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);parent.add(mesh);return mesh;
  };
- rounded(shirt,0,1.25,0,.29,.42,.18);
+ rounded(shirt,0,1.25,0,woman?.255:.31,.42,.18);
  const head=new THREE.Group();head.position.set(0,1.78,0);group.add(head);
  rounded(skin,0,0,0,.17,.2,.16,head);
  rounded(hair,0,.115,.025,.174,.112,.16,head);
+ if(woman){
+  rounded(hair,0,-.08,.119,.165,.235,.098,head);
+  for(const side of [-1,1])rounded(hair,side*.145,-.079,.025,.061,.171,.097,head);
+ }else if(Math.random()<.48){
+  rounded(hair,0,-.112,-.102,.12,.072,.063,head);
+ }
  for(const side of [-1,1])rounded(shoes,side*.061,.022,-.147,.018,.014,.01,head);
  rounded(skin,0,-.025,-.155,.031,.035,.037,head);
  const limb=(x,y)=>{const pivot=new THREE.Group();pivot.position.set(x,y,0);group.add(pivot);return pivot;};
@@ -4491,7 +4553,7 @@ function makeCustomer(){
   const previous=i?route[i-1]:{x:0,z:12.5};
   return length+Math.hypot(point.x-previous.x,point.z-previous.z);
  },0);
- group.scale.setScalar(.85+Math.random()*.19);
+ group.scale.setScalar((woman?.89:.95)+Math.random()*.15);
  group.position.set(0,0,12.5);scene.add(group);
  customers.push({
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
@@ -4512,9 +4574,11 @@ function updateCustomerVisual(c,dt){
   if(id){const p=catalog.find(product=>product.id===id);if(p)item.material.color.setHex(p.color);}
  }
  c.basketGroup.visible=!c.paid&&c.phase!=="leaving";
- c.bagGroup.visible=c.phase==="leaving"&&c.paid;
+ c.bagGroup.visible=(c.phase==="leaving"||c.phase==="securityCheck")&&c.paid;
  c.head.rotation.y=Math.sin(c.visualClock*1.2)*.15;
- if(c.phase==="choosing"){
+ if(c.phase==="securityCheck"){
+  c.l.rotation.x=c.r.rotation.x=0;
+ }else if(c.phase==="choosing"){
   const product=catalog.find(p=>p.id===c.productId);
   if(product)faceNpc(c.group,product.x-c.group.position.x,product.z-c.group.position.z,dt);
   c.l.rotation.x*=Math.exp(-12*dt);c.r.rotation.x*=Math.exp(-12*dt);
@@ -4653,15 +4717,20 @@ function removeCustomer(c){
  const i=customers.indexOf(c);if(i!==-1)customers.splice(i,1);
 }
 // La file est un état indépendant : personne ne contourne la caisse côté personnel.
-function teamAvatar(role,x,z){
+function teamAvatar(role,x,z,woman=false){
  const group=new THREE.Group();
  const uniform=new THREE.MeshStandardMaterial({color:{shelf:0x168258,dock:0xe79b2f,security:0x263c56,checkout:0x185aa0}[role]});
  const skin=new THREE.MeshStandardMaterial({color:0xc89471});
  const dark=new THREE.MeshStandardMaterial({color:0x222936});
  const badge=new THREE.MeshStandardMaterial({color:role==="security"?0xf2bb49:0xe2e8f0});
- mallPart(group,0,1.22,0,.47,.63,.27,uniform);
+ mallPart(group,0,1.22,0,woman?.42:.49,.63,.27,uniform);
  mallPart(group,0,1.72,0,.28,.34,.28,skin);
  mallPart(group,0,1.89,.015,.30,.12,.31,dark);
+ if(woman){
+  mallPart(group,0,1.67,.14,.31,.39,.10,dark);
+  for(const side of [-1,1])mallPart(group,side*.137,1.68,.06,.07,.34,.16,dark);
+  group.scale.setScalar(.94);
+ }else mallPart(group,0,1.61,-.13,.16,.077,.05,dark);
  mallPart(group,.13,1.38,-.14,.12,.065,.02,badge);
  const legs=[-.12,.12].map(dx=>{
   const leg=new THREE.Group();leg.position.set(dx,.82,0);group.add(leg);
@@ -4678,7 +4747,7 @@ const teamUnits=Object.entries(STAFF_PLANS).flatMap(([role,plan])=>plan.levels.m
   role==="shelf"?[12.3+(index%3)*.58,4.8+Math.floor(index/3)*.7]:
   [index%2?1.3:-1.3,7.4-index*.65];
  return {role,id:role+(index+1),name:plan.label+" "+(index+1),level,wage:plan.wage,
-  ...teamAvatar(role,...start),route:[],delay:index*.44,patrol:index,cargo:null,target:null};
+  ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:index*.44,patrol:index,cargo:null,target:null};
 }));
 function markTeamWorked(role,id,wage){
  const worked=state.management.teamWorked??={};
@@ -4692,6 +4761,13 @@ function showTeamManagement(role="shelf"){
  }
  if(role==="checkout"){
   const roster=[{id:"main",label:"Caisse 1",level:20},...extraRegisters.filter(r=>!r.self&&!r.legacy)];
+  if(selfHelpUnlocked()){
+   const hired=!!state.management.selfHelp;
+   paragraph(employeeName("selfHelp")+" · Assistance libre-service · "+euro(SELF_HELP_WAGE)+" par journée de service");
+   button(panel,hired?"Suspendre l’assistance":"Recruter "+employeeName("selfHelp"),()=>{
+    state.management.selfHelp=!hired;save();showTeamManagement(role);
+   });
+  }
   const hired=roster.filter(r=>cashierHired(r.id)).length;
   paragraph(hired+" / 10 caissiers recrutés · 65 € par journée de service");
   for(const register of roster){
@@ -4798,7 +4874,7 @@ function updateExpandedTeam(dt){
   const shift=unit.role==="security"?[8,20]:unit.role==="dock"?workerShift():stockerShift();
   const active=!!state.management.team?.[unit.id]&&playerLevel()>=unit.level&&employeeWorking(shift);
   unit.group.visible=active;unit.carton.visible=!!unit.cargo;
-  if(!active)continue;
+  if(!active||unit===assignedGuard)continue;
   markTeamWorked(unit.role,unit.id,unit.wage);
   if(unit.route.length){
    const trained=unit.role==="shelf"&&state.upgrades.shelfTraining?1.1:
@@ -4850,7 +4926,7 @@ for(const register of extraRegisters){
   const stripe=mallPart(hallGroup,register.queueX,.02,z-.95,.78,.012,.10,laneStripe);
   register.meshes.push(stripe);
  }
- if(!register.self&&!register.legacy)register.staff=teamAvatar("checkout",x-.96,z+.15);
+ if(!register.self&&!register.legacy)register.staff=teamAvatar("checkout",x-.96,z+.15,WOMEN_ON_STAFF.has(register.id));
  const collider={minX:x-.59,maxX:x+.59,minZ:z-.77,maxZ:z+.77,level,
   requiresUpgrade:register.hall?FRONT_HALL:undefined,lockedBy:register.legacy||register.id==="second"?FRONT_HALL:undefined};
  colliders.push(collider);
@@ -4869,7 +4945,117 @@ function cashierOnDuty(id){
  return cashierHired(id)&&state.hour>=8&&state.hour<20&&(state.hour<lunch||state.hour>=lunch+1);
 }
 function autoCheckoutSeconds(count){return (2+count*.55)*(state.upgrades.checkoutTraining?.8:1);}
-const mainCashierAvatar=teamAvatar("checkout",7.42,7.48);
+const mainCashierAvatar=teamAvatar("checkout",7.42,7.48,true);
+
+const selfAssistant={...teamAvatar("checkout",-22.9,6.2,true),route:[],job:null,delay:0};
+selfAssistant.carton.visible=false;
+function selfHelpUnlocked(){return playerLevel()>=SELF_HELP_LEVEL&&!!state.upgrades[FRONT_HALL];}
+function resolveSelfIssue(register,client){
+ if(register.client!==client||!client.selfIssue)return;
+ client.selfIssue=null;
+ if(near(register.x,register.z,8))toast(register.label+" · borne dépannée");
+}
+function updateSelfHelp(dt){
+ const active=selfHelpUnlocked()&&state.management.selfHelp&&state.hour>=8&&
+  (state.hour<closingHour()&&(!isSunday()||state.sundayMode==="morning")||closing);
+ selfAssistant.group.visible=!!active;
+ if(!active){selfAssistant.route=[];selfAssistant.job=null;return;}
+ markTeamWorked("checkout","selfHelp",SELF_HELP_WAGE);
+ const agent=selfAssistant;
+ if(agent.job&&(agent.job.register.client!==agent.job.client||!agent.job.client.selfIssue)){
+  agent.job=null;agent.route=[];
+ }
+ if(!agent.job){
+  const register=activeRegisters().find(r=>r.self&&r.client?.selfIssue);
+  if(!register)return;
+  if(!teamRouteTo(agent,[register.queueX,register.queueZ+.8]))return;
+  agent.job={register,client:register.client};agent.delay=1.4;
+ }
+ if(agent.route.length){walkTeamRoute(agent,dt,2.5);return;}
+ for(const leg of agent.legs)leg.rotation.x=0;
+ agent.delay-=dt;
+ if(agent.delay<=0){
+  resolveSelfIssue(agent.job.register,agent.job.client);agent.job=null;
+ }
+}
+const securityChecks=[];
+let alarmAudio=null;
+function enableAlarmAudio(){
+ if(!window.AudioContext)return;
+ try{
+  alarmAudio??=new window.AudioContext();
+  if(alarmAudio.state==="suspended")alarmAudio.resume().catch(()=>{});
+ }catch(e){console.warn("Son du portique",e);}
+}
+function soundExitAlarm(){
+ if(alarmAudio?.state!=="running"||!near(EXIT_GATE.x,EXIT_GATE.z,18))return;
+ const start=alarmAudio.currentTime;
+ const tone=alarmAudio.createOscillator(),volume=alarmAudio.createGain();
+ tone.frequency.setValueAtTime(810,start);tone.frequency.setValueAtTime(630,start+.16);
+ volume.gain.setValueAtTime(.07,start);volume.gain.setValueAtTime(0,start+.13);
+ volume.gain.setValueAtTime(.07,start+.16);volume.gain.linearRampToValueAtTime(0,start+.31);
+ tone.connect(volume);volume.connect(alarmAudio.destination);
+ tone.start(start);tone.stop(start+.32);
+ tone.onended=()=>{tone.disconnect();volume.disconnect();};
+}
+document.addEventListener("pointerdown",enableAlarmAudio,{once:true});
+document.addEventListener("keydown",enableAlarmAudio,{once:true});
+function triggerSecurityCheck(customer){
+ customer.phase="securityCheck";customer.securityWait=0;
+ securityChecks.push(customer);
+ gateIndicator.color.setHex(0xef4444);soundExitAlarm();
+ customerComplaint(customer,"antivol","Le portique sonne. Mon achat est déjà payé.");
+ toast("Portique antivol · vérification du ticket au poste de sécurité");
+}
+function finishSecurityCheck(customer,checked=true){
+ const index=securityChecks.indexOf(customer);
+ if(index<0)return;
+ securityChecks.splice(index,1);
+ const product=catalog.find(p=>p.id===customer.activeTag);
+ const log=state.management.securityLog??=[];
+ log.unshift({day:state.day,product:product?.name??"Article",checked});
+ log.length=Math.min(log.length,20);
+ customer.activeTag=null;customer.securityChecked=true;customer.phase="leaving";
+ if(!securityChecks.length)gateIndicator.color.setHex(0x4ade80);
+ save();
+ if(checked)toast("Ticket vérifié · antivol retiré");
+}
+let assignedGuard=null,assignedIncident=null,guardDelay=0;
+function updateSecurityDesk(dt){
+ const incident=securityChecks[0];
+ if(!incident||assignedGuard&&!assignedGuard.group.visible){
+  assignedGuard=null;assignedIncident=null;return;
+ }
+ if(assignedIncident!==incident){
+  assignedGuard=teamUnits.filter(unit=>unit.role==="security"&&unit.group.visible).sort((a,b)=>
+   a.group.position.distanceToSquared(incident.group.position)-b.group.position.distanceToSquared(incident.group.position))[0];
+  if(!assignedGuard)return;
+  if(!teamRouteTo(assignedGuard,[.85,EXIT_GATE.z-.65])){assignedGuard=null;return;}
+  assignedIncident=incident;guardDelay=1.8;
+ }
+ if(assignedGuard.route.length){walkTeamRoute(assignedGuard,dt,2.6);return;}
+ for(const leg of assignedGuard.legs)leg.rotation.x=0;
+ guardDelay-=dt;
+ if(guardDelay<=0){
+  finishSecurityCheck(incident);
+  assignedGuard=null;assignedIncident=null;
+ }
+}
+function showSecurityDesk(){
+ if(!securityOpen())return;
+ openPanel("Poste de sécurité");
+ paragraph("Portiques de sortie · "+securityChecks.length+" contrôle(s) en attente.");
+ for(const customer of securityChecks){
+  const product=catalog.find(p=>p.id===customer.activeTag);
+  paragraph((product?.name??"Article")+" · achat payé, antivol encore actif");
+  button(panel,"Vérifier le ticket et retirer l’antivol",()=>{
+   finishSecurityCheck(customer);showSecurityDesk();
+  });
+ }
+ const log=state.management.securityLog??[];
+ if(log.length)paragraph("Derniers contrôles");
+ for(const entry of log)paragraph("Jour "+entry.day+" · "+entry.product+" · "+(entry.checked?"ticket vérifié":"client reparti avant le contrôle"));
+}
 
 function approachingCustomerCount(register){
  return customers.filter(c=>c.phase==="approachingQueue"&&c.auxRegister===register).length;
@@ -4889,6 +5075,11 @@ function showAuxiliaryCheckout(register){
  openPanel(register.label);
  if(register.self){
   paragraph("Borne autonome · 5 articles maximum.");
+  if(register.client?.selfIssue){
+   const client=register.client;
+   paragraph(client.selfIssue);
+   button(panel,"Dépanner la borne",()=>{resolveSelfIssue(register,client);showAuxiliaryCheckout(register);});
+  }
   paragraph(auxiliaryCustomerCount(register)+" client(s) à cette borne.");
   button(panel,"Actualiser",()=>showAuxiliaryCheckout(register));
   return;
@@ -4925,6 +5116,11 @@ function updateAuxiliaryQueue(client,dt){
  const register=client.auxRegister;
  if(!register)return;
  if(client.phase==="auxCheckout"){
+  if(register.self&&client.selfIssue){
+   client.selfWait+=dt;
+   if(client.selfWait>=45){sendToExit(client);}
+   return;
+  }
   if(register.self||cashierOnDuty(register.id)||closing&&cashierHired(register.id)){
    client.timer-=dt;
    if(client.timer<=0){
@@ -4950,6 +5146,11 @@ function updateAuxiliaryQueue(client,dt){
   register.queue.shift();register.client=client;client.phase="auxCheckout";client.scanned=0;
   const count=Object.values(client.basket).reduce((n,q)=>n+q,0);
   client.timer=register.self?3+count*.8:autoCheckoutSeconds(count);
+  if(register.self&&Math.random()<.22){
+   client.selfIssue=Math.random()<.5?"Article non reconnu par la balance.":"Code-barres illisible.";
+   client.selfWait=0;
+   customerComplaint(client,"selfHelp","J’ai besoin d’aide à la borne, s’il vous plaît !");
+  }
   client.navTarget=null;client.navRoute=null;
   if(near(register.x,register.z,5))toast("Client · "+register.label);
  }else if(client.queueStall>10)sendToExit(client);
@@ -4991,6 +5192,9 @@ function updateQueueApproach(c,dt){
  }
 }
 function sendToExit(c){
+ if(c.paid&&securityOpen()&&!c.securityChecked&&Object.keys(c.basket).some(id=>TAGGED_PRODUCTS.has(id))){
+  c.activeTag=Math.random()<.20?Object.keys(c.basket).find(id=>TAGGED_PRODUCTS.has(id)):null;
+ }
  if(!c.paid&&Object.keys(c.basket).length){
   for(const [id,quantity] of Object.entries(c.basket)){
    const p=catalog.find(product=>product.id===id),inventory=state.inventory[id];
@@ -5005,12 +5209,12 @@ function sendToExit(c){
   if(register.client===c)register.client=null;
   c.auxRegister=null;
   c.phase="leaving";c.waypoint=0;c.navTarget=null;c.navRoute=null;c.stuckTime=0;c.exitStall=0;
-  c.route=[{x:0,z:7.7},{x:0,z:12.5}];
+  c.route=[{x:0,z:7.7},EXIT_GATE,{x:0,z:12.5}];
   return;
  }
  const index=queue.indexOf(c);if(index>=0)queue.splice(index,1);
  c.phase="leaving";c.waypoint=0;c.navTarget=null;c.navRoute=null;c.stuckTime=0;c.exitStall=0;
- c.route=[{x:0,z:8.5},{x:0,z:12.5}];
+ c.route=[{x:0,z:8.5},EXIT_GATE,{x:0,z:12.5}];
 }
 function updateCustomers(dt){
  for(const c of [...customers]){
@@ -5115,11 +5319,17 @@ function updateCustomers(dt){
     (checkoutVisual?.customer!==c||(!checkoutVisual.models.length&&!belt?.refillDelay)))showCheckout();
 
    c.l.rotation.x=c.r.rotation.x=0;
+  }else if(c.phase==="securityCheck"){
+   c.securityWait+=dt;
+   if(c.securityWait>=45)finishSecurityCheck(c,false);
   }else if(c.phase==="leaving"){
    const t=c.route[c.waypoint];
    if(!t){removeCustomer(c);continue;}
    const x=c.group.position.x,z=c.group.position.z;
-   if(walk(c,t,dt)){c.waypoint++;c.exitStall=0;}
+   if(walk(c,t,dt)){
+    c.waypoint++;c.exitStall=0;
+    if(t===EXIT_GATE&&c.activeTag&&securityOpen())triggerSecurityCheck(c);
+   }
    else{
     const moved=Math.hypot(c.group.position.x-x,c.group.position.z-z)>.003;
     c.exitStall=moved?0:(c.exitStall||0)+dt;
@@ -5323,7 +5533,10 @@ function animate(){
  const smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
- if(!paused&&ageOverlay.style.display==="none"){movePlayer(dt);updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);updateExpandedTeam(dt);}
+ if(!paused&&ageOverlay.style.display==="none"){
+  movePlayer(dt);updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);
+  updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);
+ }
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
  updateGalleryRendering();
@@ -5338,4 +5551,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.2 !");
+animate();toast("Business Empire Simulator V0.14.3 !");
