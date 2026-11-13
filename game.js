@@ -12,6 +12,28 @@ const DEV_AUTHORIZED=localStorage.getItem("fba-dev-authorized")==="true";
 const DEV_MODE=DEV_AUTHORIZED&&localStorage.getItem("fba-dev-enabled")==="true";
 if(DEV_ACTIVATION==="activer")history.replaceState(null,"",location.pathname);
 const SAVE=DEV_MODE?DEV_SAVE:NORMAL_SAVE;
+const PLAYTIME_KEY="fba-dev-playtime-v1";
+let playtime={ms:0,running:false,splits:[],startLevel:1};
+try{const d=JSON.parse(localStorage.getItem(PLAYTIME_KEY));if(d&&Number.isFinite(d.ms))playtime={ms:Math.max(0,d.ms),running:false,splits:Array.isArray(d.splits)?d.splits:[],startLevel:d.startLevel||1};}catch(e){}
+let playtimeLast=performance.now(),playtimeSaved=playtimeLast;
+const playtimeHud=document.createElement("div");
+if(DEV_MODE){
+ playtimeHud.id="testPlaytimeHud";
+ playtimeHud.style.cssText="position:fixed;right:10px;top:8px;z-index:35;background:#0f172ae8;border:1px solid #38bdf8;border-radius:8px;padding:7px 10px;color:white;pointer-events:none;font:600 12px system-ui;font-variant-numeric:tabular-nums";
+ document.body.appendChild(playtimeHud);
+}
+function playtimeFormat(ms){const s=Math.floor(Math.max(0,ms)/1000);return [Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(n=>String(n).padStart(2,"0")).join(":");}
+function playtimeSave(){if(DEV_MODE)try{localStorage.setItem(PLAYTIME_KEY,JSON.stringify(playtime));}catch(e){}}
+function playtimeTick(){
+ const now=performance.now(),delta=Math.max(0,now-playtimeLast);playtimeLast=now;
+ if(!DEV_MODE)return;
+ const active=playtime.running&&!document.hidden&&!paused&&!contextLost&&(!ageOverlay||ageOverlay.style.display==="none");
+ if(active)playtime.ms+=delta;
+ playtimeHud.textContent="TEST "+playtimeFormat(playtime.ms)+" · "+(active?"EN COURS":playtime.running?"PAUSE":"ARRÊT");
+ if(now-playtimeSaved>=5000){playtimeSave();playtimeSaved=now;}
+}
+document.addEventListener("visibilitychange",()=>{playtimeLast=performance.now();playtimeSave();});
+window.addEventListener("pagehide",playtimeSave);
 const PROFILE_KEY="fba-age-profile", DEFAULT_STORE_NAME="FBA Supermarket";
 const ADULT_LEVEL=35;
 const birthYearNow=()=>new Date().getFullYear();
@@ -696,6 +718,10 @@ function checkLevelUp(){
  const current=playerLevel();
  const previous=state.lastNotifiedLevel||1;
  if(current<=previous)return;
+ if(DEV_MODE&&playtime.running&&!Number.isFinite(state.devLevel)){
+  for(let lvl=previous+1;lvl<=current;lvl++)if(!playtime.splits.some(s=>s.level===lvl))playtime.splits.push({level:lvl,ms:Math.round(playtime.ms)});
+  playtimeSave();
+ }
  pendingLevelNotices.push(current);
  state.lastNotifiedLevel=current;save();
  showNextLevelNotice();
@@ -928,6 +954,7 @@ function showTestReset(){
   if(!DEV_MODE)return;
   try{
    localStorage.setItem(DEV_SAVE,JSON.stringify(initial()));
+   playtime={ms:0,running:false,splits:[],startLevel:1};playtimeSave();
   }catch(e){
    console.warn("Réinitialisation du test",e);
    toast("Impossible d’enregistrer la nouvelle partie de test.");
@@ -936,6 +963,28 @@ function showTestReset(){
   location.reload();
  });
  button(panel,"Annuler",showDevTools);
+}
+function showPlaytime(){
+ if(!DEV_MODE)return;
+ openPanel("CHRONOMÈTRE — MODE TEST");
+ paragraph("Temps réel de jeu : "+playtimeFormat(playtime.ms));
+ paragraph("Le compteur exclut les pauses, les onglets inactifs et les suspensions. Il reste enregistré après fermeture.");
+ paragraph("Départ au niveau "+playtime.startLevel+" | Niveau actuel "+playerLevel());
+ button(panel,playtime.running?"⏸ Arrêter le chronomètre":"▶ Démarrer / reprendre",()=>{
+  playtimeLast=performance.now();
+  if(!playtime.running&&playtime.ms===0)playtime.startLevel=playerLevel();
+  playtime.running=!playtime.running;playtimeSave();showPlaytime();
+ });
+ paragraph("Relevés automatiques — niveaux franchis par les ventes :");
+ if(!playtime.splits.length)paragraph("Aucun relevé pour le moment.");
+ for(const s of playtime.splits.slice(-40))paragraph("Niveau "+s.level+" : "+playtimeFormat(s.ms));
+ button(panel,"Copier le bilan des temps",()=>{
+  const report=["FBA GAMES — Test chronométré","Temps : "+playtimeFormat(playtime.ms),"Niveau : "+playerLevel(),...playtime.splits.map(s=>"Niveau "+s.level+" : "+playtimeFormat(s.ms))].join("\n");
+  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(report).then(()=>toast("Bilan copié")).catch(()=>toast("Copie impossible"));
+  else toast("Presse-papiers indisponible");
+ });
+ button(panel,"Réinitialiser le chronomètre",()=>{playtime={ms:0,running:false,splits:[],startLevel:playerLevel()};playtimeSave();showPlaytime();});
+ button(panel,"← Retour aux outils test",showDevTools);
 }
 function showDevTools(){
  openPanel("FBA GAMES — MODE TEST");
@@ -961,7 +1010,9 @@ function showDevTools(){
   for(const p of unlockedProducts())state.inventory[p.id].shelf=shelfCapacity(p);
   sync();showDevTools();
  });
- button(panel,"Réinitialiser le mode test",showTestReset);
+ button(panel,"⏱ Chronomètre et temps par niveau",showPlaytime);
+  paragraph("Temps mesuré : "+playtimeFormat(playtime.ms));
+  button(panel,"Réinitialiser le mode test",showTestReset);
  button(panel,"Retour à la partie normale",()=>switchDevMode(false));
 }
 function showMainMenu(){
@@ -6419,6 +6470,7 @@ renderer.domElement.addEventListener("webglcontextrestored",()=>{
 });
 function animate(){
  requestAnimationFrame(animate);
+  playtimeTick();
  if(document.hidden||contextLost)return;
  if(refreshOnResume){
   refreshOnResume=false;
