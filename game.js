@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.65";
-import { installSurveillance } from "./surveillance.js?v=0.14.65";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.65";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.65";
-// Business Empire Simulator V0.14.65 — version synchronisée
+import { installCity } from "./city.js?v=0.14.66";
+import { installSurveillance } from "./surveillance.js?v=0.14.66";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.66";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.66";
+// Business Empire Simulator V0.14.66 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2311,6 +2311,22 @@ for(const x of [16.35,20.15]){
 }
 const coldSign=(()=>{const c=document.createElement("canvas");c.width=512;c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="#0c4a6e";ctx.fillRect(0,0,512,128);ctx.fillStyle="#e0f2fe";ctx.textAlign="center";ctx.font="bold 45px Arial";ctx.fillText("CHAMBRE FROIDE",256,80);const m=new THREE.Mesh(new THREE.PlaneGeometry(2.8,.7),new THREE.MeshBasicMaterial({map:gameTexture(c),side:THREE.DoubleSide}));m.position.set(15.08,4.1,5.45);m.rotation.y=-Math.PI/2;scene.add(m);return m;})();
 
+// Nouveau passage piéton à l'emplacement de la chambre froide retirée :
+// liaison entre la réserve existante (porte x=15.3) et le couloir logistique (x=24.1).
+// Sol continu, bordures de guidage, éclairage ; aucun obstacle dans l'axe.
+const coldToLogisticsPassage=[];
+function corridorPart(x,y,z,w,h,d,color){
+ const m=cube(x,y,z,w,h,d,color);
+ coldToLogisticsPassage.push(m);
+ return m;
+}
+corridorPart(19.7,-.13,5.45,8.75,.26,2.4,0x94a3b8);
+for(const z of [4.18,6.72]){
+ corridorPart(19.7,.09,z,8.75,.18,.08,0xf8fafc);
+}
+for(const x of [17.1,20.1,22.8]){
+ corridorPart(x,4.84,5.45,1.7,.06,.55,0xf8fafc);
+}
 // Suppression complète de la chambre froide, sans effacer les stocks sauvegardés.
 for(const mesh of scene.children.slice(removedColdMeshStart))mesh.visible=false;
 for(const hit of colliders.slice(removedColdColliderStart))hit.disabled=true;
@@ -3970,6 +3986,7 @@ function renderStorageCartons(product,loose,slots){
 function refreshBoxes(){
  for(const batch of storageBatches.values())batch.visible=false;
  for(const kind of STORAGE_KINDS){
+  if(kind==="cold"){storageOverflow[kind]=0;continue;} // Aucun carton visible dans la chambre froide retirée.
   const bays=storageBayCount(kind);
   const racks=storageRacks[kind].filter(rack=>(!rack.requiresUpgrade||state.upgrades[rack.requiresUpgrade])&&
    (rack.bay===undefined||rack.bay<bays)&&
@@ -5006,7 +5023,7 @@ function blocked(x,z,r=.4){
  // Le volume accessible suit les extensions physiques de la réserve.
  const reserveDepth=23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
- const cold=false; // Chambre froide retirée
+ const cold=x>15.55&&x<23.95&&z>4.25&&z<6.65; // Passage vers le couloir logistique
  const electronicsReserve=!STORAGE_REBUILD_PENDING&&state.upgrades.store2&&x>29.55&&x<34.05&&z>-6.25&&z<6.7;
  const relocatedDry=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>34.25&&x<38.85&&z>-6.55&&z<(state.upgrades.store2?0.35:-6.5);
  const electronicsReserveDoor=state.upgrades.store2&&x>30.55&&x<33.35&&z>-7.4&&z<-5.7;
@@ -6665,4 +6682,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.65 !");
+animate();toast("Business Empire Simulator V0.14.66 !");
