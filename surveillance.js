@@ -1,4 +1,4 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.29)
+// FBA Supermarket — PC de vidéosurveillance (V0.14.30)
 export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
@@ -97,7 +97,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  window.addEventListener("keydown",e=>{
   if(!opened)return;
   if(e.key==="Escape"){e.preventDefault();close();return;}
-  const keys={ArrowLeft:[-.08,0],ArrowRight:[.08,0],ArrowUp:[0,.07],ArrowDown:[0,-.07]};
+  const keys={ArrowLeft:[.08,0],ArrowRight:[-.08,0],ArrowUp:[0,.07],ArrowDown:[0,-.07]};
   if(keys[e.key]){e.preventDefault();adjust(...keys[e.key]);}
  });
  let drag=null;
