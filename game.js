@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.22";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.22";
-// Business Empire Simulator V0.14.22 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.23";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.23";
+// Business Empire Simulator V0.14.23 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1816,6 +1816,7 @@ function finishArticleScan(c,belt,slot,count,message){
  belt.items[slot]=null;
  if(belt.waiting.length)belt.refillDelay=.25;
  c.scanned++;
+ playSound("scan");
  renderCheckoutVisual(c);
  toast(message??(c.scanned===count?"Tous les articles sont scannés":"Bip ! Article scanné"));
  if(c.scanned===count)showPayment(c,count);
@@ -1841,6 +1842,7 @@ function completeCheckoutPayment(c,count,staffed=false){
  trackSale(c.basket,c.prices);
  c.paid=true;
  c.manualCheckout=!staffed;
+ if(!staffed&&c.paymentMethod==="cash")playSound("close");
  if(count>0)changeSatisfaction(c.waitPenalty?1:3);
  sync();finishCheckout(c,staffed);
  checkLevelUp();
@@ -1854,7 +1856,10 @@ function showPayment(c,count){
  checkoutText("FBA — MODE DE PAIEMENT",true);
  checkoutText("À régler : "+euro(c.total),true);
  checkoutText(c.paymentMethod==="cash"?"Le client paie en espèces.":"Le client paie par carte.");
- checkoutButton(c.paymentMethod==="cash"?"Ouvrir le tiroir-caisse":"Ouvrir le terminal bancaire",()=>c.paymentMethod==="cash"?showCashPayment(c,count):showCardPayment(c,count));
+ checkoutButton(c.paymentMethod==="cash"?"Ouvrir le tiroir-caisse":"Ouvrir le terminal bancaire",()=>{
+  if(c.paymentMethod==="cash"){playSound("open");showCashPayment(c,count);}
+  else showCardPayment(c,count);
+ });
  checkoutButton("Retour aux articles",showCheckout);
 }
 function showCardPayment(c,count){
@@ -4156,6 +4161,7 @@ function workerGo(point,phase){
  return workerRoute.length>0;
 }
 function workerReply(message,continueWork=false){
+ speakDialogue(message,"worker");
  panel.style.display="none";
  if(continueWork)workerTalking=false;
  const old=document.getElementById("fba-worker-reply");if(old)old.remove();
@@ -4174,7 +4180,9 @@ function showWorkerInteraction(){
  const old=document.getElementById("fba-worker-reply");if(old)old.remove();
  workerTalking=true;
  openPanel("DISCUSSION — "+state.workerName);
- paragraph(state.workerName+" : Salut "+state.playerName+" ! Tu as besoin de quelque chose ?");
+ const greeting="Salut "+state.playerName+" ! Tu as besoin de quelque chose ?";
+ paragraph(state.workerName+" : "+greeting);
+ speakDialogue(greeting,"worker");
  const p=workerCargo&&catalog.find(p=>p.id===workerCargo.id);
  paragraph("Présence : "+employeeStatus(state.workerHired,state.workerEnabled,state.workerSentHomeDay,workerShift())+".");
  paragraph("Mission : "+workerTaskLabel()+".");
@@ -4213,16 +4221,19 @@ function stockerTaskLabel(){
 }
 function showStockerInteraction(){
  stockerTalking=true;openPanel("DISCUSSION — "+state.stockerName);
- paragraph(state.stockerName+" : Salut "+state.playerName+" ! Je m’occupe des rayons.");
+ const greeting="Salut "+state.playerName+" ! Je m’occupe des rayons.";
+ paragraph(state.stockerName+" : "+greeting);
+ speakDialogue(greeting,"stocker");
  paragraph("Présence : "+employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift())+".");
  paragraph("Mission : "+stockerTaskLabel()+".");
- button(panel,"Tu fais quoi ?",()=>{panel.style.display="none";toast(state.stockerName+" : "+stockerTaskLabel());stockerTalking=false;});
- button(panel,"Des rayons ont besoin d’être remplis ?",()=>{panel.style.display="none";toast(state.stockerName+" : "+stockerTaskLabel());stockerTalking=false;});
- button(panel,"Reprends ton travail",()=>{
-  stockerTalking=false;panel.style.display="none";
-  toast(employeeOnLunch(stockerShift())?state.stockerName+" : Je reprends à 13 h !":state.stockerName+" : D’accord, je m’en occupe !");
- });
- button(panel,"Tu peux rentrer chez toi",()=>{state.stockerSentHomeDay=state.day;stockerTalking=false;panel.style.display="none";save();toast(state.stockerName+" : À demain !");});
+ const answer=message=>{
+  panel.style.display="none";stockerTalking=false;
+  toast(state.stockerName+" : "+message);speakDialogue(message,"stocker");
+ };
+ button(panel,"Tu fais quoi ?",()=>answer(stockerTaskLabel()));
+ button(panel,"Des rayons ont besoin d’être remplis ?",()=>answer(stockerTaskLabel()));
+ button(panel,"Reprends ton travail",()=>answer(employeeOnLunch(stockerShift())?"Je reprends à 13 h !":"D’accord, je m’en occupe !"));
+ button(panel,"Tu peux rentrer chez toi",()=>{state.stockerSentHomeDay=state.day;save();answer("À demain !");});
  button(panel,"Terminer",()=>{stockerTalking=false;panel.style.display="none";});
 }
 function stockerShelfPosition(p){
@@ -4579,10 +4590,12 @@ function interact(){
  if(register){showAuxiliaryCheckout(register);return;}
  if(fridgeDoor&&playerLevel()>=4&&near(-8.5,-3.5,2.4)){
   fridgeOpen=!fridgeOpen;fridgeDoor.rotation.y=fridgeOpen?-1.15:0;
+  playSound(fridgeOpen?"open":"close");
   toast(fridgeOpen?"Réfrigérateur ouvert":"Réfrigérateur fermé");return;
  }
  if(freezerLid&&playerLevel()>=4&&near(8.5,-3.5,3.1)){
   freezerOpen=!freezerOpen;freezerLid.rotation.z=freezerOpen?-.95:0;
+  playSound(freezerOpen?"open":"close");
   toast(freezerOpen?"Congélateur ouvert":"Congélateur fermé");return;
  }
  if(near(8.08,6.93,1.15)){toggleLights();return;}
@@ -4628,6 +4641,7 @@ function showSettings(){
   slider.value=String(DEFAULT_MOUSE_SENSITIVITY);
   saveSensitivity();
  });
+ button(panel,"Audio",showAudioSettings);
  button(panel,"Retour au menu",showMainMenu);
 }
 let mouseLookRequested=false,mouseLookFallback=false,mousePosition=null;
@@ -4947,6 +4961,7 @@ function employeeBreakLabel(journey){
  if(journey.stage==="returning")return "Retour vers son poste";
  return null;
 }
+let stepDistance=0;
 function movePlayer(dt){
  if(seatedAtCheckout||panel.style.display!=="none")return;
  const f=Number(keys.forward)-Number(keys.backward)-joyY,s=Number(keys.right)-Number(keys.left)+joyX;
@@ -4956,8 +4971,14 @@ function movePlayer(dt){
  const speed=baseSpeed*(state.upgrades.fastMovement?1.25:1)*dt;
  const dx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)/len*speed;
  const dz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)/len*speed;
+ const {x,z}=camera.position;
  if(!blocked(camera.position.x+dx,camera.position.z))camera.position.x+=dx;
  if(!blocked(camera.position.x,camera.position.z+dz))camera.position.z+=dz;
+ stepDistance+=Math.hypot(camera.position.x-x,camera.position.z-z);
+ if(stepDistance>=1.85){
+  stepDistance-=1.85;
+  playSound(z>10.4&&Math.abs(x)<PARKING_HALF_WIDTH?"stepOutside":"step");
+ }
 }
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
@@ -5544,27 +5565,128 @@ function updateSelfHelp(dt){
  }
 }
 const securityChecks=[];
-let alarmAudio=null;
-function enableAlarmAudio(){
- if(!window.AudioContext)return;
+const AUDIO_SETTINGS_KEY="fba-audio";
+const audioSettings={volume:.65,dialogue:true};
+try{
+ const saved=JSON.parse(localStorage.getItem(AUDIO_SETTINGS_KEY));
+ if(Number.isFinite(saved?.volume))audioSettings.volume=Math.min(1,Math.max(0,saved.volume));
+ if(typeof saved?.dialogue==="boolean")audioSettings.dialogue=saved.dialogue;
+}catch{}
+let gameAudio,gameAudioGain,gameNoise,lastDialogue=-Infinity;
+function enableGameAudio(){
+ const Audio=window.AudioContext??window.webkitAudioContext;
+ if(!Audio||gameAudio?.state==="running")return;
  try{
-  alarmAudio??=new window.AudioContext();
-  if(alarmAudio.state==="suspended")alarmAudio.resume().catch(()=>{});
- }catch(e){console.warn("Son du portique",e);}
+  if(!gameAudio){
+   gameAudio=new Audio();
+   gameAudioGain=gameAudio.createGain();
+   gameAudioGain.gain.value=audioSettings.volume;
+   gameAudioGain.connect(gameAudio.destination);
+   gameNoise=gameAudio.createBuffer(1,Math.ceil(gameAudio.sampleRate*.32),gameAudio.sampleRate);
+   const samples=gameNoise.getChannelData(0);
+   for(let i=0;i<samples.length;i++)samples[i]=Math.random()*2-1;
+  }
+  gameAudio.resume().catch(()=>{});
+ }catch(e){console.warn("Audio du magasin",e);}
+}
+document.addEventListener("pointerdown",enableGameAudio);
+document.addEventListener("keydown",enableGameAudio);
+function audioPulse(frequency,end,seconds,level,delay=0,noise=false){
+ const start=gameAudio.currentTime+delay;
+ const source=noise?gameAudio.createBufferSource():gameAudio.createOscillator();
+ const gain=gameAudio.createGain();
+ if(noise){
+  source.buffer=gameNoise;
+  const filter=gameAudio.createBiquadFilter();
+  filter.type="bandpass";filter.frequency.value=frequency;filter.Q.value=.65;
+  source.connect(filter);filter.connect(gain);
+ }else{
+  source.type="sine";
+  source.frequency.setValueAtTime(frequency,start);
+  source.frequency.exponentialRampToValueAtTime(end,start+seconds);
+  source.connect(gain);
+ }
+ gain.gain.setValueAtTime(.0001,start);
+ gain.gain.linearRampToValueAtTime(level,start+.006);
+ gain.gain.exponentialRampToValueAtTime(.0001,start+seconds);
+ gain.connect(gameAudioGain);
+ source.start(start);
+ source.stop(start+seconds);
+}
+function playSound(effect){
+ if(gameAudio?.state!=="running"||!audioSettings.volume)return;
+ switch(effect){
+  case "step":
+  case "stepOutside":{
+   const outside=effect==="stepOutside";
+   audioPulse((outside?1050:580)+Math.random()*180,0,outside?.145:.09,outside?.14:.19,0,true);
+   audioPulse(112,58,.077,.038);
+   break;
+  }
+  case "scan":audioPulse(1570,1420,.092,.09);break;
+  case "open":
+   audioPulse(590,0,.18,.13,0,true);
+   audioPulse(150,91,.073,.055);
+   break;
+  case "close":
+   audioPulse(390,0,.12,.15,.05,true);
+   audioPulse(125,63,.12,.08,.06);
+   break;
+  case "shopOpen":
+   audioPulse(570,0,.15,.09,0,true);
+   audioPulse(620,690,.13,.05,.04);
+   audioPulse(880,970,.15,.04,.14);
+   break;
+  case "shopClose":
+   audioPulse(290,0,.15,.14,.08,true);
+   audioPulse(790,660,.12,.045);
+   audioPulse(425,335,.18,.05,.12);
+   break;
+  case "alarm":
+   audioPulse(810,810,.13,.12);
+   audioPulse(630,630,.15,.12,.16);
+   break;
+ }
+}
+function speakDialogue(message,role,ambient=false){
+ const synth=window.speechSynthesis,Utterance=window.SpeechSynthesisUtterance;
+ if(!audioSettings.dialogue||!audioSettings.volume||!synth||!Utterance||document.hidden)return;
+ const now=performance.now();
+ if(ambient&&(synth.speaking||synth.pending||now-lastDialogue<6000))return;
+ if(!ambient)synth.cancel();
+ const line=new Utterance(message);
+ line.lang="fr-FR";line.volume=audioSettings.volume*(ambient?.48:.85);
+ const voice=synth.getVoices().find(voice=>voice.localService&&voice.lang==="fr-FR");
+ if(voice)line.voice=voice;
+ line.rate=role==="worker"?.95:1.03;line.pitch=role==="worker"?.84:role==="stocker"?1.13:1;
+ lastDialogue=now;synth.speak(line);
+}
+function saveAudioSettings(){
+ localStorage.setItem(AUDIO_SETTINGS_KEY,JSON.stringify(audioSettings));
+ if(gameAudioGain)gameAudioGain.gain.value=audioSettings.volume;
+ if(!audioSettings.volume||!audioSettings.dialogue)window.speechSynthesis?.cancel();
+}
+function showAudioSettings(){
+ openPanel("Audio");
+ const label=document.createElement("label"),value=document.createElement("span"),slider=document.createElement("input");
+ slider.type="range";slider.min="0";slider.max="100";slider.step="5";slider.value=String(Math.round(audioSettings.volume*100));
+ slider.style.cssText="display:block;width:100%;margin:12px 0;accent-color:#38bdf8";
+ value.textContent="Volume général · "+slider.value+" %";
+ slider.addEventListener("input",()=>{
+  audioSettings.volume=Number(slider.value)/100;
+  value.textContent="Volume général · "+slider.value+" %";
+  saveAudioSettings();
+ });
+ label.append(value,slider);panel.appendChild(label);
+ button(panel,"Voix des dialogues · "+(audioSettings.dialogue?"Activées":"Coupées"),()=>{
+  audioSettings.dialogue=!audioSettings.dialogue;saveAudioSettings();showAudioSettings();
+ });
+ button(panel,"Tester le son du scanner",()=>playSound("scan"));
+ button(panel,"Retour aux paramètres",showSettings);
 }
 function soundExitAlarm(){
- if(alarmAudio?.state!=="running"||!near(EXIT_GATE.x,EXIT_GATE.z,18))return;
- const start=alarmAudio.currentTime;
- const tone=alarmAudio.createOscillator(),volume=alarmAudio.createGain();
- tone.frequency.setValueAtTime(810,start);tone.frequency.setValueAtTime(630,start+.16);
- volume.gain.setValueAtTime(.07,start);volume.gain.setValueAtTime(0,start+.13);
- volume.gain.setValueAtTime(.07,start+.16);volume.gain.linearRampToValueAtTime(0,start+.31);
- tone.connect(volume);volume.connect(alarmAudio.destination);
- tone.start(start);tone.stop(start+.32);
- tone.onended=()=>{tone.disconnect();volume.disconnect();};
+ if(near(EXIT_GATE.x,EXIT_GATE.z,18))playSound("alarm");
 }
-document.addEventListener("pointerdown",enableAlarmAudio,{once:true});
-document.addEventListener("keydown",enableAlarmAudio,{once:true});
 function triggerSecurityCheck(customer){
  customer.phase="securityCheck";customer.securityWait=0;
  securityChecks.push(customer);
@@ -5693,7 +5815,7 @@ function showAuxiliaryCheckout(register){
   const product=catalog.find(p=>p.id===items[client.scanned]);
   button(panel,"Scanner · "+product.name,()=>{
    if(!registerOpen(register)||register.client!==client)return;
-   client.scanned++;showAuxiliaryCheckout(register);
+   client.scanned++;playSound("scan");showAuxiliaryCheckout(register);
   });
  }else button(panel,"Encaisser "+euro(client.total),()=>{
   if(payAuxiliaryCheckout(register,client))showAuxiliaryCheckout(register);
@@ -6027,10 +6149,10 @@ openButton.addEventListener("click",()=>{
  if(state.hour<OPEN_HOUR){toast("Ouverture possible à 08:00");return;}
  if(isSunday()&&state.sundayMode==="closed"){toast("Dimanche fermé : change les horaires sur le PC");return;}
  if(shopOpen){
-  shopOpen=false;updateOpen();toast("Fermé aux nouveaux clients");return;
+  shopOpen=false;updateOpen();playSound("shopClose");toast("Fermé aux nouveaux clients");return;
  }
  if(state.hour>=closingHour()){toast("Horaire de fermeture dépassé");return;}
- dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();toast("Magasin ouvert — affluence "+customerTraffic().label.toLowerCase());
+ dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();playSound("shopOpen");toast("Magasin ouvert — affluence "+customerTraffic().label.toLowerCase());
 });
 function business(dt){
  // Le joueur prépare son magasin entre 7 h et 8 h.
@@ -6052,7 +6174,7 @@ function business(dt){
     makeCustomer();spawnTimer=nextCustomerDelay();
    }
   }
-  if(shopOpen&&state.hour>=closingHour()){shopOpen=false;toast("Heure de fermeture atteinte — derniers clients en caisse");}
+  if(shopOpen&&state.hour>=closingHour()){shopOpen=false;playSound("shopClose");toast("Heure de fermeture atteinte — derniers clients en caisse");}
   if(dayTimer>=DAY_SECONDS){
    state.hour=CLOSE_HOUR;shopOpen=false;closing=true;
    updateOpen();toast("20 h : fin de journée, derniers clients en caisse");
@@ -6112,6 +6234,7 @@ function customerComplaint(c,reason,message,penalty=0){
  else save();
  if(near(c.group.position.x,c.group.position.z,13)){
   nearbyComplaint={c,time:3.6};feedbackBubble.textContent=message;
+  if(near(c.group.position.x,c.group.position.z,5))speakDialogue(message,"customer",true);
  }
 }
 function showCustomerFeedback(){
@@ -6196,6 +6319,7 @@ const clock=new THREE.Clock();
 let contextLost=false,refreshOnResume=false;
 function refreshWhenVisible(){
  if(!document.hidden)refreshOnResume=true;
+ else window.speechSynthesis?.cancel();
 }
 document.addEventListener("visibilitychange",refreshWhenVisible);
 window.addEventListener("pageshow",refreshWhenVisible);
@@ -6242,4 +6366,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.22 !");
+animate();toast("Business Empire Simulator V0.14.23 !");
