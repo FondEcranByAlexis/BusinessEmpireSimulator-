@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.4";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.4";
-// Business Empire Simulator V0.14.4 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.5";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.5";
+// Business Empire Simulator V0.14.5 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -37,7 +37,7 @@ const catalog=[
  {id:"farine",name:"Farine",cost:3,price:7,color:0xfde68a,x:5,z:1,starter:true},
  {id:"riz",name:"Riz",cost:4,price:8,color:0xfde68a,x:-8.5,z:-7,level:2,kind:"sec"},
  {id:"conserves",name:"Conserves",cost:4,price:9,color:0xf97316,x:-6.7,z:-8.85,level:2,kind:"wall",rotation:0},
- {id:"papier",name:"Papier toilette",cost:5,price:11,color:0xe2e8f0,x:-6.75,z:8.95,level:2,kind:"wall",rotation:2},
+ {id:"papier",name:"Papier toilette",cost:5,price:11,color:0xe2e8f0,x:6.6,z:-8.85,level:2,kind:"wall",rotation:0},
  {id:"biscuits",name:"Biscuits",cost:5,price:11,color:0xf59e0b,x:8.5,z:-7,level:3,kind:"sec"},
  {id:"fromage",name:"Fromage",cost:8,price:17,color:0xfef08a,x:-8.5,z:-3.5,level:4,kind:"froid"},
  {id:"surgeles",name:"Pizza surgelée",cost:9,price:20,color:0x60a5fa,x:8.5,z:-3.5,level:4,kind:"congelateur"},
@@ -1731,6 +1731,7 @@ function scanCheckoutArticle(slot){
 }
 function showCheckout(){
  if(!cashier){closeCheckoutUI();clearCheckoutVisual();return;}
+ if(!registerOpen()){toast("Caisse fermée · assieds-toi pour ouvrir le poste");return;}
  if(!seatedAtCheckout&&!near(6.5,6.5,3.5)){toast("Approche-toi de la caisse");return;}
  releaseMouseLook();
  panel.style.display="none";
@@ -2336,6 +2337,8 @@ function refreshExtension(){
  directorRoom.visible=directorOpen();securityStation.visible=exitPorticoes.visible=securityOpen();
  intimateSign.visible=adultContentAllowed()&&playerLevel()>=ADULT_LEVEL&&!!state.upgrades.intimateLicense;
  showroomGroup.visible=!!state.upgrades[AUTO_SHOWROOM];
+ autoLinkGroup.visible=autoLinkOpen();
+ showroomLinkGate.visible=!autoLinkOpen();galleryLinkGate.visible=!autoLinkOpen();galleryLinkSign.visible=autoLinkOpen();
  showroomGate.visible=!!state.upgrades[FRONT_HALL]&&!state.upgrades[AUTO_SHOWROOM];
  const electronicsUnlocked=!!state.upgrades.store2;
  extensionGate.visible=!unlocked;
@@ -2967,7 +2970,22 @@ mallPart(hallGroup,-14,2.5,-12,8,5,.24,mallWallMaterial);
 const showroomGate=mallPart(hallGroup,-20,2.5,-12,4,5,.24,hallTrim);
 mallPart(showroomGroup,-20,5.1,-17,20,.2,10,mallWallMaterial);
 mallPart(showroomGroup,-20,2.5,-22,20,5,.24,mallWallMaterial);
-for(const x of [-30,-10])mallPart(showroomGroup,x,2.5,-17,.24,5,10,mallWallMaterial);
+mallPart(showroomGroup,-10,2.5,-17,.24,5,10,mallWallMaterial);
+const SHOWROOM_LINK_Z=-16.5,GALLERY_LINK_Z=-58,AUTO_LINK_X=-33;
+mallPart(showroomGroup,-30,2.5,-20.25,.24,5,3.5,mallWallMaterial);
+mallPart(showroomGroup,-30,2.5,-13.75,.24,5,3.5,mallWallMaterial);
+const showroomLinkGate=mallPart(showroomGroup,-30,2.5,SHOWROOM_LINK_Z,.24,5,3,mallWallMaterial);
+const autoLinkGroup=new THREE.Group();scene.add(autoLinkGroup);
+function autoLinkOpen(){return !!(state.upgrades[AUTO_SHOWROOM]&&state.upgrades.annex3);}
+const linkLength=SHOWROOM_LINK_Z-GALLERY_LINK_Z+3,linkMiddle=(SHOWROOM_LINK_Z+GALLERY_LINK_Z)/2;
+autoLinkGroup.add(tileFloor(5.8,linkLength,AUTO_LINK_X,linkMiddle));
+mallPart(autoLinkGroup,AUTO_LINK_X,5.1,linkMiddle,6,.2,linkLength,mallWallMaterial);
+mallPart(autoLinkGroup,-36,2.5,linkMiddle,.24,5,linkLength,mallWallMaterial);
+for(const z of [SHOWROOM_LINK_Z+1.5,GALLERY_LINK_Z-1.5])mallPart(autoLinkGroup,AUTO_LINK_X,2.5,z,6,5,.24,mallWallMaterial);
+mallPart(autoLinkGroup,-30,2.5,linkMiddle,.24,5,linkLength-6,mallWallMaterial);
+for(let z=-20;z>GALLERY_LINK_Z;z-=5)mallPart(autoLinkGroup,AUTO_LINK_X,4.9,z,2.1,.06,.32,hallLight);
+mallSign(autoLinkGroup,"PLACE CENTRALE","PASSAGE GALERIE",AUTO_LINK_X,-21,0,4.7);
+mallSign(autoLinkGroup,"AUTOMOBILE","RETOUR VERS LE HALL DES CAISSES",AUTO_LINK_X,-54,Math.PI,4.7);
 for(const x of [-37,-31,-25,-19,-13])for(const z of [-8,-2,4]){
  mallPart(hallGroup,x,4.91,z,2.4,.065,.32,hallLight);
 }
@@ -3081,10 +3099,15 @@ mallPart(mallShell,0,-.16,mallCenter,2*MALL_HALF_WIDTH,.3,mallSize,mallFloorMate
 mallPart(mallShell,0,5.1,mallCenter,2*MALL_HALF_WIDTH,.2,mallSize,mallWallMaterial);
 mallPart(mallShell,0,2.5,MALL_MIN_Z,2*MALL_HALF_WIDTH,5,.3,mallWallMaterial);
 for(const side of [-1,1]){
- mallPart(mallShell,side*MALL_HALF_WIDTH,2.5,mallCenter,.3,5,mallSize,mallWallMaterial);
+ if(side===1)mallPart(mallShell,MALL_HALF_WIDTH,2.5,mallCenter,.3,5,mallSize,mallWallMaterial);
  mallPart(mallShell,side*16.65,2.5,ANNEX_ENTRY,26.7,5,.3,mallWallMaterial);
  mallPart(mallShell,side*3.05,.012,mallCenter,.09,.015,mallSize-2,guideMaterial);
 }
+for(const [a,b] of [[MALL_MIN_Z,GALLERY_LINK_Z-1.5],[GALLERY_LINK_Z+1.5,ANNEX_ENTRY]]){
+ mallPart(mallShell,-MALL_HALF_WIDTH,2.5,(a+b)/2,.3,5,b-a,mallWallMaterial);
+}
+const galleryLinkGate=mallPart(mallShell,-MALL_HALF_WIDTH,2.5,GALLERY_LINK_Z,.3,5,3,mallWallMaterial);
+const galleryLinkSign=mallSign(mallShell,"AUTOMOBILE","PASSAGE VERS LE SHOWROOM",-29.45,GALLERY_LINK_Z,Math.PI/2,2.9);
 mallPart(mallShell,0,.003,MALL_PLAZA_Z,31,.018,11,plazaMaterial);
 mallSign(mallShell,"GALERIE FBA","↑ PLACE CENTRALE · ← AILE OUEST · AILE EST →",0,ANNEX_ENTRY-2,0,6.5);
 mallSign(mallShell,"PLACE CENTRALE","← AILE OUEST · ↑ FOND DE GALERIE · AILE EST →",0,MALL_PLAZA_Z-3,0,7.5);
@@ -3258,6 +3281,8 @@ cube(6.5,1.13,6.5,3.1,.12,1.4,0x1e293b);
 // Écran et clavier côté employé (vers l'entrée, z positif), pas côté rayons.
 cube(7.3,1.45,6.5,.6,.55,.2,0x0f172a);
 const terminalScreen=cube(7.3,1.5,6.64,.48,.3,.045,0x22c55e);
+const mainClosedSign=shelfSign("CAISSE 1 · FERMÉE");
+mainClosedSign.position.set(6.55,2.03,6.38);scene.add(mainClosedSign);
 terminalScreen.material.emissive=new THREE.Color(0x064e3b);
 const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
 // V0.9.90 — Équipements réalistes de la caisse, purement visuels.
@@ -3400,6 +3425,7 @@ function sync(){
  });
  second.staff.group.position.x=x-.96;second.staff.group.position.z=z+.15;
  for(const register of extraRegisters)for(const mesh of register.meshes)mesh.visible=registerUnlocked(register);
+ updateRegisterIndicators();
  save();
 }
 // V0.4.2 — transport de cartons entiers, remplissage en lot
@@ -4051,7 +4077,7 @@ function sitAtCheckout(){
  if(seatedAtCheckout)return;
  releaseMouseLook();
  checkoutPreviousView={position:camera.position.clone(),yaw,pitch,targetYaw,targetPitch};
- seatedAtCheckout=true;panel.style.display="none";
+ seatedAtCheckout=true;panel.style.display="none";updateRegisterIndicators();
  camera.position.set(7.45,1.72,7.65);
  const look=new THREE.Vector3(6.1,1.32,6.35);
  const dx=look.x-camera.position.x,dz=look.z-camera.position.z;
@@ -4063,7 +4089,7 @@ function sitAtCheckout(){
 }
 function leaveCheckoutSeat(){
  if(!seatedAtCheckout)return;
- seatedAtCheckout=false;closeCheckoutUI();clearCheckoutVisual();
+ seatedAtCheckout=false;closeCheckoutUI();clearCheckoutVisual();updateRegisterIndicators();
  if(checkoutPreviousView){
   camera.position.copy(checkoutPreviousView.position);
   yaw=checkoutPreviousView.yaw;pitch=checkoutPreviousView.pitch;
@@ -4340,7 +4366,10 @@ function blocked(x,z,r=.4){
  const hallDoor=state.upgrades[FRONT_HALL]&&Math.abs(x+10)<1.35&&z>2.5+r&&z<7.5-r;
  const auto=state.upgrades[AUTO_SHOWROOM]&&x>-29.8+r&&x<-10.2-r&&z>-21.8+r&&z<-11.45;
  const autoDoor=state.upgrades[AUTO_SHOWROOM]&&Math.abs(x+20)<2-r&&Math.abs(z+12)<1.1;
- if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor))return true;
+ const link=autoLinkOpen()&&x>-35.85+r&&x<-30+r&&z>GALLERY_LINK_Z-1.35+r&&z<SHOWROOM_LINK_Z+1.35-r;
+ const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
+  (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
+ if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  return candidates?.some(c=>x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ&&
   !c.disabled&&contentVisible(c)&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&
@@ -4565,6 +4594,10 @@ function makeCustomer(){
  const choices=available.filter(p=>p===first||Math.hypot(p.x-first.x,p.z-first.z)<15).slice(0,count);
  const speed=1.35+Math.random()*.42;
  const route=[{x:0,z:8}];
+ if(autoLinkOpen()&&first?.department&&Math.random()<.45){
+  route.push({x:-11.8,z:5},{x:-20,z:-10.7},{x:-22.1,z:-14.6},{x:AUTO_LINK_X,z:SHOWROOM_LINK_Z},
+   {x:AUTO_LINK_X,z:GALLERY_LINK_Z},{x:-17.8,z:GALLERY_LINK_Z},{x:0,z:MALL_PLAZA_Z});
+ }
  for(const p of choices){
   const [x,z]=stockerShelfPosition(p);
   route.push({x,z,shop:p.id});
@@ -4940,6 +4973,9 @@ for(const register of extraRegisters){
   cube(x,1.32,z-.42,register.self?.49:.35,.31,.16,0x22c55e),
   cube(x+.48,1.23,z+.35,.10,.14,.49,0x94a3b8),
  ];
+ register.indicator=register.meshes[2];
+ register.closedSign=shelfSign(register.label.toUpperCase()+" · FERMÉE");
+ register.closedSign.position.set(x,1.56,z+.3);scene.add(register.closedSign);register.meshes.push(register.closedSign);
  const sign=shelfSign(register.label.toUpperCase());
  sign.position.set(x,2.25,z);scene.add(sign);register.meshes.push(sign);
  if(register.hall){
@@ -4963,6 +4999,19 @@ function cashierOnDuty(id){
  const offset=id==="main"?0:Number(id.replace("lane",""))||2;
  const lunch=offset%2===0?12:13;
  return cashierHired(id)&&state.hour>=8&&state.hour<20&&(state.hour<lunch||state.hour>=lunch+1);
+}
+function registerOpen(register){
+ return register?registerUnlocked(register)&&(register.self||cashierOnDuty(register.id)):seatedAtCheckout||cashierOnDuty("main");
+}
+function updateRegisterIndicators(){
+ for(const register of extraRegisters){
+  const open=registerOpen(register);
+  register.closedSign.visible=registerUnlocked(register)&&!open;
+  register.indicator.material.color.setHex(open?0x22c55e:0xef4444);
+ }
+ mainClosedSign.visible=!registerOpen();
+ terminalScreen.material.color.setHex(registerOpen()?0x22c55e:0xef4444);
+ terminalScreen.material.emissive.setHex(registerOpen()?0x064e3b:0x641510);
 }
 function autoCheckoutSeconds(count){return (2+count*.55)*(state.upgrades.checkoutTraining?.8:1);}
 const mainCashierAvatar=teamAvatar("checkout",7.42,7.48,true);
@@ -5086,13 +5135,18 @@ function auxiliaryCustomerCount(register){
 function showAuxiliaryRegisters(){
  openPanel("Caisses supplémentaires");
  for(const register of activeRegisters()){
-  button(panel,register.label+" · "+auxiliaryCustomerCount(register)+" client(s)",()=>showAuxiliaryCheckout(register));
+  button(panel,register.label+" · "+(registerOpen(register)?auxiliaryCustomerCount(register)+" client(s)":"Fermée"),()=>showAuxiliaryCheckout(register));
  }
  button(panel,"Recruter des caissiers",()=>showTeamManagement("checkout"));
 }
 function showAuxiliaryCheckout(register){
  if(!activeRegisters().includes(register))return;
  openPanel(register.label);
+ if(!registerOpen(register)){
+  paragraph("Caisse fermée · aucun caissier en service.");
+  button(panel,"Recrutement et équipes",()=>showTeamManagement("checkout"));
+  return;
+ }
  if(register.self){
   paragraph("Borne autonome · 5 articles maximum.");
   if(register.client?.selfIssue){
@@ -5113,7 +5167,7 @@ function showAuxiliaryCheckout(register){
  if(client.scanned<items.length){
   const product=catalog.find(p=>p.id===items[client.scanned]);
   button(panel,"Scanner · "+product.name,()=>{
-   if(register.client!==client)return;
+   if(!registerOpen(register)||register.client!==client)return;
    client.scanned++;showAuxiliaryCheckout(register);
   });
  }else button(panel,"Encaisser "+euro(client.total),()=>{
@@ -5121,7 +5175,7 @@ function showAuxiliaryCheckout(register){
  });
 }
 function payAuxiliaryCheckout(register,client){
- if(register.client!==client)return false;
+ if(!registerOpen(register)||register.client!==client)return false;
  const count=Object.values(client.basket).reduce((n,q)=>n+q,0);
  if(client.scanned<count)return false;
  if(count){
@@ -5141,7 +5195,7 @@ function updateAuxiliaryQueue(client,dt){
    if(client.selfWait>=45){sendToExit(client);}
    return;
   }
-  if(register.self||cashierOnDuty(register.id)||closing&&cashierHired(register.id)){
+  if(registerOpen(register)){
    client.timer-=dt;
    if(client.timer<=0){
     client.scanned=Object.values(client.basket).reduce((n,q)=>n+q,0);
@@ -5181,15 +5235,30 @@ function queueSpot(i,register){
  return {x:3.65,z:6.25-Math.min(i+Number(!!cashier),4)*.78};
 }
 function sendToQueue(c){
- if(c.phase==="approachingQueue"||c.phase==="queue"||c.phase==="checkout"||c.phase==="auxQueue"||c.phase==="auxCheckout")return;
+ if(c.phase==="waitingRegister"||c.phase==="approachingQueue"||c.phase==="queue"||c.phase==="checkout"||c.phase==="auxQueue"||c.phase==="auxCheckout")return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(count===0){sendToExit(c);return;}
- const register=activeRegisters().filter(r=>r.self||r.legacy?count<=5:cashierOnDuty(r.id)||r.id==="second"&&!state.upgrades[FRONT_HALL])
-  .sort((a,b)=>auxiliaryCustomerCount(a)-auxiliaryCustomerCount(b))[0];
- if(register&&auxiliaryCustomerCount(register)<queue.length+Number(!!cashier)+approachingCustomerCount()){
-  c.auxRegister=register;
- }
+ c.phase="waitingRegister";c.registerWait=0;
+ assignOpenRegister(c,count);
+}
+function assignOpenRegister(c,count=Object.values(c.basket).reduce((n,q)=>n+q,0)){
+ const available=activeRegisters().filter(r=>registerOpen(r)&&(!r.self||count<=5));
+ available.sort((a,b)=>auxiliaryCustomerCount(a)-auxiliaryCustomerCount(b));
+ const mainOpen=registerOpen();
+ if(!mainOpen&&!available.length)return;
+ const best=available[0],mainLoad=queue.length+Number(!!cashier)+approachingCustomerCount();
+ c.auxRegister=best&&(!mainOpen||auxiliaryCustomerCount(best)<mainLoad)?best:undefined;
  c.phase="approachingQueue";c.queueStall=0;c.checkoutApproach=null;c.navTarget=null;c.navRoute=null;
+}
+function redirectClosedRegister(c){
+ const register=c.auxRegister,line=register?.queue??queue;
+ const index=line.indexOf(c);
+ if(index>=0)line.splice(index,1);
+ if(register?.client===c)register.client=null;
+ if(c===cashier){cashier=null;closeCheckoutUI();clearCheckoutVisual();}
+ c.auxRegister=undefined;c.phase="waitingRegister";c.registerWait=0;c.scanned=0;c.belt=null;
+ c.selfIssue=null;c.navTarget=null;c.navRoute=null;c.checkoutElapsed=0;
+ assignOpenRegister(c);
 }
 function updateQueueApproach(c,dt){
  const register=c.auxRegister,line=register?.queue??queue;
@@ -5239,7 +5308,19 @@ function sendToExit(c){
 function updateCustomers(dt){
  for(const c of [...customers]){
   updateCustomerVisual(c,dt);
+  if(c.phase==="waitingRegister"){
+   assignOpenRegister(c);
+   if(c.phase==="waitingRegister"){
+    c.registerWait+=dt;
+    if(c.registerWait>=12)customerComplaint(c,"closed","Il n’y a aucune caisse ouverte.");
+    if(c.registerWait>=45||closing)sendToExit(c);
+   }
+   continue;
+  }
   const inLine=c.phase==="queue"||c.phase==="auxQueue";
+  if((inLine||c.phase==="approachingQueue"||c.phase==="checkout"||c.phase==="auxCheckout")&&!registerOpen(c.auxRegister)){
+   redirectClosedRegister(c);continue;
+  }
   if(inLine||c.phase==="checkout"||c.phase==="auxCheckout"){
    c.queueElapsed+=dt;
    if(!inLine)c.checkoutElapsed+=dt;
@@ -5247,14 +5328,6 @@ function updateCustomers(dt){
     c.waitPenalty=true;customerComplaint(c,"wait",inLine?"C’est long, cette file n’avance pas !":"Ça fait un moment que j’attends pour payer.",-3);
    }
    if(inLine&&c.queueElapsed>75){sendToExit(c);continue;}
-   if(c.checkoutElapsed>100){
-    if(c.phase==="auxCheckout"&&c.auxRegister&&!c.auxRegister.self&&!cashierOnDuty(c.auxRegister.id)){
-     sendToExit(c);continue;
-    }
-    if(c===cashier&&!seatedAtCheckout&&checkoutUI.style.display==="none"&&!cashierOnDuty("main")&&!(closing&&cashierHired("main"))){
-     finishCheckout(c,true);continue;
-    }
-   }
   }
   if(c.phase==="shopping"){
    c.shoppingTime=(c.shoppingTime||0)+dt;
@@ -5319,7 +5392,7 @@ function updateCustomers(dt){
     }else c.l.rotation.x=c.r.rotation.x=0;
    }
   }else if(c.phase==="checkout"){
-   if(c===cashier&&!seatedAtCheckout&&!checkoutVisual&&(cashierOnDuty("main")||closing&&cashierHired("main"))){
+   if(c===cashier&&!seatedAtCheckout&&!checkoutVisual&&cashierOnDuty("main")){
     c.timer-=dt;
     if(c.timer<=0){
      markTeamWorked("checkout","main",65);
@@ -5555,7 +5628,7 @@ function animate(){
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  if(!paused&&ageOverlay.style.display==="none"){
   movePlayer(dt);updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);
-  updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);
+  updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateRegisterIndicators();
  }
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
@@ -5571,4 +5644,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.4 !");
+animate();toast("Business Empire Simulator V0.14.5 !");
