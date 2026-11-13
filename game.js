@@ -2347,27 +2347,16 @@ cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Cloison de fond continue et opaque : l'interrupteur est fixé sur sa face intérieure.
 // Réserve prolongée vers l'arrière, avec porte logistique vers le quai.
 // Partie centrale déjà comprise dans le sol/plafond continu.
-// Couloir latéral (repère rouge) : pas de cloison entre z=9.3 et z=16.25.
-// Le mur qui occupait cet espace est volontairement supprimé : ne pas le recréer.
-// Façade extérieure (repère vert) : mur plein derrière les rayonnages éloignés,
-// depuis z=16.25 jusqu'au fond z=23.7, sans interrompre l'allée centrale.
-// Un panneau continu remplace les deux anciens morceaux afin d'éviter les joints.
-// Les murs opposés et le passage logistique ne sont pas modifiés.
-cube(10.0,2.5,19.975,.3,5,7.45,0xe2e8f0,true);
+// V0.14.72 — façade extérieure de la première réserve, côté parking.
+// La partie x=10 / z=10..16.25 est une façade extérieure, PAS une entrée.
+// Reconstitution continue du mur sur toute la longueur z=10..23.7.
+// Collisions physiques alignées : plus de vue ni de passage vers le parking.
+cube(10.0,2.5,16.85,.3,5,13.7,0xe2e8f0,true);
+// Cloison opposée côté réserves, inchangée.
 cube(15.3,2.5,13.05,.3,5,7.2,0xe2e8f0,true);
 cube(15.3,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
-// V0.14.71 — futur accès « Stockage Sec & Électronique » depuis le couloir latéral.
-// Encadrement uniquement : ne PAS refermer le passage rouge avec un panneau plein.
-// L'ouverture de 3,3 m reste dégagée, sans collider au centre.
-const storageAccess={x:10,z:12.8,halfWidth:1.65,height:3.42};
-const storageDoorTrim=0x64748b;
-for(const side of [-1,1]){
- const z=storageAccess.z+side*storageAccess.halfWidth;
- cube(storageAccess.x,storageAccess.height/2,z,.12,storageAccess.height,.10,storageDoorTrim,true);
-}
-cube(storageAccess.x,storageAccess.height+.035,storageAccess.z,.12,.10,3.4,storageDoorTrim);
-// Seuil plat : aucun obstacle supplémentaire pour le joueur.
-cube(storageAccess.x,.022,storageAccess.z,.56,.024,3.25,0xb6c4d2);
+// L'accès aux réserves continue par les ouvertures intérieures existantes.
+// Ne pas placer de cadre, de seuil ou de signalétique sur la façade parking.
 // La cloison arrière s'efface à l'achat de l'extension du magasin.
 const oldReserveEndWall=cube(12.65,2.5,23.7,5.3,5,.3,0xe2e8f0);
 const oldReserveWallCollider={minX:10.0,maxX:15.3,minZ:23.55,maxZ:23.85};
@@ -2922,11 +2911,6 @@ entranceBrand.position.set(0,4.24,10.20);scene.add(entranceBrand);
 // Enseigne au-dessus de l’entrée de la réserve, face au magasin.
 const reserveBrand=brandPanel("ZONE STOCKAGE","RÉSERVE — PRODUITS SECS",2.9,.67);
 reserveBrand.position.set(9.78,4.15,5.5);reserveBrand.rotation.y=-Math.PI/2;scene.add(reserveBrand);
-// Signalétique visible depuis le couloir sur la nouvelle entrée latérale.
-const storageAccessBrand=brandPanel("STOCKAGE SEC","& ÉLECTRONIQUE",2.95,.70);
-storageAccessBrand.position.set(9.79,4.20,12.8);
-storageAccessBrand.rotation.y=-Math.PI/2;
-scene.add(storageAccessBrand);
 const electronicsStorageBrand=brandPanel("RÉSERVE ÉLECTRONIQUE","STOCKAGE DES CARTONS",2.6,.62);
 electronicsStorageBrand.position.set(15.08,4.14,35);
 electronicsStorageBrand.rotation.y=-Math.PI/2;scene.add(electronicsStorageBrand);reserve2Meshes.push(electronicsStorageBrand);
@@ -5066,8 +5050,7 @@ function blocked(x,z,r=.4){
  // Quartier piétonnier et intérieurs accessibles des immeubles.
  const cityWalk=x>-105+r&&x<105-r&&z>76+r&&z<232-r;
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
-// La future entrée latérale est un passage ouvert vers la réserve sèche.
- const storageSideDoor=x>=9.35-r&&x<=10.45+r&&z>11.15+r&&z<14.45-r;
+
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>3.35+r&&z<7.55-r;
  const serviceDoor=x>23.65&&x<25.3&&z>3.35+r&&z<7.55-r;
  const serviceCorridor=x>24.0&&x<29.7&&z>-24.0&&z<7.4;
@@ -5086,7 +5069,7 @@ function blocked(x,z,r=.4){
  const link=autoLinkOpen()&&x>-35.85+r&&x<-30+r&&z>GALLERY_LINK_Z-1.35+r&&z<SHOWROOM_LINK_Z+1.35-r;
  const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
- if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||storageSideDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
+ if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  return candidates?.some(c=>x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ&&
   !c.disabled&&contentVisible(c)&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&
