@@ -31,7 +31,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  let savedAngles={};
  try{savedAngles=JSON.parse(localStorage.getItem(PTZ_KEY)||"{}")||{};}catch{}
  stations.forEach((station,i)=>{
-  const originZ=station.department?station.z-2.8:station.z;
+  const originZ=station.fixtureZ??(station.department?station.z-2.8:station.z);
   const dx=station.look[0]-station.x,dy=station.look[1]-2.92,dz=station.look[2]-(originZ+.42);
   station.defaultYaw=Math.atan2(dx,dz);
   station.defaultPitch=Math.atan2(dy,Math.hypot(dx,dz));
