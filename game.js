@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.63";
-import { installSurveillance } from "./surveillance.js?v=0.14.63";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.63";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.63";
-// Business Empire Simulator V0.14.63 — version synchronisée
+import { installCity } from "./city.js?v=0.14.64";
+import { installSurveillance } from "./surveillance.js?v=0.14.64";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.64";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.64";
+// Business Empire Simulator V0.14.64 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -4130,6 +4130,8 @@ function showDisposal(p){
 }
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
+const obsoleteCorridorStart=scene.children.length;
+const obsoleteCorridorColliderStart=colliders.length;
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
 // Deux parois continues : côté chambre froide la paroi existante sert de mur,
 // puis un prolongement prend le relais jusqu'à l'arrière du magasin.
@@ -4139,6 +4141,9 @@ cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 cube(25.65,5.1,-8.3,3.1,.2,31.4,0xf1f5f9);
+// Couloir obsolète : retirer le volume et ses collisions, conserver le quai.
+for(const mesh of scene.children.slice(obsoleteCorridorStart))mesh.visible=false;
+for(const hit of colliders.slice(obsoleteCorridorColliderStart))hit.disabled=true;
 // Annexe du personnel à l'ouest du couloir logistique, hors des axes des livraisons.
 cube(20.95,-.15,-6,6.3,.3,6,0xa8b5c6);
 tileFloor(5.95,5.65,20.95,-6);
@@ -6660,4 +6665,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.63 !");
+animate();toast("Business Empire Simulator V0.14.64 !");
