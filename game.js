@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.17";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.17";
-// Business Empire Simulator V0.14.17 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.18";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.18";
+// Business Empire Simulator V0.14.18 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2312,15 +2312,22 @@ for(const x of [10.2,15.08])wallBaseboard(x,20.05,.07,7.0);
 // L’extension utilise désormais les mêmes plafonniers LED que l’ancienne réserve.
 // Réserve V3 : deux rangées murales uniquement. Aucun meuble au milieu de
 // l'allée, de l'accès magasin (x=10,z=5.5) ou devant l'interrupteur (z=7.8).
-const storageSlots={dry:[],cold:[],electronics:[]};
+const storageRacks={dry:[],cold:[],electronics:[]};
 const STORAGE_CARTON_HEIGHT=.21;
-function addStorageSlots(slots,x,y,z,length,count,angle=0){
- const alongZ=angle!==0;
- const step=length/count;
- for(let i=0;i<count;i++){
-  const offset=(i-(count-1)/2)*step;
-  slots.push({x:x+(alongZ?0:offset),y:y+.045+STORAGE_CARTON_HEIGHT/2,z:z+(alongZ?offset:0),angle,width:step-.025});
+function addStorageRack(kind,x,z,levels,length,angle=0,access={}){
+ const alongZ=angle!==0,step=length/5;
+ const rack={...access,slots:[],overflow:[]};
+ for(const y of levels){
+  for(let layer=0;layer<3;layer++){
+   for(let i=0;i<5;i++){
+    const offset=(i-2)*step;
+    const slot={x:x+(alongZ?0:offset),z:z+(alongZ?offset:0),angle,width:step-.025,
+     y:y+.045+STORAGE_CARTON_HEIGHT/2+layer*(STORAGE_CARTON_HEIGHT+.006)};
+    (layer<2?rack.slots:rack.overflow).push(slot);
+   }
+  }
  }
+ storageRacks[kind].push(rack);
 }
 function storageRack(x,z,face,upgrade=null,kind="dry"){
  const put=(px,py,pz,w,h,d,col)=>{
@@ -2329,12 +2336,12 @@ function storageRack(x,z,face,upgrade=null,kind="dry"){
   else if(upgrade==="store1")storageExtensionMeshes.push(m);
   return m;
  };
- for(const y of [.62,1.62,2.62]){
+ const levels=[.62,1.62,2.62];
+ for(const y of levels){
   put(x,y,z,.84,.075,1.65,0x94a3b8);
   put(x,y+.062,z+.80,.84,.07,.035,0x64748b);
-  addStorageSlots(storageSlots[kind],x,y,z,1.55,5,face*Math.PI/2);
-  for(const slot of storageSlots[kind].slice(-5))slot.requiresUpgrade=upgrade;
  }
+ addStorageRack(kind,x,z,levels,1.55,face*Math.PI/2,{requiresUpgrade:upgrade});
  for(const dx of [-.38,.38])for(const dz of [-.78,.78])
   put(x+dx,1.66,z+dz,.055,3.32,.055,0x64748b);
  put(x,3.3,z,.82,.07,1.58,0x64748b);
@@ -2500,8 +2507,9 @@ function buildStorageWings(){
     const rack=x-side*.49;
     for(const y of [.55,1.55,2.55]){
      part(rack,y,z,.66,.07,3.6,racks);
-     addStorageSlots(storageSlots[kind],rack,y,z,3.45,10,-side*Math.PI/2);
-     for(const slot of storageSlots[kind].slice(-10))slot.bay=i;
+    }
+    for(const offset of [-.8625,.8625]){
+     addStorageRack(kind,rack,z+offset,[.55,1.55,2.55],1.725,-side*Math.PI/2,{bay:i});
     }
     for(const end of [-1,1])part(rack,1.55,z+end*1.76,.06,3.1,.07,racks);
    }
@@ -3721,8 +3729,7 @@ function toggleStockroomLights(){setLightCircuit(STORAGE_LIGHTS,"Réserves sèch
 function toggleLights(){setLightCircuit(COMMERCIAL_LIGHTS,"Espaces de vente");}
 // Les emplacements libres sont partagés par toutes les références de la zone.
 for(const [xs,zs] of [[[16.35,20.15],[3.1,7.8]],[[16.6,22.5],[11,14.8]]]){
- for(const x of xs)for(const z of zs)for(const y of [.65,1.7,2.75])
-  addStorageSlots(storageSlots.cold,x,y,z,1.22,4);
+ for(const x of xs)for(const z of zs)addStorageRack("cold",x,z,[.65,1.7,2.75],1.22);
 }
 const storageBatches=new Map();
 const storageBoxGeometry=new THREE.BoxGeometry(1,1,1);
@@ -3760,41 +3767,56 @@ function storageCartonBatch(product,loose,count){
  batch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
  storageBatches.set(key,batch);scene.add(batch);return batch;
 }
+function renderStorageCartons(product,loose,slots){
+ if(!slots.length)return;
+ const batch=storageCartonBatch(product,loose,slots.length);
+ batch.count=slots.length;batch.visible=true;
+ slots.forEach((slot,index)=>{
+  storagePosition.set(slot.x,slot.y,slot.z);
+  storageRotation.setFromAxisAngle(storageUp,slot.angle);
+  storageScale.set(slot.width,STORAGE_CARTON_HEIGHT,.46);
+  storageMatrix.compose(storagePosition,storageRotation,storageScale);
+  batch.setMatrixAt(index,storageMatrix);
+ });
+ batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();
+}
 function refreshBoxes(){
  for(const batch of storageBatches.values())batch.visible=false;
  for(const kind of STORAGE_KINDS){
   const bays=storageBayCount(kind);
-  const slots=storageSlots[kind].filter(slot=>(!slot.requiresUpgrade||state.upgrades[slot.requiresUpgrade])&&
-   (slot.bay===undefined||slot.bay<bays)).sort((a,b)=>(a.bay??-1)-(b.bay??-1));
+  const racks=storageRacks[kind].filter(rack=>(!rack.requiresUpgrade||state.upgrades[rack.requiresUpgrade])&&
+   (rack.bay===undefined||rack.bay<bays)).map(rack=>({rack,used:0}));
   const products=catalog.filter(product=>storageKind(product)===kind&&contentVisible(product));
-  const quantity=products.reduce((total,product)=>{
-   const stock=state.inventory[product.id];
-   return total+stock.boxes+Math.ceil(stock.reserve/BOX_UNITS);
-  },0);
-  // Les grands stocks peuvent utiliser jusqu'à trois hauteurs par tablette.
-  const baseSlots=slots.slice();
-  for(let tier=1;tier<=2&&slots.length<quantity;tier++){
-   for(const slot of baseSlots)slots.push({...slot,y:slot.y+tier*(STORAGE_CARTON_HEIGHT+.006)});
-  }
-  let used=0;storageOverflow[kind]=0;
+  const cartons=new Map();
+  // Grouper les cartons fermés sur un même meuble lorsque la place le permet.
   for(const product of products){
-   const inventory=state.inventory[product.id];
-   for(const [quantity,loose] of [[inventory.boxes,false],[Math.ceil(inventory.reserve/BOX_UNITS),true]]){
-    const count=Math.min(quantity,slots.length-used);
-    storageOverflow[kind]+=quantity-count;
-    if(!count)continue;
-    const batch=storageCartonBatch(product,loose,count);
-    batch.count=count;batch.visible=true;
-    for(let i=0;i<count;i++){
-     const slot=slots[used++];
-     storagePosition.set(slot.x,slot.y,slot.z);
-     storageRotation.setFromAxisAngle(storageUp,slot.angle);
-     storageScale.set(slot.width,STORAGE_CARTON_HEIGHT,.46);
-     storageMatrix.compose(storagePosition,storageRotation,storageScale);
-     batch.setMatrixAt(i,storageMatrix);
-    }
-    batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();
-   }
+   const count=state.inventory[product.id].boxes;
+   if(!count)continue;
+   const location=(count>10?racks.find(({used})=>used===0):null)??
+    racks.find(({rack,used})=>rack.slots.length-used>=count);
+   if(!location)continue;
+   cartons.set(product.id,location.rack.slots.slice(location.used,location.used+count));
+   location.used+=count;
+  }
+  const free=racks.flatMap(({rack,used})=>rack.slots.slice(used));
+  free.push(...racks.flatMap(({rack})=>rack.overflow));
+  let next=0;
+  storageOverflow[kind]=0;
+  for(const product of products){
+   const count=state.inventory[product.id].boxes;
+   const slots=cartons.get(product.id)??free.slice(next,next+count);
+   if(!cartons.has(product.id))next+=slots.length;
+   renderStorageCartons(product,false,slots);
+   storageOverflow[kind]+=count-slots.length;
+  }
+  // Les bacs de vrac utilisent les places restantes après les cartons fermés.
+  for(const product of products){
+   const count=Math.ceil(state.inventory[product.id].reserve/BOX_UNITS);
+   if(!count)continue;
+   const slots=free.slice(next,next+count);
+   next+=slots.length;
+   renderStorageCartons(product,true,slots);
+   storageOverflow[kind]+=count-slots.length;
   }
  }
 }
@@ -6027,4 +6049,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.17 !");
+animate();toast("Business Empire Simulator V0.14.18 !");
