@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.3";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.3";
-// Business Empire Simulator V0.14.3 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.4";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.4";
+// Business Empire Simulator V0.14.4 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -125,9 +125,21 @@ const STAFF_PLANS={
  security:{label:"Sécurité",levels:[22,30,38,46],wage:75},
 };
 const FAST_RESTOCK_LIMIT=15;
+const TROLLEY_BASE_CAPACITY=3;
+const TROLLEY_UPGRADES=[
+ {id:"handtruckReinforced",name:"Diable renforcé",level:12,cost:750,requires:"handtruck",category:"stock",trolleyCapacity:5,description:"Permet de transporter jusqu’à 5 cartons par trajet."},
+ {id:"handtruckPlatform",name:"Plateforme de manutention",level:24,cost:2200,requires:"handtruckReinforced",category:"stock",trolleyCapacity:8,description:"Permet de transporter jusqu’à 8 cartons par trajet."},
+];
+function trolleyCapacity(){
+ return TROLLEY_UPGRADES.reduce((capacity,upgrade)=>state.upgrades[upgrade.id]?upgrade.trolleyCapacity:capacity,TROLLEY_BASE_CAPACITY);
+}
+function trolleyLoadLabel(){
+ return state.trolleyCargo.length+"/"+trolleyCapacity()+" cartons";
+}
 // Six gondoles : une par produit de départ, 30 emplacements chacune.
 function shelfCapacity(p){return CAPACITY;}
 const upgradeCatalog=[
+ ...TROLLEY_UPGRADES,
  {id:"intimateLicense",name:"Licence Bien-être intime",level:ADULT_LEVEL,cost:2200,requires:FRONT_HALL,category:"licences",
   adultOnly:true,description:"Ouvre un rayon de produits intimes et d’accessoires sexuels, en emballages neutres."},
  {id:FRONT_HALL,name:"Hall des caisses",level:15,cost:7500,requires:"store1",category:"extensions",construction:true,description:"Agrandit le magasin côté ouest. Accueille les caisses supplémentaires, les bornes libre-service et le rayon boissons énergisantes."},
@@ -409,7 +421,7 @@ function load(){
    if(Array.isArray(current.workerPayrollHistory))s.workerPayrollHistory=current.workerPayrollHistory.slice(-24);
    if(Array.isArray(current.workerSchedule)&&current.workerSchedule.length===7)s.workerSchedule=current.workerSchedule.map(v=>Array.isArray(v)&&v.length===2&&Number.isInteger(v[0])&&Number.isInteger(v[1])&&v[0]>=8&&v[1]<=20&&v[1]>v[0]?v:null);
    if(Array.isArray(current.workerLeaveDays))s.workerLeaveDays=current.workerLeaveDays.filter(Number.isInteger).slice(-60);
-   if(Array.isArray(current.trolleyCargo))s.trolleyCargo=current.trolleyCargo.filter(it=>it&&catalog.some(p=>p.id===it.id)).slice(0,3).map(it=>({id:it.id}));
+   if(Array.isArray(current.trolleyCargo))s.trolleyCargo=current.trolleyCargo.filter(it=>it&&catalog.some(p=>p.id===it.id)).map(it=>({id:it.id}));
    if(["closed","morning"].includes(current.sundayMode))s.sundayMode=current.sundayMode;
    if(current.upgrades&&typeof current.upgrades==="object")for(const u of upgradeCatalog)s.upgrades[u.id]=current.upgrades[u.id]===true;
    if(current.finance)for(const k of Object.keys(s.finance))if(Number.isFinite(current.finance[k])&&current.finance[k]>=0)s.finance[k]=current.finance[k];
@@ -576,7 +588,7 @@ function milestoneEntries(level){
   return offers.length?offers.map(u=>u.name+" ("+euro(u.cost)+")").join(" · "):(level===1?"":"Programme · ")+description;
  }).filter(Boolean);
  const additions=upgradeCatalog.filter(u=>contentVisible(u)&&u.level===level&&
-  [FRONT_HALL,AUTO_SHOWROOM,"energyLicense","autoLicense","shelfTraining","dockTraining","checkoutTraining","intimateLicense"].includes(u.id));
+  (u.trolleyCapacity||[FRONT_HALL,AUTO_SHOWROOM,"energyLicense","autoLicense","shelfTraining","dockTraining","checkoutTraining","intimateLicense"].includes(u.id)));
  return [...planned,...staffMilestones(level),...additions.map(u=>u.name+" · "+euro(u.cost)+" · "+u.description)];
 }
 function showProgression(first){
@@ -3570,7 +3582,7 @@ function trolleyPart(w,h,d,x,y,z,mat=trolleyMetal){
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
  m.position.set(x,y,z);handtruckVisual.add(m);return m;
 }
-trolleyPart(.85,.09,.6,0,.13,.03);
+const trolleyPlatform=trolleyPart(.85,.09,.6,0,.13,.03);
 trolleyPart(.08,1.35,.08,-.36,.78,.24);
 trolleyPart(.08,1.35,.08,.36,.78,.24);
 trolleyPart(.8,.08,.08,0,1.44,.24);
@@ -3579,10 +3591,15 @@ for(const x of [-.42,.42]){
  wheel.rotation.z=Math.PI/2;wheel.position.set(x,.17,.32);handtruckVisual.add(wheel);
 }
 const trolleyBoxes=[];
-for(let i=0;i<3;i++){const b=trolleyPart(.67,.33,.49,0,.39+i*.35,.02,new THREE.MeshStandardMaterial({color:0xb98246}));trolleyBoxes.push(b);}
+for(let i=0;i<TROLLEY_UPGRADES.at(-1).trolleyCapacity;i++){
+ const box=trolleyPart(.67,.33,.49,0,.39,.02,new THREE.MeshStandardMaterial({color:0xb98246}));
+ box.visible=false;trolleyBoxes.push(box);
+}
 scene.add(handtruckVisual);
 const handtruckHeldVisual=handtruckVisual.clone(true);
 handtruckHeldVisual.traverse(o=>{if(o.isMesh)o.material=o.material.clone();});
+const heldPlatform=handtruckHeldVisual.children[handtruckVisual.children.indexOf(trolleyPlatform)];
+const heldTrolleyBoxes=handtruckHeldVisual.children.slice(-trolleyBoxes.length);
 camera.add(handtruckHeldVisual);
 scene.add(camera);
 function updateHandtruck(){
@@ -3597,12 +3614,14 @@ function updateHandtruck(){
  handtruckHeldVisual.position.set(0,-1.02,-1.95);
  handtruckHeldVisual.rotation.set(-.10,0,0);
  handtruckHeldVisual.scale.set(.95,.95,.95);
- const boxes=handtruckHeldVisual.children.filter(o=>o.isMesh&&o.geometry?.parameters?.width===.67);
- boxes.forEach((box,i)=>{
+ const wide=trolleyCapacity()>TROLLEY_BASE_CAPACITY||state.trolleyCargo.length>TROLLEY_BASE_CAPACITY;
+ trolleyPlatform.scale.x=heldPlatform.scale.x=wide?1.55:1;
+ heldTrolleyBoxes.forEach((box,i)=>{
+  box.position.x=wide?(i%2===0?-.34:.34):0;
+  box.position.y=.39+(wide?Math.floor(i/2):i)*.35;
   box.visible=i<state.trolleyCargo.length;
   if(box.visible){const p=catalog.find(p=>p.id===state.trolleyCargo[i].id);box.material.color.setHex(p?p.color:0xb98246);}
  });
- trolleyBoxes.forEach(b=>b.visible=false);
 }
 // Personnel : morphologies arrondies, visages expressifs et coiffures distinctes.
 function staffAppearance(group,isGeorge){
@@ -3956,7 +3975,7 @@ function showDeliveryDock(){
  if(!near(25.65,-24.3,3.2)){toast("Approche-toi de la zone livraison");return;}
  openPanel("ZONE LIVRAISON — Déchargement");
  if(state.upgrades.handtruck){
-  paragraph("DIABLE DE MANUTENTION — "+state.trolleyCargo.length+"/3 cartons chargés.");
+  paragraph("DIABLE DE MANUTENTION — "+trolleyLoadLabel()+" chargés.");
   if(state.trolleyCargo.length)button(panel,"Voir les cartons sur le diable",showTrolley);
  }
  if(held){paragraph("Rends-toi dans la réserve correspondante pour ranger ton carton.");return;}
@@ -3965,11 +3984,11 @@ function showDeliveryDock(){
  for(const p of catalog.filter(contentVisible)){
   const qty=state.deliveryDock.filter(it=>it.id===p.id).length;
   if(!qty)continue;
-  if(state.upgrades.handtruck&&state.trolleyCargo.length<3)button(panel,"Charger sur le diable — "+p.name+" ("+qty+" disponibles)",()=>{
+  if(state.upgrades.handtruck&&state.trolleyCargo.length<trolleyCapacity())button(panel,"Charger sur le diable — "+p.name+" ("+qty+" disponibles)",()=>{
    const i=state.deliveryDock.findIndex(it=>it.id===p.id);
-   if(i<0||state.trolleyCargo.length>=3)return;
+   if(i<0||held||!state.upgrades.handtruck||!near(25.65,-24.3,3.2)||state.trolleyCargo.length>=trolleyCapacity())return;
    state.deliveryDock.splice(i,1);state.trolleyCargo.push({id:p.id});
-   sync();refreshDeliveryDock();showDeliveryDock();toast("Diable : "+state.trolleyCargo.length+"/3 cartons");
+   sync();refreshDeliveryDock();showDeliveryDock();toast("Diable : "+trolleyLoadLabel());
   });
   button(panel,"Prendre 1 carton — "+p.name+" ("+qty+" restant(s))",()=>{
    const i=state.deliveryDock.findIndex(it=>it.id===p.id);
@@ -3982,7 +4001,7 @@ function showDeliveryDock(){
 }
 refreshDeliveryDock();
 function showTrolley(){
- openPanel("Diable de manutention — "+state.trolleyCargo.length+"/3 cartons");
+ openPanel("Diable de manutention — "+trolleyLoadLabel());
  if(!state.upgrades.handtruck){paragraph("Achetable dans les améliorations pour 125 €.");return;}
  if(!state.trolleyCargo.length){paragraph("Diable vide. Charge-le au quai de déchargement.");return;}
  for(const [i,it] of state.trolleyCargo.entries()){
@@ -3991,6 +4010,7 @@ function showTrolley(){
   paragraph((i+1)+". "+(p?p.name:it.id)+" — "+(p?storageName(storageKind(p)):"Produit inconnu"));
   if(p&&atStorageFor(p)){
    button(panel,"Décharger "+p.name,()=>{
+    if(state.trolleyCargo[i]!==it||!atStorageFor(p))return;
     const a=state.inventory[p.id];
     if(a.boxes>=MAX_BOXES_PER_PRODUCT){toast("Maximum de cartons pour "+p.name);return;}
     if(storageBoxes(storageKind(p))>=storageLimit(storageKind(p))){toast(storageName(storageKind(p))+" pleine");return;}
@@ -5551,4 +5571,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.3 !");
+animate();toast("Business Empire Simulator V0.14.4 !");
