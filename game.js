@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.58";
-import { installSurveillance } from "./surveillance.js?v=0.14.58";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.58";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.58";
-// Business Empire Simulator V0.14.58 — version synchronisée
+import { installCity } from "./city.js?v=0.14.59";
+import { installSurveillance } from "./surveillance.js?v=0.14.59";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.59";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.59";
+// Business Empire Simulator V0.14.59 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2690,28 +2690,50 @@ const retiredStorageColliders=new Set([
  ...colliders.filter(h=>h.requiresUpgrade==="store1"&&h.minX>=9.8&&h.maxX<=39.2&&h.minZ>=-14.5&&h.maxZ<=50),
  ...colliders.filter(h=>h.requiresUpgrade==="store2"&&h.minX>=29&&h.maxX<=30&&h.minZ>=-8&&h.maxZ<=10)
 ]);
-// Prototype de la nouvelle chambre froide, à l'est du magasin.
-// Bâtiment indépendant, avec porte ouverte côté logistique et cloisonnement.
-const coldAnnexMeshes=[];
-function coldAnnexPart(x,y,z,w,h,d,color,solid=false){
- const m=cube(x,y,z,w,h,d,color);
- coldAnnexMeshes.push(m);
- if(solid)colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2,requiresUpgrade:"store1"});
- return m;
+// Nouvelle zone logistique compacte, rapprochée du magasin.
+// Chambre froide au sud ; bâtiment commun sec/électronique au nord.
+const coldAnnexMeshes=[],newStorageMeshes=[],newStorageColliders=[];
+function logisticsPart(target,x,y,z,w,h,d,color,solid=false,upgrade="store1"){
+ const mesh=cube(x,y,z,w,h,d,color);
+ target.push(mesh);
+ if(solid){
+  const hit={minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2,requiresUpgrade:upgrade};
+  colliders.push(hit);newStorageColliders.push(hit);
+ }
+ return mesh;
 }
-// Emprise : x 41–55, z -14–10. La porte est sur la façade ouest.
-coldAnnexPart(48,-.16,-2,14,.32,24,0x9ccbdc);
-coldAnnexPart(48,5.2,-2,14,.25,24,0xf1f5f9);
-coldAnnexPart(48,2.5,-14,14,5,.3,0xdbeafe,true);
-coldAnnexPart(48,2.5,10,14,5,.3,0xdbeafe,true);
-coldAnnexPart(55,2.5,-2,.3,5,24,0xdbeafe,true);
-coldAnnexPart(41,2.5,-10.5,.3,5,7,0xdbeafe,true);
-coldAnnexPart(41,2.5,5.5,.3,5,9,0xdbeafe,true);
-coldAnnexPart(41,4.25,-3,.3,1.5,8,0xdbeafe);
-for(const x of [44,48,52])for(const z of [-10,-4,2,7]){
- coldAnnexPart(x,.55,z,2,.12,1.2,0x94a3b8);
- coldAnnexPart(x,1.65,z,2,.12,1.2,0x94a3b8);
- coldAnnexPart(x,2.75,z,2,.12,1.2,0x94a3b8);
+const coldAnnexPart=(...args)=>logisticsPart(coldAnnexMeshes,...args);
+const newStorePart=(...args)=>logisticsPart(newStorageMeshes,...args);
+// Chambre froide : x 30–40, z -13–7, porte ouest (z -5 à -1).
+coldAnnexPart(35,-.16,-3,10,.32,20,0x9ccbdc);
+const coldRoof=coldAnnexPart(35,5.2,-3,10,.25,20,0xf1f5f9);
+coldAnnexPart(35,2.5,-13,10,5,.3,0xdbeafe,true);
+coldAnnexPart(35,2.5,7,10,5,.3,0xdbeafe,true);
+coldAnnexPart(40,2.5,-3,.3,5,20,0xdbeafe,true);
+coldAnnexPart(30,2.5,-9,.3,5,8,0xdbeafe,true);
+coldAnnexPart(30,2.5,3,.3,5,8,0xdbeafe,true);
+coldAnnexPart(30,4.2,-3,.3,1.6,4,0xdbeafe);
+for(const x of [33,37])for(const z of [-10,-6,1,5]){
+ for(const y of [.7,1.8,2.9])coldAnnexPart(x,y,z,1.7,.12,1.15,0x94a3b8);
+}
+// Réserve unique divisée : x 30–40, z 9–31.
+// Cloison z=20, passage intérieur de 2.8 m au centre.
+newStorePart(35,-.16,20,10,.32,22,0xb9c1c8);
+const storageRoof=newStorePart(35,5.2,20,10,.25,22,0xf1f5f9);
+newStorePart(35,2.5,9,10,5,.3,0xe2e8f0,true);
+newStorePart(35,2.5,31,10,5,.3,0xe2e8f0,true);
+newStorePart(40,2.5,20,.3,5,22,0xe2e8f0,true);
+// Porte d'accès depuis le côté ouest, dans chaque moitié.
+for(const [z,len] of [[11,4],[19,7],[29,4]]){
+ newStorePart(30,2.5,z,.3,5,len,0xe2e8f0,true);
+}
+newStorePart(30,4.2,15,.3,1.6,4,0xe2e8f0);
+newStorePart(30,4.2,25,.3,1.6,4,0xe2e8f0);
+for(const [x,w] of [[31.75,3.5],[38.25,3.5]]){
+ newStorePart(x,2.5,20,w,5,.3,0xcbd5e1,true);
+}
+for(const z of [12,17,23,28])for(const x of [33,37]){
+ for(const y of [.7,1.8,2.9])newStorePart(x,y,z,1.65,.12,1.15,z<20?0x94a3b8:0x7894b1);
 }
 function refreshExtension(){
  const unlocked=!!state.upgrades.store1;
@@ -2747,6 +2769,10 @@ function refreshExtension(){
  for(const mesh of reserve2Meshes)mesh.visible=electronicsUnlocked&&!STORAGE_REBUILD_PENDING;
  for(const mesh of retiredLogisticsMeshes)mesh.visible=!STORAGE_REBUILD_PENDING;
  for(const mesh of coldAnnexMeshes)mesh.visible=unlocked;
+ for(const mesh of newStorageMeshes)mesh.visible=unlocked;
+ for(const hit of newStorageColliders)hit.disabled=!unlocked;
+ coldRoof.visible=unlocked&&!flyMode;
+ storageRoof.visible=unlocked&&!flyMode;
  for(const hit of retiredStorageColliders)hit.disabled=STORAGE_REBUILD_PENDING;
  for(const kind of STORAGE_KINDS){
   const count=storageBayCount(kind);
@@ -5052,7 +5078,9 @@ function blocked(x,z,r=.4){
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>4.25+r&&z<6.65-r;
  const serviceDoor=x>23.65&&x<25.3&&z>4.25+r&&z<6.65-r;
  const serviceCorridor=x>24.3&&x<29.7&&z>-24.0&&z<6.6;
- const logisticsAccess=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>24.3&&x<39&&z>-14.0&&z<8.0;
+ const logisticsAccess=state.upgrades.store1&&x>24.3&&x<40&&z>-14.0&&z<32.0;
+ const newColdInterior=state.upgrades.store1&&x>30.25&&x<39.75&&z>-12.75&&z<6.75;
+ const newStorageInterior=state.upgrades.store1&&x>30.25&&x<39.75&&z>9.25&&z<30.75;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
  const breakDoor=x>23.5&&x<24.65&&z>-7.25+r&&z<-4.75-r;
@@ -6695,4 +6723,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.58 !");
+animate();toast("Business Empire Simulator V0.14.59 !");
