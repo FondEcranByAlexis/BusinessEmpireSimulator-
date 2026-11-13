@@ -1,4 +1,4 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.34)
+// FBA Supermarket — PC de vidéosurveillance (V0.14.35)
 export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[],extensionUnlocked=()=>true,autoUnlocked=()=>false}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
@@ -26,7 +26,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
    department:station.department,unlocked:station.unlocked,wide:station.wide
   });
  }
- // Supprimer les anciennes CAM 30, 31, 35 et 39 (numérotation V0.14.34).
+ // Supprimer les anciennes CAM 30, 31, 35 et 39 (numérotation V0.14.35).
  const removed=new Set([29,30,34,38]);
  const retained=stations.map((station,index)=>({...station,legacyIndex:index})).filter(station=>!removed.has(station.legacyIndex));
  stations.length=0;stations.push(...retained);
@@ -41,7 +41,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  try{savedAngles=JSON.parse(localStorage.getItem(PTZ_KEY)||"{}")||{};}catch{}
  stations.forEach((station,i)=>{
   const originZ=station.fixtureZ??(station.department?station.z-2.8:station.z);
-  const dx=station.look[0]-station.x,dy=station.look[1]-2.92,dz=station.look[2]-(originZ+.42);
+  const dx=station.look[0]-station.x,dy=station.look[1]-3.32,dz=station.look[2]-(originZ+.42);
   station.defaultYaw=Math.atan2(dx,dz);
   station.defaultPitch=Math.atan2(dy,Math.hypot(dx,dz));
   station.yaw=Number.isFinite(savedAngles[station.legacyIndex??(100+i)]?.yaw)?savedAngles[i].yaw:station.defaultYaw;
@@ -76,7 +76,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  for(const station of stations){
   const fixture=new THREE.Group();
   // En galerie, installer la caméra dans le fond du local, orientée vers l'entrée (+Z).
-  fixture.position.set(station.x,3.05,station.fixtureZ??(station.department?station.z-2.8:station.z));
+  fixture.position.set(station.x,3.45,station.fixtureZ??(station.department?station.z-2.8:station.z));
   const mount=new THREE.Mesh(new THREE.CylinderGeometry(.065,.065,.3,10),cameraBody);
   mount.position.y=.17;fixture.add(mount);
   const housing=new THREE.Mesh(new THREE.BoxGeometry(.34,.18,.42),cameraBody);
@@ -189,7 +189,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
     renderer.setScissor(x,y,vw,vh);
     renderer.setClearColor(0x07111d,1);renderer.clear(true,true,true);
     if(!station||locked(station))continue;
-    cctv.position.set(station.fixture.position.x,2.92,station.fixture.position.z+.42);
+    cctv.position.set(station.fixture.position.x,3.32,station.fixture.position.z+.42);
     cctv.fov=station.wide?95:66;
     cctv.lookAt(cctv.position.x+Math.sin(station.yaw)*Math.cos(station.pitch),cctv.position.y+Math.sin(station.pitch),cctv.position.z+Math.cos(station.yaw)*Math.cos(station.pitch));
     cctv.aspect=vw/vh;cctv.updateProjectionMatrix();
