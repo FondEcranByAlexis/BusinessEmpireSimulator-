@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.20";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.20";
-// Business Empire Simulator V0.14.20 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.21";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.21";
+// Business Empire Simulator V0.14.21 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -3389,7 +3389,7 @@ function showDirectorOffice(){
  paragraph(state.storeName+" · Direction "+state.playerName);
  for(const [label,action] of [
   ["Bilan financier",showFinance],["Recrutement et équipes",()=>showTeamManagement()],
-  ["Présence et missions",showEmployeeOverview],["Stocks du magasin",showStocks],
+  ["Tableau de service",showServiceBoard],["Stocks du magasin",showStocks],
   ["Remarques des clients",showCustomerFeedback],["Calendrier et horaires",showCalendar],
   ["Éclairage du magasin",showLightingControls]
  ])button(panel,label,action);
@@ -4123,6 +4123,16 @@ function dockBatchCapacity(p){
  return Math.max(0,Math.min(DOCK_CARRY_LIMIT,MAX_BOXES_PER_PRODUCT-state.inventory[p.id].boxes,
   storageLimit(storageKind(p))-storageBoxes(storageKind(p))));
 }
+function nextDockProduct(){
+ let first;
+ for(const item of state.deliveryDock){
+  const product=catalog.find(p=>p.id===item.id);
+  if(!product||!contentVisible(product)||!dockBatchCapacity(product))continue;
+  if(!state.management.coldDockFirst||storageKind(product)==="cold")return product;
+  first??=product;
+ }
+ return first;
+}
 let workerRoute=[],workerWaypoint=0,workerPhase="dock",workerCargo=null,workerWait=0,workerTalking=false,workerTalkTimer=0,workerWalkClock=0;
 let workerBreakJourney=null,stockerBreakJourney=null;
 const WORKER_BREAK_SEAT={x:22.2,z:-5.25},STOCKER_BREAK_SEAT={x:22.2,z:-6.75};
@@ -4186,7 +4196,7 @@ stockerGroup.position.set(13,0,5);
 let stockerTarget=null,stockerPhase="idle",stockerCargo=null,stockerTimer=0,stockerWalk=0,stockerTalking=false;
 function stockerNeeds(){
  const options=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
-  (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0));
+  (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)&&!shelfJobTaken(p));
  if(playerLevel()>=19)options.sort((a,b)=>state.inventory[a.id].shelf-state.inventory[b.id].shelf);
  return options[0];
 }
@@ -4342,11 +4352,7 @@ function updateWorker(dt){
   }else if(Math.hypot(workerGroup.position.x-WORKER_DOCK[0],workerGroup.position.z-WORKER_DOCK[1])>.15){
    if(!workerGo(WORKER_DOCK,"pickup"))return;
   }else if(state.deliveryDock.length){
-   const idx=state.deliveryDock.findIndex(it=>{
-    const p=catalog.find(p=>p.id===it.id);
-    return p&&contentVisible(p)&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&storageBoxes(storageKind(p))<storageLimit(storageKind(p));
-   });
-   const p=idx<0?null:catalog.find(p=>p.id===state.deliveryDock[idx].id);
+   const p=nextDockProduct();
    if(!p||!workerGo(storageWorkPoint(p),"storage")){workerWait=2;return;}
    workerCargo={id:p.id,qty:takeDockCartons(p,dockBatchCapacity(p))};workerCarton.visible=true;
    refreshDeliveryDock();sync();workerWait=.55;return;
@@ -5218,6 +5224,48 @@ const teamUnits=Object.entries(STAFF_PLANS).flatMap(([role,plan])=>plan.levels.m
  return {role,id:role+(index+1),name:plan.label+" "+(index+1),level,wage:plan.wage,
   ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:index*.44,patrol:index,cargo:null,target:null};
 }));
+const SHELF_TEAMS={cold:"Frais et surgelés",dry:"Produits secs et informatique"};
+const shelfRoster=teamUnits.filter(unit=>unit.role==="shelf");
+function shelfTeam(unit){
+ const assigned=state.management.shelfTeams?.[unit.id];
+ return Object.hasOwn(SHELF_TEAMS,assigned)?assigned:(shelfRoster.indexOf(unit)%2===0?"dry":"cold");
+}
+function shelfJobTaken(product){
+ return teamUnits.some(unit=>unit.role==="shelf"&&(unit.target===product||unit.cargo?.product===product));
+}
+function expandedTeamStatus(unit){
+ if(!employeeWorking(expandedTeamShift(unit)))return employeeOnLunch(expandedTeamShift(unit))?"Pause déjeuner":"Hors service";
+ if(unit.cargo)return (unit.role==="dock"?"Range en réserve · ":"Réapprovisionne · ")+unit.cargo.product.name;
+ if(unit.target)return "Cherche en réserve · "+unit.target.name;
+ if(unit.role==="dock")return unit.route.length?"En route vers le quai":"Disponible au quai";
+ return "Disponible";
+}
+function showServiceBoard(){
+ openPanel("Tableau de service · "+formatHour(state.hour));
+ paragraph(state.deliveryDock.length+" carton(s) au quai");
+ button(panel,state.management.coldDockFirst?"Déchargement · Frais en premier":"Déchargement · Ordre d’arrivée",()=>{
+  state.management.coldDockFirst=!state.management.coldDockFirst;
+  save();showServiceBoard();
+ });
+ paragraph("Manutention");
+ paragraph(state.workerName+" · "+employeeStatus(state.workerHired,state.workerEnabled,state.workerSentHomeDay,workerShift())+" · "+workerTaskLabel());
+ for(const unit of teamUnits.filter(unit=>unit.role==="dock"&&state.management.team?.[unit.id])){
+  paragraph(employeeName(unit.id)+" · "+expandedTeamStatus(unit));
+ }
+ paragraph(state.stockerName+" · Mise en rayon polyvalente · "+employeeStatus(state.stockerHired,state.stockerEnabled,state.stockerSentHomeDay,stockerShift())+" · "+stockerTaskLabel());
+ for(const [team,label] of Object.entries(SHELF_TEAMS)){
+  const members=shelfRoster.filter(unit=>shelfTeam(unit)===team&&state.management.team?.[unit.id]);
+  paragraph(label+" · "+members.length+"/5 recruté(s)");
+  for(const unit of members)paragraph(employeeName(unit.id)+" · "+expandedTeamStatus(unit));
+ }
+ paragraph("Caisses");
+ paragraph("Caisse 1 · "+(registerOpen()?"Ouverte":"Fermée"));
+ for(const register of activeRegisters())paragraph(register.label+" · "+(registerOpen(register)?"Ouverte":"Fermée"));
+ button(panel,"Actualiser les statuts",showServiceBoard);
+ button(panel,"Affecter les employés de rayon",()=>showTeamManagement("shelf"));
+ button(panel,"Détail des horaires et missions",showEmployeeOverview);
+ button(panel,"Retour au bureau du directeur",showDirectorOffice);
+}
 function markTeamWorked(role,id,wage){
  const worked=state.management.teamWorked??={};
  const key=role+":"+id;
@@ -5261,7 +5309,29 @@ function showTeamManagement(role="shelf"){
   const hired=!!employees[unit.id];
   const status=unit.cargo?"Transporte "+unit.cargo.product.name:unit.role==="security"?"En ronde":unit.route.length?"En déplacement":"Disponible";
   paragraph(employeeName(unit.id)+" · "+unit.name+" · "+(hired?(unit.group.visible?status:"Hors service"):"Niveau "+unit.level));
+  if(role==="shelf")paragraph("Équipe · "+SHELF_TEAMS[shelfTeam(unit)]);
   if(playerLevel()<unit.level)continue;
+  if(role==="shelf"&&hired){
+   const team=shelfTeam(unit),otherTeam=team==="cold"?"dry":"cold";
+   const otherRoster=shelfRoster.filter(other=>shelfTeam(other)===otherTeam);
+   const vacant=otherRoster.find(other=>!employees[other.id]);
+   const exchange=swap=>{
+    const assignments=state.management.shelfTeams??={};
+    assignments[unit.id]=otherTeam;assignments[swap.id]=team;
+    save();showTeamManagement(role);
+   };
+   if(vacant)button(panel,"Affecter à l’équipe "+SHELF_TEAMS[otherTeam],()=>exchange(vacant));
+   else{
+    const picker=document.createElement("select");
+    picker.setAttribute("aria-label","Échanger l’affectation de "+employeeName(unit.id));
+    for(const other of otherRoster){
+     const option=document.createElement("option");
+     option.value=other.id;option.textContent=employeeName(other.id);picker.appendChild(option);
+    }
+    panel.appendChild(picker);
+    button(panel,"Échanger les affectations",()=>exchange(otherRoster.find(other=>other.id===picker.value)??otherRoster[0]));
+   }
+  }
   button(panel,hired?"Libérer le poste":"Recruter "+employeeName(unit.id),()=>{
    employees[unit.id]=!hired;
    if(hired){returnTeamCargo(unit);unit.route=[];unit.target=null;}
@@ -5319,12 +5389,8 @@ function updateTeamJob(unit){
   if(Math.hypot(position.x-WORKER_DOCK[0],position.z-WORKER_DOCK[1])>.35){
    teamRouteTo(unit,WORKER_DOCK);return;
   }
-  const index=state.deliveryDock.findIndex(item=>{
-   const p=catalog.find(product=>product.id===item.id);
-   return p&&contentVisible(p)&&state.inventory[p.id].boxes<MAX_BOXES_PER_PRODUCT&&storageBoxes(storageKind(p))<storageLimit(storageKind(p));
-  });
-  if(index<0)return;
-  const product=catalog.find(p=>p.id===state.deliveryDock[index].id);
+  const product=nextDockProduct();
+  if(!product)return;
   if(!teamRouteTo(unit,storageWorkPoint(product)))return;
   unit.cargo={product,quantity:takeDockCartons(product,dockBatchCapacity(product))};save();refreshDeliveryDock();
   return;
@@ -5336,15 +5402,18 @@ function updateTeamJob(unit){
   removeReserveUnits(state.inventory[product.id],quantity);
   unit.cargo={product,quantity};save();return;
  }
- const product=unlockedProducts().filter(p=>state.inventory[p.id].shelf<shelfCapacity(p)&&productStoredUnits(p)>0&&
-  stockerCargo!==p.id&&!teamUnits.some(other=>other.target===p||other.cargo?.product===p&&other.role==="shelf"))
+ const team=shelfTeam(unit);
+ const product=unlockedProducts().filter(p=>(storageKind(p)==="cold"?"cold":"dry")===team&&
+  state.inventory[p.id].shelf<shelfCapacity(p)&&productStoredUnits(p)>0&&stockerCargo!==p.id&&!shelfJobTaken(p))
   .sort((a,b)=>state.inventory[a.id].shelf-state.inventory[b.id].shelf)[0];
  if(product&&teamRouteTo(unit,storageWorkPoint(product)))unit.target=product;
 }
+function expandedTeamShift(unit){
+ return unit.role==="security"?[8,20]:unit.role==="dock"?workerShift():stockerShift();
+}
 function updateExpandedTeam(dt){
  for(const unit of teamUnits){
-  const shift=unit.role==="security"?[8,20]:unit.role==="dock"?workerShift():stockerShift();
-  const active=!!state.management.team?.[unit.id]&&playerLevel()>=unit.level&&employeeWorking(shift);
+  const active=!!state.management.team?.[unit.id]&&playerLevel()>=unit.level&&employeeWorking(expandedTeamShift(unit));
   unit.group.visible=active;unit.carton.visible=!!unit.cargo;
   if(!active||unit===assignedGuard)continue;
   markTeamWorked(unit.role,unit.id,unit.wage);
@@ -6080,4 +6149,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.20 !");
+animate();toast("Business Empire Simulator V0.14.21 !");
