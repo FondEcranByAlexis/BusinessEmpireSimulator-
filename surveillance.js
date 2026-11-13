@@ -1,4 +1,4 @@
-// FBA Supermarket — PC de vidéosurveillance (V0.14.26)
+// FBA Supermarket — PC de vidéosurveillance (V0.14.27)
 export function installSurveillance({THREE,scene,camera,renderer,securityOpen,near,openPanel,paragraph,button,toast,releaseMouseLook,departments=[]}){
  const stations=[
   {name:"Entrée / portiques",x:0,z:8.6,look:[0,1.1,3]},
@@ -8,7 +8,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   {name:"Réserve",x:12,z:5,look:[13,1,11]},
   {name:"Zone de sortie",x:-3,z:8,look:[0,1,9]}
  ];
- departments.forEach((d,i)=>stations.push({name:"Galerie · "+d.name,x:d.x,z:d.z,look:[d.x,1.15,d.z-2],department:d}));
+ departments.forEach((d,i)=>stations.push({name:"Galerie · "+d.name,x:d.x,z:d.z,look:[d.x,1.15,d.front+1.5],department:d}));
  const staff=["Camille — rayons","Rayan — caisses","Nora — incidents"];
  const position={x:-13,z:8.1};
  let active=-1,opened=false;
@@ -29,6 +29,27 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
   cube(.3,.65,.27,mat([0x2563eb,0x16a34a,0x7c3aed][i]),x,1.04,.43);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.18,10,8),mat(0xd8aa86));
   head.position.set(x,1.51,.43);root.add(head);
+ }
+ // Caméras physiques visibles au plafond, avec support et objectif orienté vers l'entrée.
+ const cameraBody=new THREE.MeshStandardMaterial({color:0xe2e8f0,metalness:.35,roughness:.35});
+ const cameraLens=new THREE.MeshStandardMaterial({color:0x111827,metalness:.2,roughness:.2});
+ const cameraLight=new THREE.MeshBasicMaterial({color:0x22c55e});
+ for(const station of stations){
+  const fixture=new THREE.Group();
+  // En galerie, installer la caméra dans le fond du local, orientée vers l'entrée (+Z).
+  fixture.position.set(station.x,2.85,station.department?station.z-2.8:station.z);
+  const mount=new THREE.Mesh(new THREE.CylinderGeometry(.065,.065,.3,10),cameraBody);
+  mount.position.y=.17;fixture.add(mount);
+  const housing=new THREE.Mesh(new THREE.BoxGeometry(.34,.18,.42),cameraBody);
+  housing.position.set(0,0,.14);fixture.add(housing);
+  const lens=new THREE.Mesh(new THREE.CylinderGeometry(.085,.085,.045,12),cameraLens);
+  lens.rotation.x=Math.PI/2;lens.position.set(0,0,.365);fixture.add(lens);
+  const led=new THREE.Mesh(new THREE.SphereGeometry(.025,8,6),cameraLight);
+  led.position.set(.12,.04,.365);fixture.add(led);
+  const target=new THREE.Vector3(...station.look);
+  fixture.rotation.y=Math.atan2(target.x-fixture.position.x,target.z-fixture.position.z);
+  scene.add(fixture);
+  station.fixture=fixture;
  }
  const panel=document.createElement("div");
  Object.assign(panel.style,{display:"none",position:"fixed",inset:"0",zIndex:"95",pointerEvents:"none",color:"#fff",font:"13px system-ui"});
@@ -67,7 +88,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  function render(){
   if(!opened||active<0)return false;
   const s=stations[active];
-  cctv.position.set(s.x,3.2,s.z);cctv.lookAt(...s.look);
+  cctv.position.set(s.fixture.position.x,2.72,s.fixture.position.z+.42);cctv.lookAt(...s.look);
   cctv.aspect=camera.aspect;cctv.updateProjectionMatrix();
   renderer.render(scene,cctv);
   return true;
