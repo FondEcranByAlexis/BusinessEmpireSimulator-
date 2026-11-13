@@ -2347,17 +2347,14 @@ cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Cloison de fond continue et opaque : l'interrupteur est fixé sur sa face intérieure.
 // Réserve prolongée vers l'arrière, avec porte logistique vers le quai.
 // Partie centrale déjà comprise dans le sol/plafond continu.
-cube(10,2.5,12.8,.3,5,7,0xe2e8f0,true);
-// Fermeture de la façade extérieure droite de la première réserve sèche.
-// Prolonge la cloison existante de z=9.45 à z=16.65 sans fermer la galerie logistique.
+// Couloir latéral (repère rouge) : pas de cloison entre z=9.3 et z=16.25.
+// Le mur qui occupait cet espace est volontairement supprimé : ne pas le recréer.
+// Façade extérieure (repère vert) : mur plein derrière les rayonnages éloignés,
+// depuis z=16.25 jusqu'au fond z=23.7, sans interrompre l'allée centrale.
+// Un panneau continu remplace les deux anciens morceaux afin d'éviter les joints.
+// Les murs opposés et le passage logistique ne sont pas modifiés.
+cube(10.0,2.5,19.975,.3,5,7.45,0xe2e8f0,true);
 cube(15.3,2.5,13.05,.3,5,7.2,0xe2e8f0,true);
-// Réserve V3 : extension vers z=23,5 au-delà de l'ancien mur de fermeture.
-// L'ancien mur z=17 est supprimé pour créer une seule pièce continue.
-// Le quai logistique conserve son couloir indépendant x=25,65.
-// Extension déjà comprise dans le sol/plafond continu.
-// Petit raccord vertical entre les deux anciennes sections du mur gauche.
-cube(10.0,2.5,16.5,.3,5,.65,0xe2e8f0,true);
-cube(10.0,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
 cube(15.3,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
 // La cloison arrière s'efface à l'achat de l'extension du magasin.
 const oldReserveEndWall=cube(12.65,2.5,23.7,5.3,5,.3,0xe2e8f0);
