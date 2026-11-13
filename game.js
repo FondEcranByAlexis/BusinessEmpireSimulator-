@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.78";
-import { installSurveillance } from "./surveillance.js?v=0.14.78";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.78";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.78";
-// Business Empire Simulator V0.14.78 — version synchronisée
+import { installCity } from "./city.js?v=0.14.79";
+import { installSurveillance } from "./surveillance.js?v=0.14.79";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.79";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.79";
+// Business Empire Simulator V0.14.79 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -4169,17 +4169,18 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.14.78 : le couloir logistique possède deux portes distinctes sur son
+// V0.14.79 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
 cube(24.1,2.5,-18.3,.25,5,11.4,0xe2e8f0,true);
 cube(24.1,2.5,-8.65,.25,5,2.7,0xe2e8f0,true);
-cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0,true); // linteau stockage
+// Le linteau est en hauteur : collision 2D désactivée pour laisser franchir la baie.
+cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.14.78 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.14.79 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4198,7 +4199,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.14.78 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.14.79 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -4221,7 +4222,8 @@ cube((storageWest+17.8)/2,2.5,storageFront,roomSideWidth,5,.25,0xe2e8f0,true);
 // Division produits secs (est) / électronique (ouest) avec porte de 2,4 m.
 cube(19.2,2.5,-18.6,.23,5,7.8,0xdbeafe,true);
 cube(19.2,2.5,-10.9,.23,5,2.8,0xdbeafe,true);
-cube(19.2,4.2,-13.5,.23,1.6,2.4,0xdbeafe,true);
+// Même correction sur la porte intérieure entre secs et électronique.
+cube(19.2,4.2,-13.5,.23,1.6,2.4,0xdbeafe);
 for(const z of [-14.7,-12.3])cube(19.2,1.65,z,.09,3.3,.09,0x64748b);
 // Dalles LED dans chaque partie, avec circuits éclairage existants.
 for(const [kind,xs,zs] of [
@@ -6810,4 +6812,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.78 !");
+animate();toast("Business Empire Simulator V0.14.79 !");
