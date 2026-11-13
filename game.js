@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.9";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.9";
-// Business Empire Simulator V0.14.9 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.10";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.10";
+// Business Empire Simulator V0.14.10 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1709,7 +1709,10 @@ function checkoutBelt(c){
  const belt=c.belt??={items:[],waiting:Object.entries(c.basket).flatMap(([id,q])=>Array(Math.max(0,q)).fill(id)),refillDelay:0};
  const slots=checkoutSlotCount();
  if(belt.items.length!==slots){
-  if(belt.items.length>slots)belt.waiting.unshift(...belt.items.splice(slots).filter(Boolean));
+  if(belt.items.length>slots){
+   belt.waiting.unshift(...belt.items.splice(slots).filter(Boolean));
+   if(c.pendingAntitheft?.slot>=slots)c.pendingAntitheft=null;
+  }
   while(belt.items.length<slots)belt.items.push(null);
   if(!belt.refillDelay)fillCheckoutSlots(belt);
  }
@@ -1725,6 +1728,10 @@ function renderCheckoutVisual(c){
   if(!id)return;
   const p=catalog.find(x=>x.id===id);if(!p)return;
   const m=productModel(p);m.scale.setScalar(.7);
+  if(TAGGED_PRODUCTS.has(id)){
+   const tag=new THREE.Mesh(new THREE.BoxGeometry(.10,.068,.052),checkoutTagMaterial);
+   tag.position.set(.14,.13,.095);m.add(tag);
+  }
   if(slots===6){
    const backRow=i%2;
    m.position.set(6.05-Math.floor(i/2)*.36+backRow*.15,1.28,backRow?6.16:6.75);
@@ -1738,15 +1745,45 @@ function renderCheckoutVisual(c){
 }
 function scanCheckoutArticle(slot){
  const c=cashier;if(!c||c.phase!=="checkout")return;
+ if(c.pendingAntitheft)return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(c.scanned>=count)return;
  const belt=checkoutBelt(c);
- if(!Number.isInteger(slot)||!belt.items[slot])return;
+ const id=belt.items[slot];
+ if(!Number.isInteger(slot)||!id)return;
+ if(TAGGED_PRODUCTS.has(id)){
+  c.pendingAntitheft={slot,id};
+  showAntitheftRemoval(c);
+  return;
+ }
+ finishArticleScan(c,belt,slot,count);
+}
+function showAntitheftRemoval(c){
+ const pending=c.pendingAntitheft;
+ const product=catalog.find(p=>p.id===pending.id);
+ releaseMouseLook();
+ terminalKeyHandler=null;
+ checkoutUI.replaceChildren();checkoutUI.style.display="block";
+ checkoutText("CAISSE 1 · ANTIVOL",true);
+ checkoutText(product.name+" · antivol actif");
+ checkoutButton("Retirer l’antivol et scanner",()=>resolveAntitheft(c,pending,true));
+ checkoutButton("Scanner sans retirer l’antivol",()=>resolveAntitheft(c,pending,false));
+}
+function resolveAntitheft(c,pending,removed){
+ if(c!==cashier||c.phase!=="checkout"||c.pendingAntitheft!==pending||!registerOpen())return;
+ const belt=checkoutBelt(c);
+ if(belt.items[pending.slot]!==pending.id){showCheckout();return;}
+ c.pendingAntitheft=null;
+ if(!removed)c.forgottenTag??=pending.id;
+ const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
+ finishArticleScan(c,belt,pending.slot,count,removed?"Antivol retiré · article scanné":"Article scanné · antivol encore actif");
+}
+function finishArticleScan(c,belt,slot,count,message){
  belt.items[slot]=null;
  if(belt.waiting.length)belt.refillDelay=.25;
  c.scanned++;
  renderCheckoutVisual(c);
- toast(c.scanned===count?"Tous les articles sont scannés":"Bip ! Article scanné");
+ toast(message??(c.scanned===count?"Tous les articles sont scannés":"Bip ! Article scanné"));
  if(c.scanned===count)showPayment(c,count);
  else closeCheckoutUI();
 }
@@ -1759,7 +1796,8 @@ function showCheckout(){
  const c=cashier,count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(!count){checkoutUI.replaceChildren();checkoutUI.style.display="block";checkoutText("Panier vide");checkoutButton("Terminer",()=>finishCheckout(c));return;}
  renderCheckoutVisual(c);
- if(c.scanned>=count)showPayment(c,count);
+ if(c.pendingAntitheft)showAntitheftRemoval(c);
+ else if(c.scanned>=count)showPayment(c,count);
  else{closeCheckoutUI();toast("Touche directement les articles sur le tapis pour les scanner");}
 }
 function completeCheckoutPayment(c,count,staffed=false){
@@ -1768,6 +1806,7 @@ function completeCheckoutPayment(c,count,staffed=false){
  finance.revenue+=c.total;finance.transactions++;
  trackSale(c.basket,c.prices);
  c.paid=true;
+ c.manualCheckout=!staffed;
  if(count>0)changeSatisfaction(c.waitPenalty?1:3);
  sync();finishCheckout(c,staffed);
  checkLevelUp();
@@ -3580,6 +3619,7 @@ const terminalKeyboard=cube(7.3,1.22,6.86,.65,.035,.24,0x94a3b8);
 const checkoutRubber=standardMaterial({color:0x111827,roughness:.92});
 const checkoutSteel=standardMaterial({color:0x94a3b8,metalness:.65,roughness:.32});
 const checkoutBlack=standardMaterial({color:0x172033,roughness:.6});
+const checkoutTagMaterial=standardMaterial({color:0xe7eaf0,roughness:.52});
 const checkoutGlow=standardMaterial({color:0x38bdf8,emissive:0x075985,emissiveIntensity:.32});
 function checkoutPart(x,y,z,w,h,d,mat){
  const part=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
@@ -3594,6 +3634,10 @@ for(const x of [5.36,5.72,6.08])checkoutPart(x,1.223,6.46,.015,.006,.89,checkout
 checkoutPart(6.61,1.211,6.35,.38,.018,.47,checkoutSteel);
 checkoutPart(6.61,1.223,6.35,.28,.012,.35,checkoutBlack);
 for(const x of [6.52,6.61,6.70])checkoutPart(x,1.231,6.35,.012,.004,.28,checkoutGlow);
+// Détacheur magnétique du côté caissier.
+checkoutPart(6.65,1.23,7.02,.22,.06,.22,checkoutSteel);
+const tagDetacher=new THREE.Mesh(new THREE.CylinderGeometry(.076,.076,.042,16),checkoutBlack);
+tagDetacher.position.set(6.65,1.28,7.02);scene.add(tagDetacher);
 // Terminal bancaire orienté vers le client (côté rayons).
 checkoutPart(7.66,1.245,6.10,.25,.08,.36,checkoutBlack);
 const paymentDisplay=checkoutPart(7.66,1.30,6.05,.205,.012,.16,checkoutGlow);
@@ -5575,8 +5619,9 @@ function updateQueueApproach(c,dt){
  }
 }
 function sendToExit(c){
- if(c.paid&&securityOpen()&&!c.securityChecked&&Object.keys(c.basket).some(id=>TAGGED_PRODUCTS.has(id))){
-  c.activeTag=Math.random()<.20?Object.keys(c.basket).find(id=>TAGGED_PRODUCTS.has(id)):null;
+ if(c.paid&&securityOpen()&&!c.securityChecked){
+  const tagged=Object.keys(c.basket).find(id=>TAGGED_PRODUCTS.has(id));
+  c.activeTag=c.forgottenTag??(!c.manualCheckout&&tagged&&Math.random()<.20?tagged:null);
  }
  if(!c.paid&&Object.keys(c.basket).length){
   for(const [id,quantity] of Object.entries(c.basket)){
@@ -5953,4 +5998,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.9 !");
+animate();toast("Business Empire Simulator V0.14.10 !");
