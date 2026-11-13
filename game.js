@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.48";
-import { installSurveillance } from "./surveillance.js?v=0.14.48";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.48";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.48";
-// Business Empire Simulator V0.14.48 — version synchronisée
+import { installCity } from "./city.js?v=0.14.49";
+import { installSurveillance } from "./surveillance.js?v=0.14.49";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.49";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.49";
+// Business Empire Simulator V0.14.49 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -4912,6 +4912,7 @@ function blocked(x,z,r=.4){
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
  const wideParking=x>-50+r&&x<-9.2-r&&z>10.38+r&&z<82-r;
+ const parkingConnection=x>-11.2&&x<-7.8&&z>11.0&&z<78;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
  const cityWalk=x>-105+r&&x<105-r&&z>76+r&&z<232-r;
@@ -4933,7 +4934,7 @@ function blocked(x,z,r=.4){
  const link=autoLinkOpen()&&x>-35.85+r&&x<-30+r&&z>GALLERY_LINK_Z-1.35+r&&z<SHOWROOM_LINK_Z+1.35-r;
  const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
- if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||forecourt||wideParking||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
+ if(!(shop||mall||mallDoor||reserve||cold||storageWing||electronicsReserve||electronicsReserveDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  return candidates?.some(c=>x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ&&
   !c.disabled&&contentVisible(c)&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&
@@ -5140,7 +5141,7 @@ function makeCustomer(){
  const speed=1.35+Math.random()*.42;
  // Les clients arrivent depuis des points aléatoires de la ville et rejoignent le magasin à pied.
  const citySpawnX=(Math.random()-.5)*12;
- const citySpawnZ=85+Math.random()*27;
+ const citySpawnZ=80+Math.random()*18;
  const route=[{x:citySpawnX,z:76},{x:0,z:62},{x:0,z:38},{x:0,z:12.5},{x:0,z:8}];
  if(autoLinkOpen()&&first?.department&&Math.random()<.45){
   route.push({x:-11.8,z:5},{x:-20,z:-10.7},{x:-22.1,z:-14.6},{x:AUTO_LINK_X,z:SHOWROOM_LINK_Z},
@@ -5278,23 +5279,19 @@ function findNavPath(from,to){
 function walk(c,t,dt){
  if(!t)return false;
  const p=c.group.position,goal=t.x.toFixed(2)+","+t.z.toFixed(2);
- // À l'extérieur, les clients suivent les voies piétonnes sans utiliser
- // la grille A* intérieure, qui s'arrête à l'entrée du magasin.
- if(p.z>13.45&&t.z>=12.5){
-  const dx=t.x-p.x,dz=t.z-p.z,dist=Math.hypot(dx,dz);
-  if(dist<.22)return true;
+ // Parcours extérieur direct, indépendant de la grille A* intérieure.
+ // Le PNJ avance vers les points de passage jusqu'à la porte du magasin.
+ if(p.z>12.55){
+  const destination=t.z<12.55?{x:0,z:12.35}:t;
+  const dx=destination.x-p.x,dz=destination.z-p.z,dist=Math.hypot(dx,dz);
+  if(dist<.24){
+   if(t.z<12.55){p.x=0;p.z=12.35;c.navTarget=null;c.navRoute=null;return false;}
+   return true;
+  }
   const step=Math.min(c.speed*dt,dist);
   const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
-  if(!blocked(nx,nz,.26)){p.x=nx;p.z=nz;c.walkTime+=dt*8;faceNpc(c.group,dx,dz,dt);}
-  return Math.hypot(p.x-t.x,p.z-t.z)<.22;
- }
- if(p.z>13.45&&t.z<13.45){
-  const entry={x:0,z:12.5},dx=entry.x-p.x,dz=entry.z-p.z,dist=Math.hypot(dx,dz);
-  if(dist>.25){
-   const step=Math.min(c.speed*dt,dist),nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
-   if(!blocked(nx,nz,.26)){p.x=nx;p.z=nz;c.walkTime+=dt*8;faceNpc(c.group,dx,dz,dt);}
-   return false;
-  }
+  if(!blocked(nx,nz,.24)){p.x=nx;p.z=nz;c.walkTime+=step*5.5;faceNpc(c.group,dx,dz,dt);}
+  return false;
  }
 
  if(Math.hypot(p.x-t.x,p.z-t.z)<.22){c.navTarget=null;c.navRoute=null;c.stuckTime=0;return true;}
@@ -6553,4 +6550,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.48 !");
+animate();toast("Business Empire Simulator V0.14.49 !");
