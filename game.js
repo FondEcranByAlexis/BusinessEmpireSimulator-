@@ -2348,6 +2348,9 @@ cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Réserve prolongée vers l'arrière, avec porte logistique vers le quai.
 // Partie centrale déjà comprise dans le sol/plafond continu.
 cube(10,2.5,12.8,.3,5,7,0xe2e8f0,true);
+// Fermeture de la façade extérieure droite de la première réserve sèche.
+// Prolonge la cloison existante de z=9.45 à z=16.65 sans fermer la galerie logistique.
+cube(15.3,2.5,13.05,.3,5,7.2,0xe2e8f0,true);
 // Réserve V3 : extension vers z=23,5 au-delà de l'ancien mur de fermeture.
 // L'ancien mur z=17 est supprimé pour créer une seule pièce continue.
 // Le quai logistique conserve son couloir indépendant x=25,65.
