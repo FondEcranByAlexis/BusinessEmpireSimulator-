@@ -1,8 +1,8 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installSurveillance } from "./surveillance.js?v=0.14.30";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.30";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.30";
-// Business Empire Simulator V0.14.30 — version synchronisée
+import { installSurveillance } from "./surveillance.js?v=0.14.31";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.31";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.31";
+// Business Empire Simulator V0.14.31 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -5702,14 +5702,70 @@ function showAudioSettings(){
 function soundExitAlarm(){
  if(near(EXIT_GATE.x,EXIT_GATE.z,18))playSound("alarm");
 }
+// Incidents de vol : signalements des caméras, portiques et intervention simulée.
+const theftIncidents=[];
+let theftSequence=0;
+function theftZone(product){
+ if(product?.department)return DEPARTMENTS[product.department]?.name??"Galerie";
+ const z=product?.z??0;
+ if(z<-18)return "Électronique";
+ if(z<-7)return "Petit-déjeuner / première extension";
+ if(z<1)return "Rayons alimentaires";
+ return "Supermarché";
+}
+function reportTheft(customer,product){
+ const incident={id:++theftSequence,customer,product:product?.name??"Article",zone:theftZone(product),day:state.day,status:"en fuite",policeTimer:0,atGate:false};
+ customer.theftIncident=incident;
+ theftIncidents.unshift(incident);
+ if(theftIncidents.length>30)theftIncidents.length=30;
+ const seen=surveillance.detectAt(customer.group.position.x,customer.group.position.z);
+ incident.camera=seen;
+ if(seen){
+  toast("VIDÉOSURVEILLANCE · Vol détecté — "+incident.zone);
+  playSound("alert");
+ }
+ return incident;
+}
+function callPoliceForTheft(incident){
+ if(!incident||incident.status!=="en fuite")return;
+ incident.status="police appelée";
+ incident.policeTimer=7;
+ toast("Police contactée · intervention en cours — "+incident.zone);
+}
+function updateTheftPolice(dt){
+ for(const incident of theftIncidents){
+  if(incident.status!=="police appelée")continue;
+  incident.policeTimer-=dt;
+  if(incident.policeTimer>0)continue;
+  incident.status="interpellé";
+  const c=incident.customer;
+  if(c&&customers.includes(c)){
+   if(c.phase==="securityCheck"){
+    const index=securityChecks.indexOf(c);
+    if(index>=0)securityChecks.splice(index,1);
+   }
+   removeCustomer(c);
+  }
+  if(!securityChecks.length)gateIndicator.color.setHex(0x4ade80);
+  toast("Police · voleur interpellé, article récupéré");
+  const log=state.management.securityLog??=[];
+  log.unshift({day:state.day,product:incident.product,checked:true,theft:true,zone:incident.zone});
+  log.length=Math.min(log.length,20);save();
+ }
+}
 function triggerSecurityCheck(customer){
+ if(customer.theftIncident){
+  customer.theftIncident.atGate=true;
+  toast("ALARME PORTIQUE · Vol — "+customer.theftIncident.zone);
+ }
  customer.phase="securityCheck";customer.securityWait=0;
  securityChecks.push(customer);
  gateIndicator.color.setHex(0xef4444);soundExitAlarm();
- customerComplaint(customer,"antivol","Le portique sonne. Mon achat est déjà payé.");
+ if(!customer.theftIncident)customerComplaint(customer,"antivol","Le portique sonne. Mon achat est déjà payé.");
  toast("Portique antivol · vérification du ticket au poste de sécurité");
 }
 function finishSecurityCheck(customer,checked=true){
+ if(customer.theftIncident)return;
  const index=securityChecks.indexOf(customer);
  if(index<0)return;
  securityChecks.splice(index,1);
@@ -5724,7 +5780,7 @@ function finishSecurityCheck(customer,checked=true){
 }
 let assignedGuard=null,assignedIncident=null,guardDelay=0;
 function updateSecurityDesk(dt){
- const incident=securityChecks[0];
+ const incident=securityChecks.find(c=>!c.theftIncident);
  if(!incident||assignedGuard&&!assignedGuard.group.visible){
   assignedGuard=null;assignedIncident=null;return;
  }
@@ -5747,8 +5803,15 @@ function showSecurityDesk(){
  if(!securityOpen())return;
  openPanel("Poste de sécurité");
  button(panel,"Accéder aux caméras de surveillance",()=>surveillance.show());
+ const thefts=theftIncidents.filter(i=>i.status!=="interpellé");
+ paragraph("Alertes vol · "+thefts.length+" incident(s) en cours");
+ for(const incident of thefts){
+  paragraph("VOL · "+incident.zone+" · "+incident.product+" · "+(incident.atGate?"ALARME PORTIQUE":incident.camera?"Signalé par caméra":"Non détecté par caméra")+" · "+incident.status);
+  if(incident.status==="en fuite")button(panel,"Appeler la police — "+incident.zone,()=>{callPoliceForTheft(incident);showSecurityDesk();});
+ }
  paragraph("Portiques de sortie · "+securityChecks.length+" contrôle(s) en attente.");
  for(const customer of securityChecks){
+  if(customer.theftIncident)continue;
   const product=catalog.find(p=>p.id===customer.activeTag);
   paragraph((product?.name??"Article")+" · achat payé, antivol encore actif");
   button(panel,"Vérifier le ticket et retirer l’antivol",()=>{
@@ -6072,6 +6135,10 @@ function updateCustomers(dt){
     if(a){
      const quantity=Math.min(a.shelf,1+Math.floor(Math.random()*3));
      const product=catalog.find(p=>p.id===c.productId);
+     if(quantity>0&&!c.theftIncident&&securityOpen()&&Math.random()<.018){
+      a.shelf-=1;sync();reportTheft(c,product);sendToExit(c);
+      continue;
+     }
      if(quantity>0&&a.price>product.price*c.priceTolerance){
       customerComplaint(c,"price",product.name+" à "+euro(a.price)+" ? C’est trop cher.",-2);
      }else if(quantity>0){
@@ -6140,12 +6207,12 @@ function updateCustomers(dt){
    const x=c.group.position.x,z=c.group.position.z;
    if(walk(c,t,dt)){
     c.waypoint++;c.exitStall=0;
-    if(t===EXIT_GATE&&c.activeTag&&securityOpen())triggerSecurityCheck(c);
+    if(t===EXIT_GATE&&securityOpen()&&(c.activeTag||c.theftIncident))triggerSecurityCheck(c);
    }
    else{
     const moved=Math.hypot(c.group.position.x-x,c.group.position.z-z)>.003;
     c.exitStall=moved?0:(c.exitStall||0)+dt;
-    if(c.exitStall>7){c.waypoint++;c.exitStall=0;c.navTarget=null;c.navRoute=null;}
+    if(c.exitStall>7){if(t===EXIT_GATE&&securityOpen()&&(c.activeTag||c.theftIncident))triggerSecurityCheck(c);else c.waypoint++;c.exitStall=0;c.navTarget=null;c.navRoute=null;}
    }
    if(c.waypoint>=c.route.length)removeCustomer(c);
   }
@@ -6383,4 +6450,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.30 !");
+animate();toast("Business Empire Simulator V0.14.31 !");
