@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.23";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.23";
-// Business Empire Simulator V0.14.23 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.24";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.24";
+// Business Empire Simulator V0.14.24 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1822,6 +1822,13 @@ function finishArticleScan(c,belt,slot,count,message){
  if(c.scanned===count)showPayment(c,count);
  else closeCheckoutUI();
 }
+function sayCheckoutLine(customer,stage,message){
+ const spoken=customer.checkoutLines??=new Set();
+ if(spoken.has(stage))return false;
+ spoken.add(stage);
+ speakDialogue(message,"customer");
+ return true;
+}
 function showCheckout(){
  if(!cashier){closeCheckoutUI();clearCheckoutVisual();return;}
  if(!registerOpen()){toast("Caisse fermée · assieds-toi pour ouvrir le poste");return;}
@@ -1829,11 +1836,15 @@ function showCheckout(){
  releaseMouseLook();
  panel.style.display="none";
  const c=cashier,count=Object.values(c.basket).reduce((n,q)=>n+q,0);
+ const greeted=sayCheckoutLine(c,"greeting","Bonjour !");
  if(!count){checkoutUI.replaceChildren();checkoutUI.style.display="block";checkoutText("Panier vide");checkoutButton("Terminer",()=>finishCheckout(c));return;}
  renderCheckoutVisual(c);
  if(c.pendingAntitheft)showAntitheftRemoval(c);
  else if(c.scanned>=count)showPayment(c,count);
- else{closeCheckoutUI();toast("Touche directement les articles sur le tapis pour les scanner");}
+ else{
+  closeCheckoutUI();
+  toast((greeted?"Client · Bonjour ! — ":"")+"Touche directement les articles sur le tapis pour les scanner");
+ }
 }
 function completeCheckoutPayment(c,count,staffed=false){
  if(c!==cashier)return;
@@ -1846,7 +1857,8 @@ function completeCheckoutPayment(c,count,staffed=false){
  if(count>0)changeSatisfaction(c.waitPenalty?1:3);
  sync();finishCheckout(c,staffed);
  checkLevelUp();
- toast("Paiement accepté : +"+euro(c.total));
+ const farewell=!staffed&&sayCheckoutLine(c,"farewell","Merci, bonne journée !");
+ toast("Paiement accepté : +"+euro(c.total)+(farewell?" · Client : Merci, bonne journée !":""));
 }
 function showPayment(c,count){
  if(c!==cashier)return;
@@ -1855,7 +1867,9 @@ function showPayment(c,count){
  checkoutUI.replaceChildren();checkoutUI.style.display="block";
  checkoutText("FBA — MODE DE PAIEMENT",true);
  checkoutText("À régler : "+euro(c.total),true);
- checkoutText(c.paymentMethod==="cash"?"Le client paie en espèces.":"Le client paie par carte.");
+ const paymentLine=c.paymentMethod==="cash"?"Je paie en espèces.":"Je paie par carte.";
+ checkoutText("Client · "+paymentLine);
+ sayCheckoutLine(c,"payment",paymentLine);
  checkoutButton(c.paymentMethod==="cash"?"Ouvrir le tiroir-caisse":"Ouvrir le terminal bancaire",()=>{
   if(c.paymentMethod==="cash"){playSound("open");showCashPayment(c,count);}
   else showCardPayment(c,count);
@@ -6366,4 +6380,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.23 !");
+animate();toast("Business Empire Simulator V0.14.24 !");
