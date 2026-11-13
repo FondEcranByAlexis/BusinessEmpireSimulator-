@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.7";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.7";
-// Business Empire Simulator V0.14.7 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.8";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.8";
+// Business Empire Simulator V0.14.8 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1911,13 +1911,41 @@ const GRAPHICS_KEY="fba-graphics";
 const graphicsPresets={fluid:.78,balanced:1,detail:1.35};
 const savedGraphics=localStorage.getItem(GRAPHICS_KEY);
 let graphicsMode=Object.hasOwn(graphicsPresets,savedGraphics)?savedGraphics:"balanced";
-function updatePixelRatio(){
- const limit=graphicsPresets[graphicsMode];
- renderer.setPixelRatio(Math.min(devicePixelRatio||1,renderingDeepGallery?Math.min(limit,1):limit));
+let renderingDeepGallery=false;
+function resizeGameView(){
+ const width=innerWidth,height=innerHeight;
+ if(!width||!height)return;
+ const aspect=width/height;
+ if(camera.aspect!==aspect){camera.aspect=aspect;camera.updateProjectionMatrix();}
+ const limit=renderingDeepGallery?Math.min(graphicsPresets[graphicsMode],1):graphicsPresets[graphicsMode];
+ const pixelRatio=Math.min(devicePixelRatio||1,limit);
+ const size=renderer.getSize(viewSize);
+ if(renderer.getPixelRatio()!==pixelRatio)renderer.setPixelRatio(pixelRatio);
+ if(size.x!==width||size.y!==height)renderer.setSize(width,height);
 }
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,graphicsPresets[graphicsMode]));
-renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=false;
+const viewSize=new THREE.Vector2();
+resizeGameView();renderer.shadowMap.enabled=false;
 $("game").appendChild(renderer.domElement);
+// Conserver les pixels des textures même si Android libère les canevas graphiques.
+const gameTextures=new Set();
+function uploadTexturePixels(texture,canvas){
+ const {width,height}=canvas;
+ const {data}=canvas.getContext("2d").getImageData(0,0,width,height);
+ const rowSize=width*4,pixels=texture.image.data;
+ for(let y=0;y<height;y++)pixels.set(data.subarray(y*rowSize,(y+1)*rowSize),(height-1-y)*rowSize);
+ texture.needsUpdate=true;
+}
+function gameTexture(canvas){
+ const {width,height}=canvas;
+ const texture=new THREE.DataTexture(new Uint8Array(width*height*4),width,height);
+ texture.colorSpace=THREE.SRGBColorSpace;
+ texture.magFilter=THREE.LinearFilter;
+ texture.minFilter=THREE.LinearMipmapLinearFilter;
+ texture.generateMipmaps=true;
+ uploadTexturePixels(texture,canvas);
+ gameTextures.add(texture);
+ return texture;
+}
 scene.add(new THREE.HemisphereLight(0xffffff,0x718096,2.2));
 const sun=new THREE.DirectionalLight(0xffffff,1.4);sun.position.set(5,12,4);scene.add(sun);
 const ambient=scene.children.find(o=>o.isHemisphereLight);
@@ -2007,7 +2035,7 @@ function tileFloor(width,depth,x,z){
   ctx.fillStyle=(ix+iy)%3===0?"#e7eaed":"#dfe4e7";
   ctx.fillRect(ix*64+2,iy*64+2,60,60);
  }
- const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+ const tex=gameTexture(c);
  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(width/8,depth/8);
  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),new THREE.MeshStandardMaterial({map:tex,roughness:.88}));
  mesh.rotation.x=-Math.PI/2;mesh.position.set(x,.012,z);scene.add(mesh);return mesh;
@@ -2111,7 +2139,7 @@ for(const x of [16.35,20.15]){
   for(const dx of [-.65,.65])for(const dz of [-.65,.65])cube(x+dx,1.6,z+dz,.07,3.2,.07,0x64748b);
  }
 }
-const coldSign=(()=>{const c=document.createElement("canvas");c.width=512;c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="#0c4a6e";ctx.fillRect(0,0,512,128);ctx.fillStyle="#e0f2fe";ctx.textAlign="center";ctx.font="bold 45px Arial";ctx.fillText("CHAMBRE FROIDE",256,80);const m=new THREE.Mesh(new THREE.PlaneGeometry(2.8,.7),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),side:THREE.DoubleSide}));m.position.set(15.08,4.1,5.45);m.rotation.y=-Math.PI/2;scene.add(m);return m;})();
+const coldSign=(()=>{const c=document.createElement("canvas");c.width=512;c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="#0c4a6e";ctx.fillRect(0,0,512,128);ctx.fillStyle="#e0f2fe";ctx.textAlign="center";ctx.font="bold 45px Arial";ctx.fillText("CHAMBRE FROIDE",256,80);const m=new THREE.Mesh(new THREE.PlaneGeometry(2.8,.7),new THREE.MeshBasicMaterial({map:gameTexture(c),side:THREE.DoubleSide}));m.position.set(15.08,4.1,5.45);m.rotation.y=-Math.PI/2;scene.add(m);return m;})();
 
 cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Passage libre entre ancienne réserve et agrandissement (ancien mur du fond supprimé).
@@ -2575,7 +2603,7 @@ function paintBrand(c,title,subtitle){
 function brandPanel(title,subtitle,width=5.6,height=1.0){
  const c=document.createElement("canvas");c.width=1024;c.height=256;
  paintBrand(c,title,subtitle);
- const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+ const tex=gameTexture(c);
  const m=new THREE.Mesh(new THREE.PlaneGeometry(width,height),new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide,depthTest:true}));
  return m;
 }
@@ -2635,8 +2663,7 @@ function packageTexture(p,format=""){
  x.textAlign="left";x.font="bold 31px Arial";
  x.fillText((format==="CARTON"?BOX_UNITS+" U · ":"")+p.id.replaceAll("_"," ").toUpperCase(),23,469,325);
  for(let i=0;i<15;i++)x.fillRect(368+i*8,450,2+((code>>>i)&3),35);
- const t=new THREE.CanvasTexture(c);
- t.colorSpace=THREE.SRGBColorSpace;
+ const t=gameTexture(c);
  t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
  productTextures[key]=t;return t;
 }
@@ -2790,13 +2817,16 @@ const priceLabelTextures={};
 function updatePriceLabel(p){
  const label=priceLabelTextures[p.id],price=state.inventory[p.id].price;
  if(!label||label.price===price)return;
- const {ctx,texture}=label;
+ const {canvas,texture}=label;
+ const ctx=canvas.getContext("2d");
+ const scale=canvas.width/512;
+ ctx.setTransform(scale,0,0,scale,0,0);
  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,512,192);
  ctx.strokeStyle="#cbd5e1";ctx.lineWidth=5;ctx.strokeRect(3,3,506,186);
  ctx.fillStyle="#0f172a";ctx.textAlign="left";ctx.textBaseline="middle";
  ctx.font="bold 40px Arial";ctx.fillText(p.name,22,51,468);
  ctx.font="bold 83px Arial";ctx.fillText(price.toFixed(2).replace(".",",")+" €",22,131,468);
- label.price=price;texture.needsUpdate=true;
+ uploadTexturePixels(texture,canvas);label.price=price;
 }
 function priceLabel(p,width=.52){
  const key=p.id;
@@ -2804,10 +2834,9 @@ function priceLabel(p,width=.52){
   const canvas=document.createElement("canvas");
   const scale=p.department?.5:1;
   canvas.width=512*scale;canvas.height=192*scale;
-  const ctx=canvas.getContext("2d");ctx.scale(scale,scale);
-  const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
+  const texture=gameTexture(canvas);
   texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-  priceLabelTextures[key]={ctx,texture};
+  priceLabelTextures[key]={canvas,texture};
   updatePriceLabel(p);
  }
  return new THREE.Mesh(new THREE.PlaneGeometry(width,width*192/512),
@@ -2966,7 +2995,7 @@ function shelfSign(label){
  ctx.strokeStyle="#38bdf8";ctx.lineWidth=8;ctx.strokeRect(5,5,502,118);
  ctx.fillStyle="#ffffff";ctx.font="bold 43px Arial";ctx.textAlign="center";
  ctx.fillText(label,256,80,480);
- const texture=new THREE.CanvasTexture(canvas);
+ const texture=gameTexture(canvas);
  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:true,depthWrite:false}));
  sprite.scale.set(2.5,.62,1);return sprite;
 }
@@ -3477,18 +3506,19 @@ checkoutPart(6.94,1.28,6.46,.045,.14,.94,checkoutBlack);
 const checkoutLogoCanvas=document.createElement("canvas");
 checkoutLogoCanvas.width=512;checkoutLogoCanvas.height=128;
 const checkoutLogoCtx=checkoutLogoCanvas.getContext("2d");
-const checkoutLogoTex=new THREE.CanvasTexture(checkoutLogoCanvas);
-checkoutLogoTex.colorSpace=THREE.SRGBColorSpace;
+const checkoutLogoTex=gameTexture(checkoutLogoCanvas);
+
 function updateStoreSigns(){
  for(const [sign,subtitle] of [[entranceBrand,"BUSINESS EMPIRE SIMULATOR"],[corridorBrand,"EXTENSION DU MAGASIN"]]){
   const texture=sign.material.map;
-  paintBrand(texture.image,state.storeName,subtitle);texture.needsUpdate=true;
+  const canvas=document.createElement("canvas");canvas.width=1024;canvas.height=256;
+  paintBrand(canvas,state.storeName,subtitle);uploadTexturePixels(texture,canvas);
  }
  checkoutLogoCtx.fillStyle="#0f172a";checkoutLogoCtx.fillRect(0,0,512,128);
  checkoutLogoCtx.fillStyle="#38bdf8";checkoutLogoCtx.fillRect(0,0,512,9);
  checkoutLogoCtx.fillStyle="#ffffff";checkoutLogoCtx.textAlign="center";
  checkoutLogoCtx.font="bold 54px Arial";checkoutLogoCtx.fillText(state.storeName,256,81,470);
- checkoutLogoTex.needsUpdate=true;
+ uploadTexturePixels(checkoutLogoTex,checkoutLogoCanvas);
  $("storeName").textContent=state.storeName;
 }
 const checkoutLogo=new THREE.Mesh(new THREE.PlaneGeometry(1.7,.425),
@@ -3745,7 +3775,7 @@ breakSignCtx.fillStyle="#0f172a";breakSignCtx.fillRect(0,0,512,160);
 breakSignCtx.fillStyle="#38bdf8";breakSignCtx.fillRect(0,0,512,12);
 breakSignCtx.fillStyle="#fff";breakSignCtx.textAlign="center";breakSignCtx.font="bold 48px Arial";
 breakSignCtx.fillText("SALLE DE REPOS",256,95);
-const breakSign=new THREE.Mesh(new THREE.PlaneGeometry(2.3,.7),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(breakSignCanvas),side:THREE.DoubleSide}));
+const breakSign=new THREE.Mesh(new THREE.PlaneGeometry(2.3,.7),new THREE.MeshBasicMaterial({map:gameTexture(breakSignCanvas),side:THREE.DoubleSide}));
 breakSign.position.set(24.29,3.85,-6);breakSign.rotation.y=Math.PI/2;scene.add(breakSign);
 // Mobilier : table, deux chaises, cafetière, micro-ondes et casiers.
 cube(19.8,.78,-6,1.35,.13,1.65,0x92400e,true);
@@ -4356,7 +4386,7 @@ function showSettings(){
  paragraph("Qualité graphique");
  for(const [mode,name] of [["fluid","Fluide"],["balanced","Équilibrée"],["detail","Détaillée"]]){
   const b=button(panel,name+(graphicsMode===mode?" · Active":""),()=>{
-   graphicsMode=mode;localStorage.setItem(GRAPHICS_KEY,mode);updatePixelRatio();showSettings();
+   graphicsMode=mode;localStorage.setItem(GRAPHICS_KEY,mode);resizeGameView();showSettings();
   });
   b.disabled=graphicsMode===mode;
  }
@@ -5659,12 +5689,9 @@ function business(dt){
  }
  updateTime();
 }
-window.addEventListener("resize",()=>{
- camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
-});
+window.addEventListener("resize",resizeGameView);
 // La façade et les panneaux restent visibles. L'intérieur d'une boutique
 // est chargé au rendu à l'approche, indépendamment du stock et de la navigation.
-let renderingDeepGallery=false;
 function updateGalleryRendering(){
  const {x,z}=camera.position;
  for(const [id,room] of annexGroups){
@@ -5677,7 +5704,7 @@ function updateGalleryRendering(){
  const deep=z<ANNEX_ENTRY-(renderingDeepGallery?5:7);
  if(deep===renderingDeepGallery)return;
  renderingDeepGallery=deep;
- updatePixelRatio();
+ resizeGameView();
 }
 const feedbackBubble=document.createElement("div");
 Object.assign(feedbackBubble.style,{display:"none",position:"fixed",zIndex:"18",pointerEvents:"none",transform:"translate(-50%,-100%)",
@@ -5778,10 +5805,32 @@ function closeAgePrompt(){
  ageOverlay.style.display="none";sync();refreshDeliveryDock();
 }
 const clock=new THREE.Clock();
+let contextLost=false,refreshOnResume=false;
+function refreshWhenVisible(){
+ if(!document.hidden)refreshOnResume=true;
+}
+document.addEventListener("visibilitychange",refreshWhenVisible);
+window.addEventListener("pageshow",refreshWhenVisible);
+renderer.domElement.addEventListener("webglcontextlost",event=>{
+ event.preventDefault();
+ contextLost=true;
+});
+renderer.domElement.addEventListener("webglcontextrestored",()=>{
+ contextLost=false;
+ refreshOnResume=true;
+});
 function animate(){
  requestAnimationFrame(animate);
+ if(document.hidden||contextLost)return;
+ if(refreshOnResume){
+  refreshOnResume=false;
+  renderer.resetState();
+  resizeGameView();
+  for(const texture of gameTextures)texture.needsUpdate=true;
+  updateLighting();
+  clock.start();
+ }
  const dt=Math.min(clock.getDelta(),.05);
- if(document.hidden)return;
  const smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
@@ -5803,4 +5852,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.7 !");
+animate();toast("Business Empire Simulator V0.14.8 !");
