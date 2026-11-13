@@ -4173,7 +4173,24 @@ const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
 cube(24.1,2.5,-15.65,.25,5,16.7,0xe2e8f0,true);
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
+// V0.14.73 : porte des réserves sèches et électroniques située en face de
+// la salle de pause, sur le côté est du couloir logistique (x=27.2, z=-6).
+// Le mur est réellement découpé, et non recouvert d'un faux encadrement.
+cube(27.2,2.5,-15.65,.25,5,16.7,0xe2e8f0,true); // z -24 à -7.3
+cube(27.2,2.5,1.35,.25,5,12.1,0xe2e8f0,true);  // z -4.7 à 7.4
+cube(27.2,4.2,-6,.25,1.6,2.6,0xe2e8f0,true);   // linteau
+// Huisserie métallique et seuil mince, identiques aux finitions logistiques.
+for(const z of [-7.3,-4.7])cube(27.06,1.65,z,.095,3.3,.10,0x64748b);
+cube(27.06,3.33,-6,.095,.12,2.65,0x64748b);
+cube(27.05,.035,-6,.52,.035,2.55,0x94a3b8);
+// Panneau de porte opaque : accès fermé tant que les nouvelles réserves
+// ne sont pas reconstruites. Son collider correspond exactement au vantail.
+const storageAccessDoor=cube(27.2,1.65,-6,.12,3.3,2.48,0x475569,true);
+cube(27.115,1.55,-5.03,.05,.28,.055,0xcbd5e1);
+const storageAccessSign=brandPanel("STOCKAGE SEC","& ÉLECTRONIQUE",2.75,.68);
+storageAccessSign.position.set(27.035,4.04,-6);
+storageAccessSign.rotation.y=-Math.PI/2;
+scene.add(storageAccessSign);
 cube(25.65,5.1,-8.3,3.1,.2,31.4,0xf1f5f9);
 // Annexe du personnel à l'ouest du couloir logistique, hors des axes des livraisons.
 cube(20.95,-.15,-6,6.3,.3,6,0xa8b5c6);
