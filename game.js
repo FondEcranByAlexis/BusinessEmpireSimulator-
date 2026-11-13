@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.21";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.21";
-// Business Empire Simulator V0.14.21 — version synchronisée
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.22";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.22";
+// Business Empire Simulator V0.14.22 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -889,6 +889,9 @@ button(actions,"Interagir",interact).style.background="#15803d";
 const handtruckButton=button(actions,"Utiliser le diable (T)",useHandtruck);
 handtruckButton.setAttribute("aria-keyshortcuts","T");
 handtruckButton.style.display="none";
+const checkoutRushButton=button(actions,"Files d’attente",showCheckoutRush);
+checkoutRushButton.style.background="#92400e";
+checkoutRushButton.style.display="none";
 function showProfile(){
  openPanel("Profil du commerçant");
  paragraph("Commerçant · "+state.playerName);
@@ -903,6 +906,7 @@ function showProfile(){
  paragraph("Chiffre d’affaires encaissé : "+euro(finance.revenue));
  paragraph(nextLevelLabel());
  button(panel,"Progression des niveaux",showProgression);
+ button(panel,"Files et renfort en caisse",showCheckoutRush);
  button(panel,"← Retour au menu",showMainMenu);
 }
 function switchDevMode(enable){
@@ -5259,8 +5263,9 @@ function showServiceBoard(){
   for(const unit of members)paragraph(employeeName(unit.id)+" · "+expandedTeamStatus(unit));
  }
  paragraph("Caisses");
- paragraph("Caisse 1 · "+(registerOpen()?"Ouverte":"Fermée"));
- for(const register of activeRegisters())paragraph(register.label+" · "+(registerOpen(register)?"Ouverte":"Fermée"));
+ paragraph("Caisse 1 · "+(registerOpen()?"Ouverte · "+checkoutLineCount()+" en attente":"Fermée"));
+ for(const register of activeRegisters())paragraph(register.label+" · "+(registerOpen(register)?"Ouverte · "+checkoutLineCount(register)+" en attente":"Fermée"));
+ button(panel,"Gérer les files et le renfort",showCheckoutRush);
  button(panel,"Actualiser les statuts",showServiceBoard);
  button(panel,"Affecter les employés de rayon",()=>showTeamManagement("shelf"));
  button(panel,"Détail des horaires et missions",showEmployeeOverview);
@@ -5483,10 +5488,13 @@ for(const register of extraRegisters){
 function registerUnlocked(register){return playerLevel()>=register.level&&(!register.hall||state.upgrades[FRONT_HALL])&&(!register.legacy||!state.upgrades[FRONT_HALL]);}
 function activeRegisters(){return extraRegisters.filter(registerUnlocked);}
 function cashierHired(id){return !!state.management.cashiers?.[id]||(id==="second"&&!!state.management.extraCashier);}
-function cashierOnDuty(id){
+function cashierAvailable(id){
  const offset=id==="main"?0:Number(id.replace("lane",""))||2;
  const lunch=offset%2===0?12:13;
  return cashierHired(id)&&state.hour>=8&&state.hour<20&&(state.hour<lunch||state.hour>=lunch+1);
+}
+function cashierOnDuty(id){
+ return cashierAvailable(id)&&!state.management.cashierStandby?.[id];
 }
 function registerOpen(register){
  return register?registerUnlocked(register)&&(register.self||cashierOnDuty(register.id)):seatedAtCheckout||cashierOnDuty("main");
@@ -5617,6 +5625,35 @@ function showSecurityDesk(){
 function approachingCustomerCount(register){
  return customers.filter(c=>c.phase==="approachingQueue"&&c.auxRegister===register).length;
 }
+function checkoutLineCount(register){
+ return (register?.queue??queue).length+approachingCustomerCount(register);
+}
+function showCheckoutRush(){
+ openPanel("Files et renfort en caisse");
+ const waiting=customers.filter(c=>c.phase==="waitingRegister").length;
+ if(waiting)paragraph(waiting+" client(s) cherchent une caisse ouverte.");
+ for(const register of [undefined,...activeRegisters()]){
+  const id=register?.id??"main",label=register?.label??"Caisse 1";
+  const open=registerOpen(register);
+  paragraph(label+" · "+(open?checkoutLineCount(register)+" en attente · env. "+Math.ceil(checkoutWorkAhead(register))+" s":"Fermée"));
+  if(register?.self||!cashierHired(id))continue;
+  if(!cashierAvailable(id)){paragraph("Caissier hors service");continue;}
+  if(!register&&seatedAtCheckout)continue;
+  const busy=!!(register?register.client:cashier)||checkoutLineCount(register)>0;
+  const standby=!!state.management.cashierStandby?.[id];
+  if(!standby&&busy)continue;
+  button(panel,(standby?"Ouvrir en renfort · ":"Mettre en attente · ")+label,()=>{
+   if(!cashierAvailable(id)||(!register&&seatedAtCheckout))return;
+   if(!!state.management.cashierStandby?.[id]!==standby)return;
+   if(!standby&&(checkoutLineCount(register)||(register?register.client:cashier)))return;
+   (state.management.cashierStandby??={})[id]=!standby;
+   if(standby)redistributeCheckoutLine(register);
+   updateRegisterIndicators();save();showCheckoutRush();
+  });
+ }
+ if(!registerOpen())paragraph("Tu peux aussi ouvrir la caisse 1 en t’asseyant au poste.");
+ if(activeRegisters().some(r=>!r.self))button(panel,"Gérer les caissiers",()=>showTeamManagement("checkout"));
+}
 function auxiliaryCustomerCount(register){
  return register.queue.length+Number(!!register.client)+approachingCustomerCount(register);
 }
@@ -5722,6 +5759,37 @@ function queueSpot(i,register){
  if(register)return {x:register.queueX,z:register.queueZ-Math.min(i+Number(!!register.client),register.hall||register.id==="second"&&state.upgrades[FRONT_HALL]?2:4)*.65};
  return {x:3.65,z:6.25-Math.min(i+Number(!!cashier),4)*.78};
 }
+function checkoutServiceEstimate(c,register){
+ const count=Object.values(c.basket).reduce((sum,quantity)=>sum+quantity,0);
+ if(register?.self)return 3+count*.8;
+ if(!register&&seatedAtCheckout)return 4+count*1.4;
+ return autoCheckoutSeconds(count);
+}
+function checkoutWorkAhead(register,queuedCustomer){
+ const client=register?register.client:cashier;
+ let seconds=0;
+ if(client){
+  seconds=!register&&seatedAtCheckout?checkoutServiceEstimate(client,register):Math.max(0,client.timer??0);
+  if(client.selfIssue)seconds+=Math.max(0,45-(client.selfWait??0));
+ }
+ for(const customer of register?.queue??queue){
+  if(customer===queuedCustomer)return seconds;
+  seconds+=checkoutServiceEstimate(customer,register);
+ }
+ for(const customer of customers){
+  if(customer.phase==="approachingQueue"&&customer.auxRegister===register)seconds+=checkoutServiceEstimate(customer,register);
+ }
+ return seconds;
+}
+function checkoutEstimate(c,register){
+ const spot=queueSpot((register?.queue??queue).length,register);
+ const walking=Math.hypot(c.group.position.x-spot.x,c.group.position.z-spot.z)/c.speed;
+ return Math.max(walking,checkoutWorkAhead(register))+checkoutServiceEstimate(c,register);
+}
+function routeCustomerToRegister(c,register){
+ c.auxRegister=register;
+ c.phase="approachingQueue";c.queueStall=0;c.checkoutApproach=null;c.navTarget=null;c.navRoute=null;
+}
 function sendToQueue(c){
  if(c.phase==="waitingRegister"||c.phase==="approachingQueue"||c.phase==="queue"||c.phase==="checkout"||c.phase==="auxQueue"||c.phase==="auxCheckout")return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
@@ -5731,12 +5799,36 @@ function sendToQueue(c){
 }
 function assignOpenRegister(c,count=Object.values(c.basket).reduce((n,q)=>n+q,0)){
  const available=activeRegisters().filter(r=>registerOpen(r)&&(!r.self||count<=5));
- available.sort((a,b)=>auxiliaryCustomerCount(a)-auxiliaryCustomerCount(b));
- const mainOpen=registerOpen();
- if(!mainOpen&&!available.length)return;
- const best=available[0],mainLoad=queue.length+Number(!!cashier)+approachingCustomerCount();
- c.auxRegister=best&&(!mainOpen||auxiliaryCustomerCount(best)<mainLoad)?best:undefined;
- c.phase="approachingQueue";c.queueStall=0;c.checkoutApproach=null;c.navTarget=null;c.navRoute=null;
+ if(registerOpen())available.unshift(undefined);
+ let best,bestTime=Infinity;
+ for(const register of available){
+  const estimate=checkoutEstimate(c,register);
+  if(estimate<bestTime){best=register;bestTime=estimate;}
+ }
+ if(bestTime<Infinity)routeCustomerToRegister(c,best);
+}
+function redistributeCheckoutLine(register){
+ for(const c of customers){
+  if(c.phase!=="queue"&&c.phase!=="auxQueue")continue;
+  const currentTime=checkoutWorkAhead(c.auxRegister,c)+checkoutServiceEstimate(c,c.auxRegister);
+  if(c.auxRegister===register||checkoutEstimate(c,register)+5>=currentTime)continue;
+  const line=c.auxRegister?.queue??queue;
+  const index=line.indexOf(c);
+  if(index<0)continue;
+  line.splice(index,1);
+  routeCustomerToRegister(c,register);
+ }
+}
+let checkoutRush=false,checkoutRushTimer=0;
+function updateCheckoutRush(dt){
+ checkoutRushTimer-=dt;
+ if(checkoutRushTimer>0)return;
+ checkoutRushTimer=1;
+ const waiting=customers.filter(c=>c.phase==="waitingRegister");
+ const overloaded=waiting.some(c=>c.registerWait>=8)||customers.some(c=>
+  (c.phase==="queue"||c.phase==="auxQueue")&&(c.queueElapsed>=12||checkoutWorkAhead(c.auxRegister)>=22));
+ if(overloaded&&!checkoutRush)toast("Attente en caisse · ouvre le panneau Files d’attente pour appeler un renfort");
+ checkoutRush=overloaded;
 }
 function redirectClosedRegister(c){
  const register=c.auxRegister,line=register?.queue??queue;
@@ -6132,11 +6224,12 @@ function animate(){
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  if(!paused&&ageOverlay.style.display==="none"){
   movePlayer(dt);updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);
-  updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateRegisterIndicators();
+  updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateRegisterIndicators();updateCheckoutRush(dt);
  }
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
  handtruckButton.style.display=canUseHandtruck()?"block":"none";
+ checkoutRushButton.style.display=checkoutRush&&panel.style.display==="none"&&checkoutUI.style.display==="none"?"block":"none";
  updateGalleryRendering();
  if(bakeryScene&&state.upgrades[BAKERY_ID]){
   bakeryScene.baker.visible=bakerOnDuty();
@@ -6149,4 +6242,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.21 !");
+animate();toast("Business Empire Simulator V0.14.22 !");
