@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.60";
-import { installSurveillance } from "./surveillance.js?v=0.14.60";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.60";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.60";
-// Business Empire Simulator V0.14.60 — version synchronisée
+import { installCity } from "./city.js?v=0.14.61";
+import { installSurveillance } from "./surveillance.js?v=0.14.61";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.61";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.61";
+// Business Empire Simulator V0.14.61 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -2690,6 +2690,12 @@ const retiredStorageColliders=new Set([
  ...colliders.filter(h=>h.requiresUpgrade==="store1"&&h.minX>=9.8&&h.maxX<=39.2&&h.minZ>=-14.5&&h.maxZ<=50),
  ...colliders.filter(h=>h.requiresUpgrade==="store2"&&h.minX>=29&&h.maxX<=30&&h.minZ>=-8&&h.maxZ<=10)
 ]);
+// Suppression ciblée de la couverture longitudinale du couloir technique
+// signalée en rouge, sans enlever ses murs ni la zone de livraison.
+const oldLogisticsRoof=scene.children.find(m=>m.isMesh&&
+ Math.abs(m.position.x-25.65)<.03&&Math.abs(m.position.y-5.1)<.03&&
+ Math.abs(m.position.z+8.3)<.03&&Math.abs(m.geometry?.parameters?.depth-31.4)<.05);
+if(oldLogisticsRoof)oldLogisticsRoof.visible=false;
 // Retrait de l'ancienne bande longitudinale désignée sur le plan aérien.
 // Ne pas toucher aux murs du magasin ni aux éléments de livraison.
 const removedStripMeshes=[];
@@ -2782,6 +2788,7 @@ function refreshExtension(){
  for(const mesh of coldAnnexMeshes)mesh.visible=unlocked;
  for(const mesh of newStorageMeshes)mesh.visible=unlocked;
  for(const mesh of removedStripMeshes)mesh.visible=false;
+ if(oldLogisticsRoof)oldLogisticsRoof.visible=false;
  for(const hit of newStorageColliders)hit.disabled=!unlocked;
  coldRoof.visible=unlocked&&!flyMode;
  storageRoof.visible=unlocked&&!flyMode;
@@ -4212,6 +4219,8 @@ cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 cube(25.65,5.1,-8.3,3.1,.2,31.4,0xf1f5f9);
+// Translation ciblée de la salle de repos, repérée en vert sur la capture.
+const breakRoomMeshStart=scene.children.length,breakRoomColliderStart=colliders.length;
 // Annexe du personnel à l'ouest du couloir logistique, hors des axes des livraisons.
 cube(20.95,-.15,-6,6.3,.3,6,0xa8b5c6);
 tileFloor(5.95,5.65,20.95,-6);
@@ -4245,6 +4254,11 @@ cube(18.55,1.72,-7.84,.65,.38,.56,0x1f2937);
 cube(18.56,1.74,-7.47,.37,.07,.025,0x38bdf8);
 for(const x of [19.3,20.1])cube(x,1.1,-8.48,.65,2.2,.4,0x94a3b8,true);
 ceilingFixture(scene,20.95,-6,"staff");
+const breakRoomMovedMeshes=scene.children.slice(breakRoomMeshStart);
+for(const obj of breakRoomMovedMeshes)obj.position.x-=2;
+for(const hit of colliders.slice(breakRoomColliderStart)){
+ hit.minX-=2;hit.maxX-=2;
+}
 for(const z of [3,-2,-8,-14,-20])ceilingFixture(scene,25.65,z,"logistics",1.55);
 for(const x of [24.1,27.2]){
  cube(x,3.85,-24.15,.29,.21,.21,0x475569);
@@ -5094,7 +5108,7 @@ function blocked(x,z,r=.4){
  const newColdInterior=state.upgrades.store1&&x>25.25&&x<34.75&&z>-12.75&&z<6.75;
  const newStorageInterior=state.upgrades.store1&&x>25.25&&x<34.75&&z>9.25&&z<30.75;
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
- const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
+ const breakRoom=x>16.05+r&&x<21.85-r&&z>-8.9+r&&z<-3.1-r;
  const breakDoor=x>23.5&&x<24.65&&z>-7.25+r&&z<-4.75-r;
  const storageWing=STORAGE_KINDS.some(kind=>{
   const wing=STORAGE_WINGS[kind];
@@ -6735,4 +6749,4 @@ function animate(){
 batchShelfDisplays();indexColliders();sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.60 !");
+animate();toast("Business Empire Simulator V0.14.61 !");
