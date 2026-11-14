@@ -564,6 +564,67 @@ state.storeName=state.storeName||DEFAULT_STORE_NAME;
 state.employeeNames??={};
 state.workerName=state.workerName||"George";
 state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSentHomeDay:0;
+// V0.15.03 : points de satisfaction (PS), livraison (PL), mission (PM).
+// L'argent et le chiffre d'affaires n'augmentent jamais directement le niveau.
+const DAILY_MISSION_GOALS=[
+ {key:"served",name:"Servir 8 clients dans la journée",target:8,reward:80},
+ {key:"restocks",name:"Effectuer 5 réassorts de rayons",target:5,reward:65},
+ {key:"deliveries",name:"Effectuer 1 livraison à domicile",target:1,reward:100}
+];
+function todayMission(){
+ if(state.dailyMission.day!==state.day)
+  state.dailyMission={day:state.day,served:0,restocks:0,deliveries:0,claimed:[]};
+ for(const key of ["served","restocks","deliveries"])
+  state.dailyMission[key]=Math.max(0,Math.floor(Number(state.dailyMission[key])||0));
+ if(!Array.isArray(state.dailyMission.claimed))state.dailyMission.claimed=[];
+ return state.dailyMission;
+}
+function awardPoints(category,quantity,reason){
+ const points=Math.max(0,Math.floor(quantity));
+ if(!["ps","pl","pm"].includes(category)||!points)return;
+ state.points[category]+=points;
+ save();checkLevelUp();
+ if(DEV_MODE)console.info("[FBA points]",category,points,reason,"total",progressionPoints());
+}
+function recordProgressEvent(kind,quantity=1){
+ const day=todayMission();
+ if(kind==="served"){
+  day.served++;
+  awardPoints("ps",Math.max(2,Math.round(2+(state.satisfaction||0)/20)),"client servi");
+ }else if(kind==="restocks"){
+  if(quantity<=0)return;
+  day.restocks++;awardPoints("pm",6,"réassort effectué");
+ }else if(kind==="deliveries"){
+  day.deliveries++;awardPoints("pl",75,"livraison terminée");
+ }else return;
+ for(const goal of DAILY_MISSION_GOALS){
+  if(day[goal.key]>=goal.target&&!day.claimed.includes(goal.key)){
+   day.claimed.push(goal.key);
+   awardPoints("pm",goal.reward,"mission quotidienne : "+goal.name);
+   toast("Mission réussie : "+goal.name+" · +"+goal.reward+" PM");
+  }
+ }
+ save();
+}
+function showDailyMissions(){
+ const day=todayMission();
+ openPanel("Missions du jour — PS / PL / PM");
+ paragraph("Niveau "+playerLevel()+" · "+progressionPoints().toLocaleString("fr-FR")+
+  " points · prochain palier : "+(nextLevelRevenue()?.toLocaleString("fr-FR")||"atteint"));
+ paragraph("PS "+state.points.ps+" : satisfaction des clients servis.");
+ paragraph("PL "+state.points.pl+" : livraisons à domicile terminées.");
+ paragraph("PM "+state.points.pm+" : réassorts et objectifs quotidiens.");
+ for(const goal of DAILY_MISSION_GOALS){
+  if(goal.key==="deliveries"&&playerLevel()<2){
+   paragraph("Livraison à domicile — disponible au niveau 2");continue;
+  }
+  paragraph((day.claimed.includes(goal.key)?"✓ ":"")+
+   goal.name+" · "+Math.min(goal.target,day[goal.key])+"/"+goal.target+
+   " · "+goal.reward+" PM"+(day.claimed.includes(goal.key)?" (reçus)":""));
+ }
+ paragraph("Les missions se renouvellent chaque jour du jeu. Le CA ne donne aucun point.");
+ button(panel,"Retour au menu",showMainMenu);
+}
 const finance=state.finance;
 function save(){
  try{
@@ -1112,6 +1173,7 @@ function showMainMenu(){
  button(panel,"Figurines dorées : "+state.goldenCollection.found.length+"/100",showGoldenCollection);
  button(panel,"Carte interactive 2 × 2 km",showCityMap);
  button(panel,"Livraisons à domicile"+(state.homeDelivery.active?" · commande en cours":""),homeDeliveryService.show);
+ button(panel,"Missions quotidiennes · PS / PL / PM",showDailyMissions);
  button(panel,"Progression des niveaux",showProgression);
  if(openDepartmentCount())button(panel,"Plan de la galerie",showMallMap);
  if(camera.position.z<ANNEX_ENTRY-1)button(panel,"Retour à la caisse",()=>{
@@ -2032,7 +2094,7 @@ function completeCheckoutPayment(c,count,staffed=false){
  c.paid=true;
  c.manualCheckout=!staffed;
  if(!staffed&&c.paymentMethod==="cash")playSound("close");
- if(count>0)changeSatisfaction(c.waitPenalty?1:3);
+ if(count>0){changeSatisfaction(c.waitPenalty?1:3);recordProgressEvent("served");}
  sync();finishCheckout(c,staffed);
  checkLevelUp();
  const farewell=!staffed&&sayCheckoutLine(c,"farewell","Merci, bonne journée !");
@@ -5027,6 +5089,7 @@ function interact(){
    if(!space){toast("Rayons "+p.name+" pleins");return;}
    const placed=Math.min(space,held.quantity);
    a.shelf+=placed;held.quantity-=placed;
+   if(placed>0)recordProgressEvent("restocks",placed);
    if(held.quantity===0)held=null;
    sync();refreshCarry();
    toast(placed+" × "+p.name+" placés"+(held?" — "+held.quantity+" restants":""));
@@ -6485,7 +6548,7 @@ function payAuxiliaryCheckout(register,client){
  if(count){
   state.money+=client.total;finance.revenue+=client.total;finance.transactions++;state.sales+=count;
   trackSale(client.basket,client.prices);
-  client.paid=true;changeSatisfaction(2);
+  client.paid=true;changeSatisfaction(2);recordProgressEvent("served");
  }
  register.client=null;sendToExit(client);sync();checkLevelUp();
  return true;
@@ -6853,6 +6916,7 @@ function business(dt){
   state.money-=wages;finance.charges+=wages;
   dayTimer=0;preopenTimer=0;state.hour=PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
+  todayMission();
   processStandingOrders();
   processOrderPicker();
   dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
