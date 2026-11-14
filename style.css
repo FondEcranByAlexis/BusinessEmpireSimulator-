@@ -381,3 +381,27 @@ button {
  #actions button{margin-top:2px!important;max-width:120px!important}
  #seatButton{padding:6px 9px!important;right:6px!important;bottom:9%!important;font-size:10px!important;border-radius:7px!important}
 }
+
+/* V0.15.08 — HUD paysage : aucune superposition entre infos / chrono / carte. */
+#pointsHud{
+ position:static;inset:auto;transform:none;
+ display:block;margin-top:8px;padding:6px 7px;
+ border-top:1px solid #475569;border-radius:5px;
+ background:#1e293ba8;color:#e2e8f0;
+ font:600 10px/1.4 system-ui;max-width:100%;
+ white-space:normal;overflow-wrap:break-word;pointer-events:none;
+}
+#pointsHudValue{display:block}
+#hud #pointsHud span{display:block;margin:0;font:inherit;letter-spacing:0;color:inherit}
+#hud{max-width:min(250px,30vw)}
+/* Le mode test réserve une rangée dédiée au chronomètre, puis aux boutons de carte. */
+body.fba-dev-layout #actions{top:64px}
+@media(pointer:coarse){
+ #hud{max-width:min(230px,31vw)!important}
+ #hud #pointsHud{font-size:9px;padding:4px 5px;margin-top:5px}
+ body.fba-dev-layout #actions{top:60px!important}
+}
+@media(orientation:landscape) and (max-height:450px){
+ #hud #pointsHud{font-size:9px;padding:3px 5px;margin-top:4px}
+ body.fba-dev-layout #actions{top:57px!important}
+}
