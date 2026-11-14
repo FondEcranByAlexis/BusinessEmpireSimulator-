@@ -53,6 +53,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
  const PER_PAGE=6;
  const cctv=new THREE.PerspectiveCamera(66,1,0.1,120);
  const root=new THREE.Group();root.position.set(position.x,0,position.z);scene.add(root);
+ root.visible=securityOpen();
  const mat=(color)=>new THREE.MeshStandardMaterial({color,roughness:.75});
  const floor=mat(0x253449),desk=mat(0x4b5563),screen=mat(0x0b1220),glow=new THREE.MeshBasicMaterial({color:0x38bdf8});
  const cube=(w,h,d,m,x,y,z)=>{const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);mesh.position.set(x,y,z);root.add(mesh);return mesh;};
@@ -214,5 +215,7 @@ export function installSurveillance({THREE,scene,camera,renderer,securityOpen,ne
    return Math.abs(delta)<(station.wide?95:66)*Math.PI/360;
   });
  }
- return {show,showDesk,render,detectAt,isOpen:()=>opened,nearRoom:()=>near(position.x,position.z,3.5)};
+ return {show,showDesk,render,detectAt,
+  setDeskVisible:enabled=>{root.visible=!!enabled;if(!enabled&&opened){opened=false;active=-1;}},
+  isOpen:()=>opened,nearRoom:()=>near(position.x,position.z,3.5)};
 }
