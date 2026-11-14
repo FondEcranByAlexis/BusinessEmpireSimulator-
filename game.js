@@ -4582,9 +4582,13 @@ function putBack(){
 function takeCarton(p,amount,source="box"){
  const a=state.inventory[p.id];
  if(held||!atStorageFor(p)||!productAvailable(p)){toast("Dépose d’abord ce que tu portes et approche-toi de la réserve");return;}
- if(source==="box"&&a.boxes>0){
-  const cartons=Math.min(amount,a.boxes,handCapacity());
-  a.boxes-=cartons;held={id:p.id,quantity:cartons*BOX_UNITS,source:"box",opened:false};
+ if(source==="box"&&(a.boxes>0||a.reserve>0)){
+  // Les anciens stocks en vrac sont conditionnés dans un carton lors de la prise.
+  // Ne pas créer de produits : soustraire les unités de l'inventaire existant.
+  let quantity;
+  if(a.boxes>0){a.boxes--;quantity=BOX_UNITS;}
+  else{quantity=Math.min(BOX_UNITS,a.reserve);a.reserve-=quantity;}
+  held={id:p.id,quantity,source:"box",opened:false};
  }else if(source==="loose"&&a.reserve>0){
   const quantity=Math.min(amount,a.reserve);
   a.reserve-=quantity;held={id:p.id,quantity,source:"loose"};
@@ -5293,14 +5297,12 @@ function showReserve(){
  for(const p of unlockedProducts().filter(p=>storageKind(p)===kind)){
   const a=state.inventory[p.id];
   paragraph("● "+p.name+" — "+stockAlert(p)+" | Cartons : "+a.boxes+"/"+MAX_BOXES_PER_PRODUCT+" ("+(a.boxes*BOX_UNITS)+" unités) | Espace vrac : "+a.reserve+" unités | Total réserve : "+(a.reserve+a.boxes*BOX_UNITS));
-  if(a.boxes>0){
-   const cartons=Math.min(a.boxes,handCapacity());
-   button(panel,"Prendre un carton de "+p.name+" ("+BOX_UNITS+")",()=>takeCarton(p,1,"box"));
-   // Manutention manuelle réaliste : un carton à la fois (10 articles).
+  if(a.boxes>0||a.reserve>0){
+   const quantity=a.boxes>0?BOX_UNITS:Math.min(BOX_UNITS,a.reserve);
+   button(panel,"PRENDRE LE CARTON — "+p.name+" ("+quantity+" articles)",()=>takeCarton(p,1,"box"));
   }
-  if(a.reserve>0)button(panel,"PRENDRE EN VRAC — "+p.name+" ("+Math.min(10,a.reserve)+")",()=>takeCarton(p,10,"loose"));
-  const batch=Math.min(FAST_RESTOCK_LIMIT,productStoredUnits(p));
-  if(state.upgrades.fastRestock&&batch>BOX_UNITS)button(panel,"Prendre un lot de "+batch+" — "+p.name,()=>takeRestockBatch(p));
+  // L'approvisionnement manuel passe toujours par un carton ouvrable.
+  // Les employés conservent leur capacité de mise en rayon optimisée.
   if(a.boxes>0||a.reserve>0)button(panel,"Jeter des "+p.name,()=>showDisposal(p));
  }
 }
