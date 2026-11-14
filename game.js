@@ -431,7 +431,7 @@ function showUpgrades(tab=activeUpgradeTab){
 
 function initial(){
  const inventory={};
- catalog.forEach(p=>inventory[p.id]={shelf:(p.kind==="extension"||p.kind==="electronics"||p.kind==="department"||p.level>=11)?0:10,reserve:0,boxes:0,price:p.price});
+ catalog.forEach(p=>inventory[p.id]={shelf:(p.kind==="extension"||p.kind==="electronics"||p.kind==="department"||p.level>=11)?0:10,reserve:p.starter?20:0,boxes:0,price:p.price});
  return {money:5000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],stockerLeaveDays:[],construction:null,stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,satisfaction:80,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
@@ -980,12 +980,54 @@ function renderStockCapacity(parent,includeCart=true){
  }
  return result;
 }
-function addSupplierItem(p){
- const count=state.inventory[p.id].boxes+pendingBoxes(p.id)+(supplierCart[p.id]||0);
- if(count>=MAX_BOXES_PER_PRODUCT){toast("Maximum de "+MAX_BOXES_PER_PRODUCT+" cartons, commandes en attente incluses");return;}
- const kind=storageKind(p);
- if(cartCount(kind)>=cartCapacity(kind)){toast(storageName(kind)+" pleine — pas de nouvelle commande possible");return;}
- supplierCart[p.id]=(supplierCart[p.id]||0)+1;showOrders();
+// Modification du panier en lots, en tenant compte des livraisons et de chaque réserve.
+function changeSupplierQuantity(p,delta){
+ const kind=storageKind(p),current=supplierCart[p.id]||0;
+ if(delta>0){
+  const availableProduct=MAX_BOXES_PER_PRODUCT-state.inventory[p.id].boxes-pendingBoxes(p.id)-current;
+  const availableZone=cartCapacity(kind)-cartCount(kind);
+  const quantity=Math.min(delta,availableProduct,availableZone);
+  if(quantity<=0){toast("Stock maximum atteint ou plus de place en "+storageName(kind));return;}
+  supplierCart[p.id]=current+quantity;
+  if(quantity<delta)toast("Seulement "+quantity+" carton(s) disponible(s) pour "+p.name);
+ }else{
+  const quantity=Math.max(0,current+delta);
+  if(quantity)supplierCart[p.id]=quantity;
+  else delete supplierCart[p.id];
+ }
+ showOrders();
+}
+function addSupplierItem(p){changeSupplierQuantity(p,1);}
+function clearSupplierCart(){
+ for(const id of Object.keys(supplierCart))delete supplierCart[id];
+ showOrders();
+}
+// Réapprovisionnement assisté : les rayons en rupture passent en premier.
+// Préserve 60 % de la trésorerie pour les charges et prochaines commandes.
+function addSmartSupplierItems(){
+ const free=Object.fromEntries(STORAGE_KINDS.map(kind=>[kind,cartCapacity(kind)-cartCount(kind)]));
+ const budget=Math.max(0,Math.floor(state.money*.4-cartSubtotal()));
+ const products=unlockedProducts().filter(p=>{
+  const a=state.inventory[p.id];
+  return a&&a.shelf+a.reserve+pendingBoxes(p.id)*BOX_UNITS+(supplierCart[p.id]||0)*BOX_UNITS<Math.max(BOX_UNITS*2,shelfCapacity(p));
+ }).sort((a,b)=>{
+  const total=p=>state.inventory[p.id].shelf+state.inventory[p.id].reserve+pendingBoxes(p.id)*BOX_UNITS+(supplierCart[p.id]||0)*BOX_UNITS;
+  return total(a)-total(b)||a.cost-b.cost;
+ });
+ let spent=0,added=0;
+ // Un passage par référence, puis un deuxième si le budget le permet.
+ for(let pass=0;pass<2;pass++)for(const p of products){
+  const kind=storageKind(p),a=state.inventory[p.id],cost=p.cost*BOX_UNITS;
+  const inStock=a.shelf+a.reserve+pendingBoxes(p.id)*BOX_UNITS+(supplierCart[p.id]||0)*BOX_UNITS;
+  const target=pass===0?BOX_UNITS*2:shelfCapacity(p);
+  if(inStock>=target||free[kind]<=0||spent+cost>budget||
+    a.boxes+pendingBoxes(p.id)+(supplierCart[p.id]||0)>=MAX_BOXES_PER_PRODUCT)continue;
+  supplierCart[p.id]=(supplierCart[p.id]||0)+1;
+  free[kind]--;spent+=cost;added++;
+ }
+ showOrders();
+ toast(added?added+" carton(s) prioritaires ajoutés · "+euro(spent)+" · réserve de trésorerie préservée":
+  "Aucun réassort nécessaire ou budget prudent insuffisant");
 }
 function addAllSupplierItems(){
  const free=Object.fromEntries(STORAGE_KINDS.map(kind=>[kind,cartCapacity(kind)-cartCount(kind)]));
@@ -1047,8 +1089,11 @@ function checkoutSupplier(express){
 function showOrders(){
  processSupplierOrders();
  openPanel("FOURNISSEURS — Mon panier");
- button(panel,"Tout commander",addAllSupplierItems);
- paragraph("Complète chaque produit débloqué jusqu’à "+MAX_BOXES_PER_PRODUCT+" cartons selon la place libre. Les cartons en livraison et dans le panier sont comptés. Après paiement, la livraison arrive au quai de déchargement.");
+ paragraph("Réassort simplifié : prépare un panier par lots ou utilise la proposition automatique. Celle-ci cible les ruptures et conserve environ 60 % de l'argent disponible.");
+ button(panel,"Réapprovisionnement intelligent (stocks faibles)",addSmartSupplierItems);
+ button(panel,"Remplir toutes les réserves (option coûteuse)",addAllSupplierItems);
+ if(cartCount())button(panel,"Vider le panier",clearSupplierCart);
+ paragraph("Les cartons déjà commandés, en livraison ou dans le panier sont comptés. La livraison arrive au quai de déchargement.");
  paragraph("SOUS-TOTAL : "+euro(cartSubtotal())+" — "+cartCount()+" carton(s)");
  if(cartCount()){
   button(panel,"Commander · Livraison normale (30 s) : "+euro(cartSubtotal()),()=>checkoutSupplier(false));
@@ -1066,7 +1111,13 @@ function showOrders(){
   const add=button(panel,"+ Ajouter 1 carton de "+p.name,()=>addSupplierItem(p));
   add.disabled=a.boxes+pending+qty>=MAX_BOXES_PER_PRODUCT||cartCapacity(kind)<=cartCount(kind);
   if(add.disabled)add.style.opacity=".45";
-  if(qty)button(panel,"− Retirer 1 carton de "+p.name,()=>{supplierCart[p.id]--;if(!supplierCart[p.id])delete supplierCart[p.id];showOrders();});
+  const more=button(panel,"+ 3 cartons · "+p.name,()=>changeSupplierQuantity(p,3));
+  more.disabled=add.disabled;
+  if(more.disabled)more.style.opacity=".45";
+  if(qty){
+   button(panel,"− 1 carton · "+p.name,()=>changeSupplierQuantity(p,-1));
+   button(panel,"Retirer cette référence du panier · "+p.name,()=>changeSupplierQuantity(p,-qty));
+  }
  }
  if(state.deliveryDock.length)paragraph("CAMION À DÉCHARGER : "+state.deliveryDock.length+" carton(s) — quai de déchargement à l’arrière du supermarché.");
  if(state.supplierOrders.length){
