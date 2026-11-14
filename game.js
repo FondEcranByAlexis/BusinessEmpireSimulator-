@@ -1143,8 +1143,9 @@ function showCityMap(){
  const canvas=document.createElement("canvas");canvas.width=600;canvas.height=600;
  canvas.style.cssText="display:block;width:100%;aspect-ratio:1;background:#20333b;border-radius:8px;touch-action:manipulation";
  panel.appendChild(canvas);
- const ctx=canvas.getContext("2d");let zoom=1,cx=0,cz=1075,destination=null;
- const at=(x,z)=>({x:(x-cx)/2000*zoom*600+300,y:(z-cz)/2000*zoom*600+300});
+ const ctx=canvas.getContext("2d");let zoom=1,cx=0,cz=1000,destination=state.cityMapTarget||null;
+ // Afficher aussi le supermarché de départ, juste avant la limite sud de la ville.
+ const at=(x,z)=>({x:(x-cx)/2200*zoom*600+300,y:(z-cz)/2200*zoom*600+300});
  function draw(){
   ctx.fillStyle="#172b38";ctx.fillRect(0,0,600,600);
   const a=at(-1000,75),b=at(1000,2075);
@@ -1153,7 +1154,7 @@ function showCityMap(){
   for(let x=-1000;x<=1000;x+=100){let p=at(x,75),q=at(x,2075);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();}
   for(let z=75;z<=2075;z+=100){let p=at(-1000,z),q=at(1000,z);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();}
   if(zoom>=4){ctx.fillStyle="#cbd5e1";for(let i=0;i<20;i++)for(let j=0;j<20;j++)for(const b of cityBuildingsForBlock(i,j)){
-   let p=at(b.x-b.w/2,b.z-b.d/2),scale=zoom*600/2000;ctx.fillRect(p.x,p.y,b.w*scale,b.d*scale);
+   let p=at(b.x-b.w/2,b.z-b.d/2),scale=zoom*600/2200;ctx.fillRect(p.x,p.y,b.w*scale,b.d*scale);
   }}
   let store=at(0,0);ctx.fillStyle="#f59e0b";ctx.fillRect(store.x-6,store.y-6,12,12);
   if(DEV_MODE&&goldenTestHighlights){ctx.fillStyle="#fde047";for(const f of goldenFigures)if(!goldenFound.has(f.id)){let p=at(f.x,f.z);ctx.fillRect(p.x-2,p.y-2,4,4);}}
@@ -1165,10 +1166,10 @@ function showCityMap(){
  const control=(txt,fn)=>{let b=document.createElement("button");b.textContent=txt;b.style.cssText="flex:1;padding:8px;background:#334155;border-radius:6px";b.onclick=()=>{fn();draw()};controls.appendChild(b)};
  control("−",()=>zoom=Math.max(1,zoom/2));control("+",()=>zoom=Math.min(16,zoom*2));
  control("Moi",()=>{zoom=4;cx=camera.position.x;cz=camera.position.z;});
- control("Tout",()=>{zoom=1;cx=0;cz=1075;});
+ control("Tout",()=>{zoom=1;cx=0;cz=1000;});
  canvas.addEventListener("click",e=>{let r=canvas.getBoundingClientRect();
-  destination={x:cx+((e.clientX-r.left)/r.width-.5)*2000/zoom,z:cz+((e.clientY-r.top)/r.height-.5)*2000/zoom};
-  draw();
+  destination={x:cx+((e.clientX-r.left)/r.width-.5)*2200/zoom,z:cz+((e.clientY-r.top)/r.height-.5)*2200/zoom};
+  state.cityMapTarget=destination;save();draw();
  });
  draw();button(panel,"Fermer la carte",()=>panel.style.display="none");
 }
@@ -4891,7 +4892,7 @@ function showReserve(){
  }
 }
 let seatedAtCheckout=false,checkoutPreviousView=null;
-const seatButton=document.createElement("button");
+const seatButton=document.createElement("button");seatButton.id="seatButton";
 seatButton.textContent="S’asseoir à la caisse";
 Object.assign(seatButton.style,{position:"fixed",right:"14px",bottom:"8%",zIndex:"25",padding:"13px",background:"#2563eb",color:"#fff",borderRadius:"10px",fontWeight:"bold",display:"none"});
 document.body.appendChild(seatButton);
