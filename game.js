@@ -2631,6 +2631,11 @@ coldWall(coldRoom2.east,coldRoom2CenterZ,.22,9.15);
 coldWall(coldRoom2CenterX,coldRoom2.south,8.2,.22);
 coldWall(coldRoom2CenterX,coldRoom2.north,8.2,.22);
 cube(coldRoom2.west,4.28,coldRoom2.entryZ,.22,1.45,coldRoom2.entryWidth,0xcbd5e1);
+// Porte isotherme coulissante rangée en position ouverte, à droite de l'accès.
+// Elle est visible mais n'ajoute aucun obstacle de collision dans l'embrasure.
+const coldSlidingDoor=cube(coldRoom2.west+.24,1.65,18.12,.12,3.3,2.25,0xc7e4ef);
+cube(coldRoom2.west+.15,1.66,18.12,.045,3.12,2.03,0x9fc8d8);
+cube(coldRoom2.west+.10,1.62,17.42,.07,.58,.09,0x334155);
 // Huisserie inox, panneaux isolants et panneaux de direction visibles depuis la réserve.
 for(const z of [westLowerEnd,westUpperStart])
  cube(coldRoom2.west-.09,1.65,z,.12,3.3,.10,0x64748b);
@@ -2669,9 +2674,10 @@ cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Reconstitution continue du mur sur toute la longueur z=10..23.7.
 // Collisions physiques alignées : plus de vue ni de passage vers le parking.
 cube(10.0,2.5,16.85,.3,5,13.7,0xe2e8f0,true);
-// Cloison opposée côté réserves, inchangée.
-cube(15.3,2.5,13.05,.3,5,7.2,0xe2e8f0,true);
-cube(15.3,2.5,20.2,.3,5,7.1,0xe2e8f0,true);
+// V0.15.12 : ouverture réelle vers la nouvelle chambre froide (z=14..16.8).
+// L'ancienne cloison pleine traversait le passage et conservait sa collision.
+cube(15.3,2.5,11.725,.3,5,4.55,0xe2e8f0,true);
+cube(15.3,2.5,20.275,.3,5,6.95,0xe2e8f0,true);
 // L'accès aux réserves continue par les ouvertures intérieures existantes.
 // Ne pas placer de cadre, de seuil ou de signalétique sur la façade parking.
 // La cloison arrière s'efface à l'achat de l'extension du magasin.
