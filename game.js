@@ -1,10 +1,10 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.21";
-import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.21";
-import { installSurveillance } from "./surveillance.js?v=0.15.21";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.21";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.21";
-// Business Empire Simulator V0.15.21 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.22";
+import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.22";
+import { installSurveillance } from "./surveillance.js?v=0.15.22";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.22";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.22";
+// Business Empire Simulator V0.15.22 — version synchronisée
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -4492,7 +4492,7 @@ function updateCartonLabel(p){
 }
 const cartonTop=carryPart(.49,.018,.37,0,.168,0,handCardboard);
 const cartonOpenGroup=new THREE.Group();carriedCarton.add(cartonOpenGroup);
-const cartonTopInterior=carryPart(.44,.015,.32,0,.162,0,handInside,cartonOpenGroup);
+// Ouverture sans plaque au-dessus des produits : les articles restent visibles.
 const cartonFlaps=[
  carryPart(.245,.015,.37,-.245,.17,0,handCardboard,cartonOpenGroup),
  carryPart(.245,.015,.37,.245,.17,0,handCardboard,cartonOpenGroup),
@@ -7683,4 +7683,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.21 !");
+animate();toast("Business Empire Simulator V0.15.22 !");
