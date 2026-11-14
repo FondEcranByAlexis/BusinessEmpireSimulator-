@@ -1282,15 +1282,50 @@ function showGoldenCollection(){
 // Menu d'interaction compact ; toutes les anciennes fonctions restent disponibles.
 function showMainMenu(){
  openPanel("☰ Menu principal");
- paragraph("Accès rapide aux actions les plus utilisées.");
- button(panel,"Reprendre le jeu",()=>panel.style.display="none");
- button(panel,"Ordinateur de gestion",()=>showComputer());
- button(panel,"Stocks et réserves",showStocks);
- button(panel,"Carte de la ville",showCityMap);
- button(panel,"Employés et recrutement",()=>showTeamManagement());
- button(panel,"Licences et améliorations",()=>showUpgrades("licences"));
- button(panel,"Paramètres",showSettings);
- button(panel,"Toutes les fonctionnalités",showMainMenuAdvanced);
+ paragraph("Choisis une rubrique pour afficher seulement les actions utiles.");
+ const sections=[
+  ["JOUER · Reprendre",()=>panel.style.display="none"],
+  [paused?"Reprendre la simulation":"Mettre en pause",()=>{
+   paused=!paused;toast(paused?"Simulation en pause":"Simulation reprise");showMainMenu();
+  }],
+  ["MAGASIN · Gestion",()=>showMainMenuSection("magasin")],
+  ["ÉQUIPE · Personnel",()=>showMainMenuSection("equipe")],
+  ["VILLE · Exploration",()=>showMainMenuSection("ville")],
+  ["PROFIL · Paramètres",()=>showMainMenuSection("profil")],
+  ["Toutes les fonctions avancées",showMainMenuAdvanced]
+ ];
+ for(const [name,action] of sections)button(panel,name,action);
+}
+function showMainMenuSection(section){
+ const all={
+  magasin:{title:"MAGASIN · Gestion",actions:[
+   ["Stocks",showStocks],["Réserve",showReserve],
+   ["Fournisseurs",showOrders],["Prix de vente",showPrices],
+   ["Licences",()=>showUpgrades("licences")],
+   ["Améliorations",()=>showUpgrades("extensions")],
+   ["Bilan financier",showFinance],
+   ["Ordinateur de caisse (à proximité)",showComputer]
+  ]},
+  equipe:{title:"ÉQUIPE · Personnel",actions:[
+   ["Recrutement et équipes",()=>showTeamManagement()],
+   ["Présences et tâches",showEmployeeOverview],
+   ["Planning des employés",showWorkerPlanning]
+  ]},
+  ville:{title:"VILLE · Exploration",actions:[
+   ["Carte interactive",showCityMap],
+   ["Livraisons à domicile",homeDeliveryService.show],
+   ["Figurines dorées",showGoldenCollection]
+  ]},
+  profil:{title:"PROFIL · Paramètres",actions:[
+   ["Profil du joueur",showProfile],["Paramètres",showSettings],
+   ["Missions quotidiennes",showDailyMissions],
+   ["Progression des niveaux",showProgression]
+  ]}
+ };
+ const config=all[section];if(!config)return showMainMenu();
+ openPanel(config.title);
+ for(const [label,action] of config.actions)button(panel,label,action);
+ button(panel,"← Retour aux rubriques",showMainMenu);
 }
 function showMainMenuAdvanced(){
  openPanel("☰ Menu complet");
@@ -3367,15 +3402,32 @@ function buildStoreExterior(){
   part(x+(x<0?.42:-.42),5.02,z,.96,.11,.20,poleMat);
   part(x+(x<0?.67:-.67),4.92,z,.62,.055,.28,parkingLights);
  }
+ // STOP : le texte fait partie intégrante d'une seule face octogonale.
+ const stopCanvas=document.createElement("canvas");
+ stopCanvas.width=256;stopCanvas.height=256;
+ const sc=stopCanvas.getContext("2d");
+ sc.clearRect(0,0,256,256);
+ function octagonPath(inset){
+  const cx=128,cy=128,rr=119-inset;
+  sc.beginPath();
+  for(let i=0;i<8;i++){
+   const angle=-Math.PI/8+i*Math.PI/4;
+   const px=cx+rr*Math.cos(angle),py=cy+rr*Math.sin(angle);
+   if(!i)sc.moveTo(px,py);else sc.lineTo(px,py);
+  }
+  sc.closePath();
+ }
+ octagonPath(0);sc.fillStyle="#ffffff";sc.fill();
+ octagonPath(11);sc.fillStyle="#bd1626";sc.fill();
+ sc.fillStyle="#ffffff";sc.textAlign="center";sc.textBaseline="middle";
+ sc.font="bold 78px Arial";sc.fillText("STOP",128,133);
+ const stopTexture=gameTexture(stopCanvas);
+ const signMaterial=new THREE.MeshBasicMaterial({map:stopTexture,transparent:true,side:THREE.DoubleSide,depthWrite:false});
+ const signGeometry=new THREE.PlaneGeometry(1.15,1.15);
  function stopSign(x,z){
-  part(x,1.12,z,.09,2.24,.09,poleMat);
-  const octagon=new THREE.Mesh(new THREE.CylinderGeometry(.52,.52,.04,8),stopRed);
-  octagon.rotation.x=Math.PI/2;octagon.rotation.z=Math.PI/8;
-  octagon.position.set(x,2.3,z);group.add(octagon);
-  const border=new THREE.Mesh(new THREE.RingGeometry(.36,.44,8),stopWhite);
-  border.position.set(x,2.3,z-.036);border.rotation.z=Math.PI/8;group.add(border);
-  const label=brandPanel("STOP","",.75,.29);
-  label.position.set(x,2.3,z-.052);group.add(label);
+  part(x,1.1,z,.09,2.2,.09,poleMat);
+  const face=new THREE.Mesh(signGeometry,signMaterial);
+  face.position.set(x,2.32,z-.045);group.add(face);
  }
  for(const [x,z] of [[-11.7,31.5],[-10.9,78],[-48,31.5]])stopSign(x,z);
  // La chaussée reste dégagée à la sortie du parking.
@@ -5555,6 +5607,11 @@ function interact(){
  }
  if(homeDeliveryService.interact())return;
  if(collectNearbyGolden())return;
+ const entranceResult=fbaCity.toggleEntranceAt(camera.position.x,camera.position.z);
+ if(entranceResult!==null){
+  toast(entranceResult?"Porte d'entrée ouverte":"Porte d'entrée refermée");
+  return;
+ }
  if(cityStairPrompt())return;
  if(seatedAtCheckout){
   if(checkoutUI.style.display==="none")showCheckout();
@@ -5816,7 +5873,7 @@ function cityWallBlocked(x,z,r){
  const nearBack=z>b.z&&dz>b.d/2-.55-r;
  const nearFront=z<b.z&&dz>b.d/2-.55-r;
  // Baie de 2,60 m au centre de la façade avant.
- if(nearFront&&dx<1.30-r)return nearSide||nearBack;
+ if(nearFront&&dx<1.30-r)return nearSide||nearBack||fbaCity.entranceClosedAt(x,z);
  return nearSide||nearBack||nearFront;
 }
 function blocked(x,z,r=.4){
