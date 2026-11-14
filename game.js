@@ -1337,9 +1337,19 @@ function formatHour(hour){
 function showComputer(){
  if(!near(7.3,6.5,3.4)){toast("Approche-toi de l'ordinateur de caisse");return;}
  openPanel("ORDINATEUR — Business Empire OS");
- paragraph("Terminal de caisse et gestion des fournisseurs");
+ paragraph("Centre de gestion · "+state.storeName);
+ paragraph("Trésorerie : "+euro(state.money)+" | Niveau "+playerLevel());
+ const quick=document.createElement("div");
+ Object.assign(quick.style,{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",
+  gap:"7px",margin:"12px 0"});
+ panel.appendChild(quick);
+ for(const [label,action] of [
+  ["Personnel",()=>showTeamManagement()],["Licences",()=>showUpgrades("licences")],
+  ["Améliorations",()=>showUpgrades("extensions")],["Fournisseurs",showComputerOrders]
+ ]){
+  button(quick,label,action);
+ }
  paragraph("Client à encaisser : "+(cashier?"Oui — "+euro(cashier.total):"Aucun"));
- paragraph("Trésorerie disponible : "+euro(state.money));
  renderStockCapacity(panel);
  button(panel,"Caisse — paiements",showCheckout);
  if(activeRegisters().length)button(panel,"Caisses supplémentaires",showAuxiliaryRegisters);
@@ -3333,6 +3343,28 @@ function buildStoreExterior(){
  // Route d'accès vers la ville : aucune place de parking au-delà du parking principal.
  part(0,-.09,72,PARKING_HALF_WIDTH*2,.16,82,asphalt);
  for(let z=37;z<=108;z+=11)part(0,.005,z,.10,.012,4.2,paint);
+ // Éclairage des allées et panneaux STOP aux sorties du parking.
+ const parkingLights=zonePanel("outside");
+ const poleMat=standardMaterial({color:0x5b6778,metalness:.55,roughness:.4});
+ const stopRed=standardMaterial({color:0xb91c1c,roughness:.65,side:THREE.DoubleSide});
+ const stopWhite=standardMaterial({color:0xffffff,roughness:.7,side:THREE.DoubleSide});
+ for(const x of [-48,-11,9])for(const z of [34,58,78]){
+  if(x===9&&z===78)continue;
+  part(x,2.55,z,.13,5.1,.13,poleMat);
+  part(x+(x<0?.42:-.42),5.02,z,.96,.11,.20,poleMat);
+  part(x+(x<0?.67:-.67),4.92,z,.62,.055,.28,parkingLights);
+ }
+ function stopSign(x,z){
+  part(x,1.12,z,.09,2.24,.09,poleMat);
+  const octagon=new THREE.Mesh(new THREE.CylinderGeometry(.52,.52,.04,8),stopRed);
+  octagon.rotation.x=Math.PI/2;octagon.rotation.z=Math.PI/8;
+  octagon.position.set(x,2.3,z);group.add(octagon);
+  const border=new THREE.Mesh(new THREE.RingGeometry(.36,.44,8),stopWhite);
+  border.position.set(x,2.3,z-.036);border.rotation.z=Math.PI/8;group.add(border);
+  const label=brandPanel("STOP","",.75,.29);
+  label.position.set(x,2.3,z-.052);group.add(label);
+ }
+ for(const [x,z] of [[-11.7,31.5],[-10.9,78],[-48,31.5]])stopSign(x,z);
  // La chaussée reste dégagée à la sortie du parking.
  // Ancienne pelouse supprimée : elle recouvrait une partie du parking élargi.
  part(0,-.04,12.22,PARKING_HALF_WIDTH*2,.10,3.94,concrete);
