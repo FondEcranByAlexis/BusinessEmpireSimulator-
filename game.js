@@ -4369,7 +4369,9 @@ function retiredColdCartonPosition(x,z){
  // L'ancienne zone s'étend aussi vers Z21..Z47, aux alentours de X22.
  // Les stocks sont préservés : seuls les emplacements graphiques sont écartés.
  return (x>=15.0&&x<=24.25&&z>=1.45&&z<=9.75)||
-  (x>=20.0&&x<=24.5&&z>=20.0&&z<=48.0);
+  // Couloir de l'ancienne chambre froide signalé à X22 : supprimer
+  // les cartons de toute cette bande, et non les déplacer plus loin.
+  (x>=19.9&&x<=24.9&&z>=20&&z<=110);
 }
 function renderStorageCartons(product,loose,slots){
  const safeSlots=slots.filter(slot=>!retiredColdCartonPosition(slot.x,slot.z));
@@ -5826,7 +5828,8 @@ function blocked(x,z,r=.4){
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
  if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  if(cityWallBlocked(x,z,r))return true;
- if(cityWalk&&fbaCity.vehicleBlocked(x,z,r))return true;
+ // Les véhicules sont traités pour le joueur dans movePlayer, afin de
+ // permettre de reculer lorsqu'une voiture est déjà trop proche.
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  // Les anciens colliders orphelins à l'intérieur de la réserve en L
  // n'ont plus de mur visible. Ne jamais désactiver les nouveaux racks,
@@ -6025,8 +6028,12 @@ function movePlayer(dt){
  const dx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)/len*speed;
  const dz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)/len*speed;
  const {x,z}=camera.position;
- if(!blocked(camera.position.x+dx,camera.position.z))camera.position.x+=dx;
- if(!blocked(camera.position.x,camera.position.z+dz))camera.position.z+=dz;
+ if(!blocked(camera.position.x+dx,camera.position.z)&&
+  !fbaCity.vehicleBlocked(camera.position.x+dx,camera.position.z,.42,camera.position.x,camera.position.z))
+  camera.position.x+=dx;
+ if(!blocked(camera.position.x,camera.position.z+dz)&&
+  !fbaCity.vehicleBlocked(camera.position.x,camera.position.z+dz,.42,camera.position.x,camera.position.z))
+  camera.position.z+=dz;
  if(cityBuildingAt(camera.position.x,camera.position.z)||cityFloor>0)
   updateCityStairHeight(x,z);
  stepDistance+=Math.hypot(camera.position.x-x,camera.position.z-z);
