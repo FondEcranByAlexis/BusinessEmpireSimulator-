@@ -1,4 +1,4 @@
-// FBA City V0.15.00 — 2 km × 2 km, generation deterministe par quartiers.
+// FBA City V0.15.01 — 2 km × 2 km, generation deterministe par quartiers.
 // Tous les placements de logements et routes sont reproductibles et independants du niveau.
 export const CITY_BOUNDS={minX:-1000,maxX:1000,minZ:75,maxZ:2075,size:2000};
 const BLOCK=100,CHUNK=200;
@@ -83,17 +83,40 @@ export function installCity({THREE,scene}){
   make(child,mat,0,(h+2.7)/2,-d/2,2.6,h-2.7,.28);
   const door=make(child,materials.door,1.2,1.25,-d/2+.1,.06,2.5,1.18);
   make(child,materials.steel,1.22,1.1,-d/2+.7,.08,.10,.06);
-    // Halls, escaliers et planchers d'etages. L'escalier prend l'aile gauche,
-  // les paliers desservent des appartements avec passages au centre.
+  // V0.15.01 : véritables planchers avec trémie d'escalier et marches
+  // montables en première personne. Chaque volée relie deux étages.
+  const stairX=-w/2+4,stairStart=-7.2,stairEnd=3.0,stairWidth=2.2;
+  const innerW=w-.5,innerD=d-.6;
   for(let level=0;level<floors;level++){
    const y=level*3.1;
    if(level>0){
-    make(child,materials.floor,0,y,0,w-.5,.16,d-.6);
+    // Ouverture de la cage d'escalier : quatre dalles, pas de plancher
+    // traversant les marches. Les étages restent de vraies surfaces.
+    const left=-innerW/2,right=innerW/2;
+    const a=stairX-stairWidth/2,b=stairX+stairWidth/2;
+    make(child,materials.floor,(left+a)/2,y,0,a-left,.18,innerD);
+    make(child,materials.floor,(b+right)/2,y,0,right-b,.18,innerD);
+    const front=-innerD/2,back=innerD/2;
+    make(child,materials.floor,stairX,y,(front+stairStart-.45)/2,stairWidth,.18,stairStart-.45-front);
+    make(child,materials.floor,stairX,y,(back+stairEnd+.45)/2,stairWidth,.18,back-(stairEnd+.45));
    }
-   for(let k=0;k<14;k++){
-    const xstep=-w/2+2.35+k%7*.33,ystep=y+(k/14)*3.05;
-    const zstep=k<7?-.6:-1.7;
-    make(child,materials.steel,xstep,ystep+.10,zstep,.36,.20,1);
+   if(level<floors-1){
+    const risingToBack=level%2===0,steps=15;
+    const length=stairEnd-stairStart;
+    for(let k=0;k<steps;k++){
+     const fraction=(k+1)/steps,stepY=y+fraction*3.1;
+     const stepZ=risingToBack?stairStart+(k+.5)*length/steps:
+       stairEnd-(k+.5)*length/steps;
+     make(child,materials.steel,stairX,stepY-.105,stepZ,stairWidth,.21,length/steps+.025);
+    }
+    // Main courante le long de la montée.
+    for(const side of [-1,1]){
+     for(let k=0;k<steps;k+=3){
+      const t=(k+1)/steps;
+      const rz=risingToBack?stairStart+t*length:stairEnd-t*length;
+      make(child,materials.steel,stairX+side*(stairWidth/2+.10),y+3.1*t+.48,rz,.055,.96,.055);
+     }
+    }
    }
    // Portes de logements en retrait du palier et ouvertures dans les cloisons.
    for(const side of [-1,1]){
