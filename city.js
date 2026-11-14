@@ -214,7 +214,7 @@ export function installCity({THREE,scene}){
   active.set(cx+","+cz,{group,traffic:localTraffic,lights,cx,cz,detail});
  }
  const visibleRadius=1;
- let lastKey="";
+ let lastKey="",lastTrafficTime=null;
  function update(position,time=0){
   const px=position.x,pz=position.z;
   const cx=Math.floor((px-CITY_BOUNDS.minX)/CHUNK),cz=Math.floor((pz-CITY_BOUNDS.minZ)/CHUNK);
@@ -238,6 +238,8 @@ export function installCity({THREE,scene}){
    }
   }
   const phase=(time||0)/1000;
+  const trafficDt=lastTrafficTime===null?0:Math.max(0,Math.min(.1,(time-lastTrafficTime)/1000));
+  lastTrafficTime=time;
   for(const item of active.values()){
    for(const light of item.lights){
     const cycle=phase%30;
@@ -250,7 +252,7 @@ export function installCity({THREE,scene}){
     // Circuit fermé autour d'un îlot : virage à chaque coin, sans
     // marche arrière ni téléportation en fin de parcours.
     const min=4.3,max=95.7,length=max-min,lap=4*length;
-    const distance=((phase*c.speed+c.phase)%lap+lap)%lap;
+    const distance=((c.distance??c.phase)+trafficDt*c.speed)%lap;
     let lx,lz,heading;
     if(distance<length){lx=min+distance;lz=min;heading=-Math.PI/2;}
     else if(distance<2*length){lx=max;lz=min+distance-length;heading=Math.PI;}
@@ -263,6 +265,7 @@ export function installCity({THREE,scene}){
     const nearPlayer=Math.hypot(nextX-px,nextZ-pz)<2.25;
     const wasSafe=c.positionReady&&Math.hypot(c.group.position.x-px,c.group.position.z-pz)>=2.25;
     if(!nearPlayer||!wasSafe){
+     c.distance=distance;
      c.group.position.x=nextX;
      c.group.position.z=nextZ;
      c.group.rotation.y=heading;
