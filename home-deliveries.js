@@ -1,6 +1,6 @@
-// FBA Livraisons V0.15.02 — missions locales, véhicule, sauvegarde et récompenses.
-import {makeDeliveryVan} from "./delivery-van.js?v=0.15.02";
-import {cityBuildingsForBlock} from "./city.js?v=0.15.02";
+// FBA Livraisons V0.15.03 — missions locales, véhicule, sauvegarde et récompenses.
+import {makeDeliveryVan} from "./delivery-van.js?v=0.15.03";
+import {cityBuildingsForBlock} from "./city.js?v=0.15.03";
 export function installHomeDeliveries(o){
  const {THREE,scene,state,camera,playerLevel,blocked,notify,save,sync,checkLevelUp,openPanel,paragraph,button,panel,getControls,setHeading,clearLook,resetFloor}=o;
  const PRICE=1800,DEPOT={x:-24,z:40};
