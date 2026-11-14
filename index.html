@@ -7,9 +7,9 @@
         content="width=device-width, initial-scale=1,
         maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#101820">
-  <title>Business Empire Simulator V0.15.07</title>
+  <title>Business Empire Simulator V0.15.08</title>
 
-  <link rel="stylesheet" href="style.css?v=0.15.07">
+  <link rel="stylesheet" href="style.css?v=0.15.08">
 </head>
 
 <body>
@@ -36,6 +36,9 @@
       <div>Magasin : <b id="shopStatus">FERMÉ</b></div>
       <div>Stock : <b id="stock">30</b></div>
     </div>
+    <div id="pointsHud" aria-label="Points de progression">
+      <span id="pointsHudValue">N1 · 0 pts · PS 0 / PL 0 / PM 0</span>
+    </div>
   </div>
 
   <div id="satisfactionHud" role="status" aria-label="Satisfaction des clients">
@@ -51,9 +54,6 @@
     <div id="constructionStage" style="color:#cbd5e1;font-size:10px">Préparation du chantier</div>
   </div>
 
-  <div id="pointsHud" style="position:fixed;left:10px;top:91px;z-index:11;border:1px solid #64748b;background:#0f172ad9;border-radius:7px;padding:5px 8px;font:600 10px system-ui;color:#f8fafc;pointer-events:none">
-    <span id="pointsHudValue">N1 · 0 pts · PS 0 / PL 0 / PM 0</span>
-  </div>
   <div id="crosshair">+</div>
 
   <div id="actions">
@@ -88,7 +88,7 @@
     document.getElementById("startLandscape").addEventListener("click",requestLandscape);
     document.getElementById("fullscreenLandscape").addEventListener("click",requestLandscape);
   </script>
-  <script type="module" src="game.js?v=0.15.07"></script>
+  <script type="module" src="game.js?v=0.15.08"></script>
 
 </body>
 </html>
