@@ -4501,8 +4501,46 @@ const cartonFlaps=[
 ];
 cartonFlaps[0].rotation.z=-.4;cartonFlaps[1].rotation.z=.4;
 cartonFlaps[2].rotation.x=.4;cartonFlaps[3].rotation.x=-.4;
-carryPart(.18,.11,.24,-.35,-.09,.04,handSkin);
-carryPart(.18,.11,.24,.35,-.09,.04,handSkin);
+const leftHand=carryPart(.18,.11,.24,-.35,-.09,.04,handSkin);
+const rightHand=carryPart(.18,.11,.24,.35,-.09,.04,handSkin);
+// Animation d'un article sorti du carton et posé sur le rayon.
+const placementGoods=new THREE.Group();
+placementGoods.visible=false;camera.add(placementGoods);
+const animatedItem=new THREE.Mesh(new THREE.BoxGeometry(.105,.13,.105),
+ new THREE.MeshBasicMaterial({color:0x93c5fd,depthTest:false}));
+animatedItem.renderOrder=1001;placementGoods.add(animatedItem);
+const animatedHand=new THREE.Mesh(new THREE.BoxGeometry(.14,.14,.22),handSkin);
+animatedHand.position.set(.085,-.09,.02);animatedHand.renderOrder=1002;placementGoods.add(animatedHand);
+let itemAnimationTime=0,itemAnimationActive=false;
+let cartonFlapProgress=0;
+function startPlacementAnimation(p){
+ itemAnimationTime=0;itemAnimationActive=true;
+ animatedItem.material.color.setHex(p.color||0x93c5fd);
+ placementGoods.visible=true;
+}
+function updateCartonAnimations(dt){
+ const active=carriedCarton.visible;
+ const target=active&&cartonOpened()?1:0;
+ cartonFlapProgress+=(target-cartonFlapProgress)*Math.min(1,dt*9);
+ cartonFlaps[0].rotation.z=-.4-1.05*cartonFlapProgress;
+ cartonFlaps[1].rotation.z=.4+1.05*cartonFlapProgress;
+ cartonFlaps[2].rotation.x=.4+1.05*cartonFlapProgress;
+ cartonFlaps[3].rotation.x=-.4-1.05*cartonFlapProgress;
+ if(active){
+  carriedCarton.position.y=-.43+Math.sin(performance.now()*.003)*.008;
+ }
+ leftHand.position.y=-.09+.015*cartonFlapProgress;
+ rightHand.position.y=-.09+.015*cartonFlapProgress;
+ if(itemAnimationActive){
+  itemAnimationTime+=dt;
+  const t=Math.min(1,itemAnimationTime/.60);
+  const smooth=t*t*(3-2*t);
+  placementGoods.position.set(.39-.43*smooth,-.40+.24*Math.sin(Math.PI*t)+.12*smooth,
+   -.82-.38*smooth);
+  placementGoods.rotation.z=-.25*smooth;
+  if(t>=1){itemAnimationActive=false;placementGoods.visible=false;}
+ }
+}
 const carryActions=document.createElement("div");
 Object.assign(carryActions.style,{position:"fixed",right:"12px",bottom:"23%",zIndex:"27",display:"none",
  flexDirection:"column",gap:"8px",maxWidth:"38vw",pointerEvents:"auto"});
@@ -5386,7 +5424,9 @@ function placeHeldArticle(){
  if(held.source==="box"&&!cartonOpened()){
   toast("Ouvre d'abord le carton avec le bouton Ouvrir le carton");return false;
  }
+ if(held.source==="box"&&itemAnimationActive)return false;
  const placed=held.source==="box"?1:Math.min(space,held.quantity);
+ if(held.source==="box")startPlacementAnimation(p);
  a.shelf+=placed;held.quantity-=placed;
  if(placed>0)recordProgressEvent("restocks",placed);
  const remaining=held.quantity;
@@ -7439,6 +7479,7 @@ function animate(){
   clock.start();
  }
  const dt=Math.min(clock.getDelta(),.05);
+ updateCartonAnimations(dt);
  const smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
