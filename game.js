@@ -1,10 +1,10 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.22";
-import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.22";
-import { installSurveillance } from "./surveillance.js?v=0.15.22";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.22";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.22";
-// Business Empire Simulator V0.15.22 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.23";
+import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.23";
+import { installSurveillance } from "./surveillance.js?v=0.15.23";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.23";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.23";
+// Business Empire Simulator V0.15.23 — version synchronisée
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -802,7 +802,8 @@ function staffMilestones(level){
  if(level===DIRECTOR_LEVEL)notes.push("Bureau du directeur · après ouverture du hall des caisses");
  if(level===SECURITY_LEVEL)notes.push("Poste de sécurité et portiques antivol · après ouverture du hall des caisses");
  if(level===SELF_HELP_LEVEL)notes.push("Assistance libre-service · recrutement de "+employeeName("selfHelp")+" · "+euro(SELF_HELP_WAGE)+" par journée de service");
- if(level===20)notes.push("Recrutement aux caisses 1 et 2");
+ if(level===5)notes.push("Recrutement de la caisse 1");
+ if(level===10)notes.push("Déblocage de la caisse 2 et recrutement associé");
  for(const register of extraRegisters){
   if(register.hall&&register.level===level)notes.push(register.label+" · après ouverture du hall des caisses");
  }
@@ -3094,6 +3095,7 @@ function refreshExtension(){
  hallGate.visible=!state.upgrades[FRONT_HALL];
  hallGroup.visible=!!state.upgrades[FRONT_HALL];
  directorRoom.visible=directorOpen();securityStation.visible=exitPorticoes.visible=securityOpen();
+ if(typeof surveillance!=="undefined")surveillance.setDeskVisible(securityOpen());
  intimateSign.visible=adultContentAllowed()&&playerLevel()>=ADULT_LEVEL&&!!state.upgrades.intimateLicense;
  showroomGroup.visible=!!state.upgrades[AUTO_SHOWROOM];
  autoLinkGroup.visible=autoLinkOpen();
@@ -5135,7 +5137,7 @@ function updateStocker(dt){
    const arrived=advanceStaffBreak(stockerGroup,stockerBreakJourney,dt,()=>{
     stockerWalk+=dt*9;
     stockerLegA.rotation.x=Math.sin(stockerWalk)*.35;stockerLegB.rotation.x=-stockerLegA.rotation.x;
-    stockerArmA.rotation.x=stockerCarton.visible?-.55:-stockerLegA.rotation.x*.5;stockerArmB.rotation.x=stockerCarton.visible?-.55:stockerLegA.rotation.x*.5;
+    stockerArmA.rotation.x=stockerCarton.visible?.55:-stockerLegA.rotation.x*.5;stockerArmB.rotation.x=stockerCarton.visible?.55:stockerLegA.rotation.x*.5;
    },stop);
    if(arrived)stockerBreakJourney=null;
   }else stop();
@@ -5146,7 +5148,8 @@ function updateStocker(dt){
  if(stockerTimer>0){
   stockerTimer-=dt;
   if(stockerPhase==="placing"){
-   stockerArmA.rotation.x=stockerArmB.rotation.x=-.75;
+   // Le rayon se situe devant l'employé (axe -Z) : tendre les mains vers l'avant.
+   stockerArmA.rotation.x=stockerArmB.rotation.x=.75;
    const p=catalog.find(p=>p.id===stockerCargo);
    faceNpc(stockerGroup,p.x-stockerGroup.position.x,p.z-stockerGroup.position.z,dt);
   }else stop();
@@ -5194,7 +5197,7 @@ function updateStocker(dt){
   stockerGroup.position.x+=dx/dist*step;stockerGroup.position.z+=dz/dist*step;
   faceNpc(stockerGroup,dx,dz,dt);
   stockerWalk+=step*5.3;stockerLegA.rotation.x=Math.sin(stockerWalk)*.35;stockerLegB.rotation.x=-stockerLegA.rotation.x;
-  stockerArmA.rotation.x=stockerCarton.visible?-.55:-stockerLegA.rotation.x*.5;stockerArmB.rotation.x=stockerCarton.visible?-.55:stockerLegA.rotation.x*.5;
+  stockerArmA.rotation.x=stockerCarton.visible?.55:-stockerLegA.rotation.x*.5;stockerArmB.rotation.x=stockerCarton.visible?.55:stockerLegA.rotation.x*.5;
  }else{
   stockerGroup.position.x=stockerTarget[0];stockerGroup.position.z=stockerTarget[1];stockerTarget=null;
   stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;
@@ -5956,9 +5959,13 @@ function updateCityStairHeight(previousX,previousZ){
  }
  const dz=p.z-previousZ;
  if(cityStairFlight===null){
-  // Un palier donne accès à la volée montante correspondant à son étage.
-  // Aux étages supérieurs, l'option Interagir permet aussi de redescendre.
-  cityStairFlight=Math.min(building.floors-2,Math.max(0,cityFloor));
+  // Choisir la volée inférieure lorsque le joueur commence à descendre :
+  // évite de le bloquer sur la volée montante de l'étage supérieur.
+  const dzEntry=p.z-previousZ;
+  const downFlight=Math.max(0,cityFloor-1);
+  const downDirection=downFlight%2===0?-1:1;
+  const wantsDown=cityFloor>0&&dzEntry*downDirection>.001;
+  cityStairFlight=wantsDown?downFlight:Math.min(building.floors-2,Math.max(0,cityFloor));
  }
  let flight=cityStairFlight;
  const ascendDirection=flight%2===0?1:-1;
@@ -6044,7 +6051,7 @@ function makeCustomer(){
   part(.27,.022,.117,fabric,0,.094,-.145,head);
  }
  // Panier tenu dans la main avec des produits visibles au fur et à mesure des achats.
- const basketGroup=new THREE.Group();basketGroup.position.set(.46,.72,-.10);group.add(basketGroup);
+ const basketGroup=new THREE.Group();basketGroup.position.set(.46,.72,-.28);group.add(basketGroup);
  const basketMat=standardMaterial({color:[0x2563eb,0x16a34a,0xd97706][Math.floor(Math.random()*3)],roughness:.78});
  const basketRim=standardMaterial({color:0x1e293b,roughness:.75});
  part(.58,.055,.38,basketMat,0,0,0,basketGroup);
@@ -6059,7 +6066,7 @@ function makeCustomer(){
   cargo.visible=false;basketCargo.push(cargo);
  }
  // Sac d'achat qui remplace le panier uniquement après le paiement.
- const bagGroup=new THREE.Group();bagGroup.position.set(.43,.67,-.10);group.add(bagGroup);
+ const bagGroup=new THREE.Group();bagGroup.position.set(.43,.67,-.28);group.add(bagGroup);
  const bagMat=standardMaterial({color:0xd6b58b,roughness:1});
  const handleMat=standardMaterial({color:0x91674c,roughness:1});
  part(.43,.46,.28,bagMat,0,.01,0,bagGroup);
@@ -6138,7 +6145,8 @@ function updateCustomerVisual(c,dt){
   c.l.rotation.x=stride*.52;
   c.r.rotation.x=-stride*.52;
   c.armLeft.rotation.x=-stride*.32;
-  c.armRight.rotation.x=stride*.32;
+  // Bras droit fixe pour tenir la poignée du panier sans traverser sa paroi.
+  c.armRight.rotation.x=c.basketGroup.visible?.38:stride*.32;
   c.group.position.y=Math.abs(stride)*.018;
  }
 }
@@ -6354,7 +6362,7 @@ function showTeamManagement(role="shelf"){
   button(panel,label,()=>showTeamManagement(id));
  }
  if(role==="checkout"){
-  const roster=[{id:"main",label:"Caisse 1",level:20},...extraRegisters.filter(r=>!r.self&&!r.legacy)];
+  const roster=[{id:"main",label:"Caisse 1",level:5},...extraRegisters.filter(r=>!r.self&&!r.legacy)];
   if(selfHelpUnlocked()){
    const hired=!!state.management.selfHelp;
    paragraph(employeeName("selfHelp")+" · Assistance libre-service · "+euro(SELF_HELP_WAGE)+" par journée de service");
@@ -6518,7 +6526,7 @@ function updateExpandedTeam(dt){
 // Le hall prolonge le rang de la caisse 2 vers l’ouest.
 const REGISTER_ROW={x:-12.8,z:1.2,spacing:3.2};
 const extraRegisters=[
- {id:"second",label:"Caisse 2",level:20,x:-2.4,z:5.05,queueX:-1.15,queueZ:5.25,queue:[],client:null},
+ {id:"second",label:"Caisse 2",level:10,x:-2.4,z:5.05,queueX:-1.15,queueZ:5.25,queue:[],client:null},
  {id:"legacyExpress",label:"Caisse 3 · express",level:110,x:2.1,z:3.9,queueX:1.05,queueZ:4.05,legacy:true,queue:[],client:null},
  ...[21,24,27,30,33,36,39,42].map((level,index)=>{
   const x=REGISTER_ROW.x-(index+1)*REGISTER_ROW.spacing,z=REGISTER_ROW.z;
@@ -7683,4 +7691,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.22 !");
+animate();toast("Business Empire Simulator V0.15.23 !");
