@@ -5207,6 +5207,19 @@ window.addEventListener("blur",()=>{
  releaseMouseLook();
  lookPointer=null;joystickPointer=null;joyX=0;joyY=0;stick.style.transform="translate(0px,0px)";
 });
+// Collisions des façades de FBA City. Portes centrales libres, murs solides.
+function cityWallBlocked(x,z,r){
+ if(z<CITY_BOUNDS.minZ||z>CITY_BOUNDS.maxZ||x<CITY_BOUNDS.minX||x>CITY_BOUNDS.maxX)return false;
+ const b=cityBuildingAt(x,z);
+ if(!b)return false;
+ const dx=Math.abs(x-b.x),dz=Math.abs(z-b.z);
+ const nearSide=dx>b.w/2-.55-r;
+ const nearBack=z>b.z&&dz>b.d/2-.55-r;
+ const nearFront=z<b.z&&dz>b.d/2-.55-r;
+ // Baie de 2,60 m au centre de la façade avant.
+ if(nearFront&&dx<1.30-r)return nearSide||nearBack;
+ return nearSide||nearBack||nearFront;
+}
 function blocked(x,z,r=.4){
  // Entrée clientèle au sud (z positif), quai logistique à l'arrière (z négatif).
  const mallOpen=!!state.upgrades.annex3;
@@ -5255,6 +5268,7 @@ function blocked(x,z,r=.4){
  const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
  if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
+ if(cityWallBlocked(x,z,r))return true;
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  // Les anciens colliders orphelins à l'intérieur de la réserve en L
  // n'ont plus de mur visible. Ne jamais désactiver les nouveaux racks,
@@ -6891,6 +6905,7 @@ function animate(){
  if(!surveillance.render())renderer.render(scene,camera);
 }
 batchShelfDisplays();indexColliders();fbaCity.update(camera.position,performance.now());
+$("cityMapButton")?.addEventListener("click",showCityMap);
 // Collection de 100 figurines dorées : le magasin, la réserve initiale
 // et le parking sont accessibles dès le niveau 1, indépendamment des niveaux 100+.
 const goldenFound=new Set(state.goldenCollection.found);
