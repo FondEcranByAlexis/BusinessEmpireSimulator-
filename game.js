@@ -4509,7 +4509,14 @@ Object.assign(carryActions.style,{position:"fixed",right:"12px",bottom:"23%",zIn
 const cartonActionButton=document.createElement("button");
 Object.assign(cartonActionButton.style,{padding:"12px",background:"#0e7490",color:"#fff",
  borderRadius:"10px",fontWeight:"bold",border:"1px solid #67e8f9",touchAction:"manipulation"});
-carryActions.appendChild(cartonActionButton);document.body.appendChild(carryActions);
+carryActions.appendChild(cartonActionButton);
+const placeOneButton=document.createElement("button");
+placeOneButton.textContent="Déposer 1 article";
+Object.assign(placeOneButton.style,{padding:"13px",background:"#15803d",color:"#fff",
+ borderRadius:"10px",fontWeight:"bold",border:"1px solid #86efac",touchAction:"manipulation"});
+carryActions.appendChild(placeOneButton);
+placeOneButton.addEventListener("click",()=>placeHeldArticle());
+document.body.appendChild(carryActions);
 function cartonOpened(){return !!held&&held.source==="box"&&held.opened===true;}
 function setCartonOpen(open){
  if(!held||held.source!=="box")return;
@@ -4544,6 +4551,7 @@ function refreshCarry(){
  cartonOpenGroup.visible=carriedCarton.visible&&cartonOpened();
  carryActions.style.display=carriedCarton.visible?"flex":"none";
  cartonActionButton.textContent=cartonOpened()?"Refermer le carton":"Ouvrir le carton";
+ placeOneButton.style.display=cartonOpened()?"block":"none";
  updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
@@ -5359,32 +5367,49 @@ function cityStairPrompt(){
  });
  button(panel,"Fermer",()=>panel.style.display="none");return true;
 }
+// Le bouton tactile et la touche E partagent exactement la même logique.
+function placeHeldArticle(){
+ if(!held){toast("Prends d'abord un carton dans la réserve");return false;}
+ const p=catalog.find(item=>item.id===held.id);
+ if(!p||!productAvailable(p)){toast("Produit indisponible dans ce magasin");return false;}
+ // Les guides représentent les emplacements réels (y compris rayons muraux).
+ const guides=Object.values(shelfGuides).filter(g=>g.p.id===p.id&&g.group.visible);
+ const distance=Math.min(Math.hypot(camera.position.x-p.x,camera.position.z-p.z),
+  ...guides.map(g=>Math.hypot(camera.position.x-g.group.position.x,camera.position.z-g.group.position.z)));
+ if(distance>3.6){
+  toast("Approche-toi du rayon "+p.name+" surligné en bleu pour placer un article");
+  return false;
+ }
+ const a=state.inventory[p.id];
+ const space=Math.max(0,shelfCapacity(p)-a.shelf);
+ if(space===0){toast("Rayon "+p.name+" plein : referme le carton et retourne en réserve");return false;}
+ if(held.source==="box"&&!cartonOpened()){
+  toast("Ouvre d'abord le carton avec le bouton Ouvrir le carton");return false;
+ }
+ const placed=held.source==="box"?1:Math.min(space,held.quantity);
+ a.shelf+=placed;held.quantity-=placed;
+ if(placed>0)recordProgressEvent("restocks",placed);
+ const remaining=held.quantity;
+ if(remaining===0)held=null;
+ sync();refreshCarry();
+ toast(placed+" article(s) de "+p.name+" rangé(s) · "+a.shelf+"/"+shelfCapacity(p)+
+  " en rayon"+(remaining?" · "+remaining+" dans le carton":" · carton terminé"));
+ return true;
+}
 function interact(){
+ if(held){
+  const p=catalog.find(item=>item.id===held.id);
+  if(p&&currentStorageKind()){
+   if(!atStorageFor(p)){toast("Zone de rangement : "+storageName(storageKind(p));return;}
+   showReserve();return;
+  }
+  placeHeldArticle();return;
+ }
  if(homeDeliveryService.interact())return;
- if(!held&&collectNearbyGolden())return;
- if(!held&&cityStairPrompt())return;
+ if(collectNearbyGolden())return;
+ if(cityStairPrompt())return;
  if(seatedAtCheckout){
   if(checkoutUI.style.display==="none")showCheckout();
-  return;
- }
- if(held){
-  const p=catalog.find(p=>p.id===held.id);
-  if(productAvailable(p)&&near(p.x,p.z,2.75)){
-   const a=state.inventory[p.id],space=Math.max(0,shelfCapacity(p)-a.shelf);
-   if(!space){toast("Rayon plein : referme le carton et retourne le ranger dans sa réserve");return;}
-   if(held.source==="box"&&!cartonOpened()){
-    setCartonOpen(true);return;
-   }
-   const placed=held.source==="box"?1:Math.min(space,held.quantity);
-   a.shelf+=placed;held.quantity-=placed;
-   if(placed>0)recordProgressEvent("restocks",placed);
-   if(held.quantity===0)held=null;
-   sync();refreshCarry();
-   toast(placed+" × "+p.name+" placé(s)"+(held?" — "+held.quantity+" restants":""));
-   return;
-  }
-  if(currentStorageKind()){if(!atStorageFor(p)){toast("Zone de rangement : "+storageName(storageKind(p)));return;}showReserve();return;}
-  toast("Suis le rayon "+p.name+" surligné en bleu puis appuie sur Interagir");
   return;
  }
  if(state.upgrades[BAKERY_ID]&&bakeryScene&&near(bakeryScene.x,bakeryScene.z,2.5)){showBakery();return;}
