@@ -4386,45 +4386,48 @@ function refreshBoxes(){
   const racks=storageRacks[kind].filter(rack=>(!rack.requiresUpgrade||state.upgrades[rack.requiresUpgrade])&&
    (rack.bay===undefined||rack.bay<bays)&&
    (!STORAGE_REBUILD_PENDING||rack.newStorageRoom||kind==="cold"||(kind==="dry"&&!rack.requiresUpgrade&&rack.bay===undefined)));
-  // Chaque zone possède ses propres emplacements, utilisés une seule fois.
-  // Les étagères principales sont utilisées avant les emplacements de débordement.
-  const makePool=selected=>({
-   slots:[...selected.flatMap(rack=>rack.slots),...selected.flatMap(rack=>rack.overflow)],
-   offset:0
-  });
-  const older=racks.filter(rack=>!rack.newStorageRoom);
-  const newer=racks.filter(rack=>rack.newStorageRoom);
-  const pools=kind==="dry"?{original:makePool(older),extension:makePool(newer)}:
-   {original:makePool(racks),extension:makePool([])};
-  function take(pool,count){
-   const free=Math.max(0,pool.slots.length-pool.offset);
-   const n=Math.min(count,free);
-   const result=pool.slots.slice(pool.offset,pool.offset+n);
-   pool.offset+=n;
-   return result;
+  // Chaque rack est réservé à une référence, y compris pour son stock en vrac.
+  // On évite ainsi de mélanger l'eau, le sucre, les pâtes, etc. sur le même meuble.
+  const createPool=selected=>selected.map(rack=>({
+   slots:[...rack.slots,...rack.overflow],owner:null,used:0
+  }));
+  const pools=kind==="dry"?{
+   original:createPool(racks.filter(rack=>!rack.newStorageRoom)),
+   extension:createPool(racks.filter(rack=>rack.newStorageRoom))
+  }:{original:createPool(racks),extension:[]};
+  function takeFrom(pool,id,count){
+   const slots=[];
+   // Compléter d'abord les racks déjà consacrés à ce produit.
+   for(const rack of [...pool.filter(r=>r.owner===id),...pool.filter(r=>r.owner===null)]){
+    if(slots.length>=count)break;
+    const available=rack.slots.length-rack.used;
+    if(available<=0)continue;
+    const n=Math.min(available,count-slots.length);
+    rack.owner=id;
+    slots.push(...rack.slots.slice(rack.used,rack.used+n));
+    rack.used+=n;
+   }
+   return slots;
   }
-  function slotsFor(product,count){
+  function takeFor(product,count){
    const primary=kind==="dry"&&!originalStoreProduct(product)?"extension":"original";
    const secondary=primary==="original"?"extension":"original";
-   const first=take(pools[primary],count);
-   return first.length===count?first:first.concat(take(pools[secondary],count-first.length));
+   const slots=takeFrom(pools[primary],product.id,count);
+   if(slots.length<count)slots.push(...takeFrom(pools[secondary],product.id,count-slots.length));
+   return slots;
   }
   const products=catalog.filter(product=>storageKind(product)===kind&&contentVisible(product));
   storageOverflow[kind]=0;
+  // Cartons et vrac sont traités ensemble pour que chaque produit garde son rack.
   for(const product of products){
-   const count=state.inventory[product.id].boxes;
-   if(!count)continue;
-   const slots=slotsFor(product,count);
-   renderStorageCartons(product,false,slots);
-   storageOverflow[kind]+=count-slots.length;
-  }
-  // Le stock en vrac suit la même destination que les cartons fermés.
-  for(const product of products){
-   const count=Math.ceil(state.inventory[product.id].reserve/BOX_UNITS);
-   if(!count)continue;
-   const slots=slotsFor(product,count);
-   renderStorageCartons(product,true,slots);
-   storageOverflow[kind]+=count-slots.length;
+   const inv=state.inventory[product.id];
+   const boxes=Math.max(0,inv.boxes);
+   const loose=Math.ceil(Math.max(0,inv.reserve)/BOX_UNITS);
+   if(!boxes&&!loose)continue;
+   const positions=takeFor(product,boxes+loose);
+   renderStorageCartons(product,false,positions.slice(0,boxes));
+   renderStorageCartons(product,true,positions.slice(boxes,boxes+loose));
+   storageOverflow[kind]+=boxes+loose-positions.length;
   }
  }
 }
