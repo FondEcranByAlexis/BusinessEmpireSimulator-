@@ -1,10 +1,10 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.03";
-import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.03";
-import { installSurveillance } from "./surveillance.js?v=0.15.03";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.03";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.03";
-// Business Empire Simulator V0.15.03 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.04";
+import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.04";
+import { installSurveillance } from "./surveillance.js?v=0.15.04";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.04";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.04";
+// Business Empire Simulator V0.15.04 — version synchronisée
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -564,7 +564,7 @@ state.storeName=state.storeName||DEFAULT_STORE_NAME;
 state.employeeNames??={};
 state.workerName=state.workerName||"George";
 state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSentHomeDay:0;
-// V0.15.03 : points de satisfaction (PS), livraison (PL), mission (PM).
+// V0.15.04 : points de satisfaction (PS), livraison (PL), mission (PM).
 // L'argent et le chiffre d'affaires n'augmentent jamais directement le niveau.
 const DAILY_MISSION_GOALS=[
  {key:"served",name:"Servir 8 clients dans la journée",target:8,reward:80},
@@ -2251,6 +2251,7 @@ const homeDeliveryService=installHomeDeliveries({
  awardDelivery:()=>recordProgressEvent("deliveries"),
  openPanel,paragraph,button,panel,
  getControls:()=>({keys,joyX,joyY}),
+ getHeading:()=>yaw,
  setHeading:(heading,x,y,z)=>{
   camera.position.set(x,y,z);yaw=targetYaw=heading;pitch=targetPitch=-.08;
  },
@@ -4373,7 +4374,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.15.03 : le couloir logistique possède deux portes distinctes sur son
+// V0.15.04 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4384,7 +4385,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.15.03 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.15.04 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4403,7 +4404,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.15.03 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.15.04 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -7250,4 +7251,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.03 !");
+animate();toast("Business Empire Simulator V0.15.04 !");
