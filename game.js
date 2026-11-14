@@ -2241,6 +2241,7 @@ const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,100);
 camera.position.set(0,1.7,7.5);camera.rotation.order="YXZ";
 const homeDeliveryService=installHomeDeliveries({
  THREE,scene,camera,state,playerLevel,blocked,notify:toast,save,sync,checkLevelUp,
+ awardDelivery:()=>recordProgressEvent("deliveries"),
  openPanel,paragraph,button,panel,
  getControls:()=>({keys,joyX,joyY}),
  setHeading:(heading,x,y,z)=>{
