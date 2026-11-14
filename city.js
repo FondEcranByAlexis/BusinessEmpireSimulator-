@@ -180,12 +180,19 @@ export function installCity({THREE,scene}){
    }
    // Passages pietons a chaque carrefour.
    for(let p=-3;p<=3;p++){
-    make(group,materials.marking,x+p*1.05,.09,z+6.5,.64,.018,2.6);
-    make(group,materials.marking,x+6.5,.09,z+p*1.05,2.6,.018,.64);
+    make(group,materials.marking,x+p*1.05,.09,z+9.5,.64,.018,2.6);
+    make(group,materials.marking,x+9.5,.09,z+p*1.05,2.6,.018,.64);
    }
-   if(detail)lights.push(trafficLight(group,x+9,z+9,"z"));
+   // Feux sur chaque axe et pour les deux sens de circulation.
+   if(detail){
+    lights.push(trafficLight(group,x+9,z+9,"z"));
+    lights.push(trafficLight(group,x-9,z-9,"z"));
+    lights.push(trafficLight(group,x+9,z-9,"x"));
+    lights.push(trafficLight(group,x-9,z+9,"x"));
+   }
    for(const b of cityBuildingsForBlock(cx*2+bx,cz*2+bz))building(group,b,detail);
-   for(const tx of [x+12,x+92])for(const tz of [z+30,z+75]){
+   // Hors de l'emprise des bâtiments (façade à x+11 environ).
+   for(const tx of [x+8.5,x+91.5])for(const tz of [z+30,z+75]){
     make(group,materials.trunk,tx,1.15,tz,.37,2.3,.37,cylinder);
     make(group,materials.tree,tx,3.20,tz,2.3,3.1,2.3,cone);
    }
@@ -225,21 +232,39 @@ export function installCity({THREE,scene}){
   const phase=(time||0)/1000;
   for(const item of active.values()){
    for(const light of item.lights){
-    const cycle=phase%28;
-    const which=cycle<12?2:cycle<15?1:0;
+    const cycle=phase%30;
+    const green=light.axis==="x"?cycle>=15&&cycle<27:cycle<12;
+    const amber=light.axis==="x"?cycle>=27:cycle>=12&&cycle<15;
+    const which=green?2:amber?1:0;
     light.lamps.forEach((m,i)=>m.visible=i===which);
    }
    for(const c of item.traffic){
-    const travel=(phase*c.speed+c.phase)%85;
-    // feu rouge = voiture arretee avant le carrefour.
-    const cycle=phase%28,limited=cycle>=15?Math.min(travel,76):travel;
-    if(c.axis==="x")c.group.position.x=c.originX+(limited-42);
-    else c.group.position.z=c.originZ+(limited-42);
+    // Trajectoire continue aller/retour : aucune téléportation à chaque tour
+    // du modulo, notamment au bord X=-993 / Z=117.
+    const angle=(phase*c.speed+c.phase)/23;
+    const offset=Math.sin(angle)*18;
+    if(c.axis==="x"){
+     c.group.position.x=Math.max(CITY_BOUNDS.minX+7,Math.min(CITY_BOUNDS.maxX-7,c.originX+offset));
+     c.group.rotation.y=Math.cos(angle)>=0?Math.PI/2:-Math.PI/2;
+    }else{
+     c.group.position.z=Math.max(CITY_BOUNDS.minZ+7,Math.min(CITY_BOUNDS.maxZ-7,c.originZ+offset));
+     c.group.rotation.y=Math.cos(angle)>=0?Math.PI:0;
+    }
    }
   }
  }
+ // Collision douce contre les carrosseries : pas de traversée du véhicule.
+ function vehicleBlocked(x,z,r=.32){
+  for(const sector of active.values())for(const c of sector.traffic){
+   if(!c.group.visible)continue;
+   const dx=Math.abs(x-c.group.position.x),dz=Math.abs(z-c.group.position.z);
+   const longAxis=c.axis==="x";
+   if(dx<(longAxis?1.7:.92)+r&&dz<(longAxis?.92:1.7)+r)return true;
+  }
+  return false;
+ }
  // Activer la vue au point d'entree urbain et ne regenerer qu'au changement
  // de secteur ; renderer.frustumCulled limite le cout des maillages.
- return {root,bounds:CITY_BOUNDS,buildingsForBlock:cityBuildingsForBlock,buildingAt:cityBuildingAt,update,
+ return {root,bounds:CITY_BOUNDS,buildingsForBlock:cityBuildingsForBlock,buildingAt:cityBuildingAt,update,vehicleBlocked,
   listBuildings:()=>{const out=[];for(let x=0;x<20;x++)for(let z=0;z<20;z++)out.push(...cityBuildingsForBlock(x,z));return out;}};
 }
