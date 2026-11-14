@@ -7533,6 +7533,7 @@ function animate(){
  updateHandtruck();
  handtruckButton.style.display=canUseHandtruck()?"block":"none";
  checkoutRushButton.style.display=checkoutRush&&panel.style.display==="none"&&checkoutUI.style.display==="none"?"block":"none";
+ surveillance.setDeskVisible(securityOpen());
  updateGalleryRendering();
  if(bakeryScene&&state.upgrades[BAKERY_ID]){
   bakeryScene.baker.visible=bakerOnDuty();
