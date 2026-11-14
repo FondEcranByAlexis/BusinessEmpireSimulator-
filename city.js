@@ -147,7 +147,7 @@ export function installCity({THREE,scene}){
   }
   return {lamps,axis,pole,box};
  }
- function car(parent,x,z,axis,i){
+ function car(parent,x,z,axis,i,blockX,blockZ){
   const group=new THREE.Group();group.position.set(x,0,z);parent.add(group);
   if(axis==="x")group.rotation.y=Math.PI/2;
   const color=materials.vehicle[i%materials.vehicle.length];
@@ -162,7 +162,7 @@ export function installCity({THREE,scene}){
    make(group,materials.rear,side,.65,1.66,.32,.18,.05);
   }
   const speed=4+hash(i,Math.floor(x+z))*5;
-  return {group,axis,speed,phase:hash(i,Math.floor(z+x))*200,originX:x,originZ:z,lights:[]};
+  return {group,axis,speed,phase:hash(i,Math.floor(z+x))*350,originX:x,originZ:z,blockX,blockZ,lights:[]};
  }
  function chunk(cx,cz,detail){
   const group=new THREE.Group();group.name="Quartier "+cx+","+cz;root.add(group);
@@ -199,8 +199,8 @@ export function installCity({THREE,scene}){
    // Deux voitures par sous-bloc, sans collision physique: elles ne coincent
    // pas le joueur. Mouvement local sur les axes, avec arret aux feux.
    if(detail){
-    localTraffic.push(car(group,x+25,z+4.3,"x",bx+bz*4+cx*7+cz*17));
-    localTraffic.push(car(group,x+4.3,z+55,"z",bx+bz*4+cx*9+cz*11+2));
+    localTraffic.push(car(group,x+25,z+4.3,"x",bx+bz*4+cx*7+cz*17,x,z));
+    localTraffic.push(car(group,x+4.3,z+55,"z",bx+bz*4+cx*9+cz*11+2,x,z));
    }
   }
   active.set(cx+","+cz,{group,traffic:localTraffic,lights,cx,cz,detail});
@@ -239,17 +239,18 @@ export function installCity({THREE,scene}){
     light.lamps.forEach((m,i)=>m.visible=i===which);
    }
    for(const c of item.traffic){
-    // Trajectoire continue aller/retour : aucune téléportation à chaque tour
-    // du modulo, notamment au bord X=-993 / Z=117.
-    const angle=(phase*c.speed+c.phase)/23;
-    const offset=Math.sin(angle)*18;
-    if(c.axis==="x"){
-     c.group.position.x=Math.max(CITY_BOUNDS.minX+7,Math.min(CITY_BOUNDS.maxX-7,c.originX+offset));
-     c.group.rotation.y=Math.cos(angle)>=0?Math.PI/2:-Math.PI/2;
-    }else{
-     c.group.position.z=Math.max(CITY_BOUNDS.minZ+7,Math.min(CITY_BOUNDS.maxZ-7,c.originZ+offset));
-     c.group.rotation.y=Math.cos(angle)>=0?Math.PI:0;
-    }
+    // Circuit fermé autour d'un îlot : virage à chaque coin, sans
+    // marche arrière ni téléportation en fin de parcours.
+    const min=4.3,max=95.7,length=max-min,lap=4*length;
+    const distance=((phase*c.speed+c.phase)%lap+lap)%lap;
+    let lx,lz,heading;
+    if(distance<length){lx=min+distance;lz=min;heading=-Math.PI/2;}
+    else if(distance<2*length){lx=max;lz=min+distance-length;heading=Math.PI;}
+    else if(distance<3*length){lx=max-(distance-2*length);lz=max;heading=Math.PI/2;}
+    else{lx=min;lz=max-(distance-3*length);heading=0;}
+    c.group.position.x=c.blockX+lx;
+    c.group.position.z=c.blockZ+lz;
+    c.group.rotation.y=heading;
    }
   }
  }
