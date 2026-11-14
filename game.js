@@ -4448,6 +4448,51 @@ function sync(){
 // V0.4.2 — transport de cartons entiers, remplissage en lot
 // held = {id, quantity}. Une unité d'ancienne réserve peut être regroupée en lot.
 let held=null;
+// Carton 3D maintenu dans les mains en vue subjective.
+// La boîte peut être fermée, ouverte puis refermée avant son retour au stock.
+const carriedCarton=new THREE.Group();
+carriedCarton.position.set(.38,-.43,-.83);
+camera.add(carriedCarton);
+const handCardboard=new THREE.MeshBasicMaterial({color:0xb9874e,side:THREE.DoubleSide,depthTest:false});
+const handInside=new THREE.MeshBasicMaterial({color:0x69482e,side:THREE.DoubleSide,depthTest:false});
+const handSkin=new THREE.MeshBasicMaterial({color:0xd1a17d,depthTest:false});
+function carryPart(w,h,d,x,y,z,material,parent=carriedCarton){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+ m.position.set(x,y,z);m.renderOrder=999;parent.add(m);return m;
+}
+carryPart(.49,.32,.37,0,0,0,handCardboard);
+const cartonTop=carryPart(.49,.018,.37,0,.168,0,handCardboard);
+const cartonOpenGroup=new THREE.Group();carriedCarton.add(cartonOpenGroup);
+const cartonTopInterior=carryPart(.44,.015,.32,0,.162,0,handInside,cartonOpenGroup);
+const cartonFlaps=[
+ carryPart(.245,.015,.37,-.245,.17,0,handCardboard,cartonOpenGroup),
+ carryPart(.245,.015,.37,.245,.17,0,handCardboard,cartonOpenGroup),
+ carryPart(.49,.015,.185,0,.17,-.185,handCardboard,cartonOpenGroup),
+ carryPart(.49,.015,.185,0,.17,.185,handCardboard,cartonOpenGroup)
+];
+cartonFlaps[0].rotation.z=-.4;cartonFlaps[1].rotation.z=.4;
+cartonFlaps[2].rotation.x=.4;cartonFlaps[3].rotation.x=-.4;
+carryPart(.18,.11,.24,-.35,-.09,.04,handSkin);
+carryPart(.18,.11,.24,.35,-.09,.04,handSkin);
+const carryActions=document.createElement("div");
+Object.assign(carryActions.style,{position:"fixed",right:"12px",bottom:"23%",zIndex:"27",display:"none",
+ flexDirection:"column",gap:"8px",maxWidth:"38vw",pointerEvents:"auto"});
+const cartonActionButton=document.createElement("button");
+Object.assign(cartonActionButton.style,{padding:"12px",background:"#0e7490",color:"#fff",
+ borderRadius:"10px",fontWeight:"bold",border:"1px solid #67e8f9",touchAction:"manipulation"});
+carryActions.appendChild(cartonActionButton);document.body.appendChild(carryActions);
+function cartonOpened(){return !!held&&held.source==="box"&&held.opened===true;}
+function setCartonOpen(open){
+ if(!held||held.source!=="box")return;
+ held.opened=!!open;
+ refreshCarry();
+ toast(open?"Carton ouvert : appuie sur E pour déposer les articles un par un":
+  "Carton refermé : retourne dans la réserve correspondante");
+}
+cartonActionButton.addEventListener("click",()=>{
+ if(!held||held.source!=="box")return;
+ setCartonOpen(!cartonOpened());
+});
 const carryLabel=document.createElement("div");
 Object.assign(carryLabel.style,{
  position:"fixed",left:"50%",top:"max(10px, env(safe-area-inset-top))",transform:"translateX(-50%)",
@@ -4459,7 +4504,12 @@ document.body.appendChild(carryLabel);
 function refreshCarry(){
  const p=held&&catalog.find(p=>p.id===held.id);
  carryLabel.style.display=p?"block":"none";
- carryLabel.textContent=p?(held.source==="loose"?"Produits en vrac : ":held.source==="delivery"?"Livraison : ":"Carton : ")+p.name+" — "+held.quantity+" produit(s)":"";
+ carryLabel.textContent=p?(held.source==="loose"?"Produits en vrac : ":held.source==="delivery"?"Livraison : ":"Carton : ")+p.name+" — "+held.quantity+" produit(s)"+(held.source==="box"?(held.opened?" · OUVERT":" · FERMÉ"):""):"";
+ carriedCarton.visible=!!p&&held.source==="box";
+ cartonTop.visible=carriedCarton.visible&&!cartonOpened();
+ cartonOpenGroup.visible=carriedCarton.visible&&cartonOpened();
+ carryActions.style.display=carriedCarton.visible?"flex":"none";
+ cartonActionButton.textContent=cartonOpened()?"Refermer le carton":"Ouvrir le carton";
  updateShelfGuides();
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
@@ -4482,6 +4532,7 @@ function putBack(){
  if(!held)return;
  const p=catalog.find(p=>p.id===held.id);
  if(!p||!atStorageFor(p))return;
+ if(held.source==="box"&&cartonOpened()){toast("Referme d'abord ton carton");return;}
  const inventory=state.inventory[p.id];
  if(held.source!=="loose"){
   const cartons=Math.min(Math.floor(held.quantity/BOX_UNITS),MAX_BOXES_PER_PRODUCT-inventory.boxes,
@@ -4499,7 +4550,7 @@ function takeCarton(p,amount,source="box"){
  if(held||!atStorageFor(p)||!productAvailable(p)){toast("Dépose d’abord ce que tu portes et approche-toi de la réserve");return;}
  if(source==="box"&&a.boxes>0){
   const cartons=Math.min(amount,a.boxes,handCapacity());
-  a.boxes-=cartons;held={id:p.id,quantity:cartons*BOX_UNITS,source:"box"};
+  a.boxes-=cartons;held={id:p.id,quantity:cartons*BOX_UNITS,source:"box",opened:false};
  }else if(source==="loose"&&a.reserve>0){
   const quantity=Math.min(amount,a.reserve);
   a.reserve-=quantity;held={id:p.id,quantity,source:"loose"};
@@ -5201,7 +5252,8 @@ function showReserve(){
  if(held){
   const p=catalog.find(p=>p.id===held.id);
   paragraph("Tu portes "+held.quantity+" × "+p.name+(held.source==="loose"?" (en vrac)":""));
-  button(panel,held.source==="loose"?"Reposer les produits en vrac":held.source==="delivery"?"Ranger la livraison":"Reposer les produits",putBack);
+  if(held.source==="box"&&cartonOpened())paragraph("Referme le carton avant de le ranger.");
+  button(panel,held.source==="loose"?"Reposer les produits en vrac":held.source==="delivery"?"Ranger la livraison":"Reposer le carton",putBack);
   return;
  }
  for(const p of unlockedProducts().filter(p=>storageKind(p)===kind)){
@@ -5210,7 +5262,7 @@ function showReserve(){
   if(a.boxes>0){
    const cartons=Math.min(a.boxes,handCapacity());
    button(panel,"Prendre un carton de "+p.name+" ("+BOX_UNITS+")",()=>takeCarton(p,1,"box"));
-   if(cartons>1)button(panel,"Prendre "+cartons+" cartons — "+p.name,()=>takeCarton(p,cartons,"box"));
+   // Manutention manuelle réaliste : un carton à la fois (10 articles).
   }
   if(a.reserve>0)button(panel,"PRENDRE EN VRAC — "+p.name+" ("+Math.min(10,a.reserve)+")",()=>takeCarton(p,10,"loose"));
   const batch=Math.min(FAST_RESTOCK_LIMIT,productStoredUnits(p));
@@ -5283,13 +5335,16 @@ function interact(){
   const p=catalog.find(p=>p.id===held.id);
   if(productAvailable(p)&&near(p.x,p.z,2.75)){
    const a=state.inventory[p.id],space=Math.max(0,shelfCapacity(p)-a.shelf);
-   if(!space){toast("Rayons "+p.name+" pleins");return;}
-   const placed=Math.min(space,held.quantity);
+   if(!space){toast("Rayon plein : referme le carton et retourne le ranger dans sa réserve");return;}
+   if(held.source==="box"&&!cartonOpened()){
+    setCartonOpen(true);return;
+   }
+   const placed=held.source==="box"?1:Math.min(space,held.quantity);
    a.shelf+=placed;held.quantity-=placed;
    if(placed>0)recordProgressEvent("restocks",placed);
    if(held.quantity===0)held=null;
    sync();refreshCarry();
-   toast(placed+" × "+p.name+" placés"+(held?" — "+held.quantity+" restants":""));
+   toast(placed+" × "+p.name+" placé(s)"+(held?" — "+held.quantity+" restants":""));
    return;
   }
   if(currentStorageKind()){if(!atStorageFor(p)){toast("Zone de rangement : "+storageName(storageKind(p)));return;}showReserve();return;}
@@ -5525,6 +5580,7 @@ document.addEventListener("keydown",e=>{
  if(!e.repeat&&panel.style.display==="none"&&checkoutUI.style.display==="none"&&!levelModalShowing){
   if(e.key?.toLowerCase()==="m"){e.preventDefault();showMainMenu();}
   if(e.code==="KeyE"&&!paused&&(seatedAtCheckout||canLookAround())){e.preventDefault();interact();}
+  if(e.code==="KeyR"&&held?.source==="box"&&canLookAround()){e.preventDefault();setCartonOpen(!cartonOpened());}
   if(e.code==="KeyT"&&canUseHandtruck()){e.preventDefault();useHandtruck();}
  }
 });
