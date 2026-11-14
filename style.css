@@ -375,3 +375,9 @@ button {
  #joystick{width:76px!important;height:76px!important}
  #joystickStick{width:32px!important;height:32px!important;left:calc(50% - 16px)!important;top:calc(50% - 16px)!important}
 }
+
+/* V0.15.00 — commandes d'action créées dynamiquement. */
+@media(pointer:coarse){
+ #actions button{margin-top:2px!important;max-width:120px!important}
+ #seatButton{padding:6px 9px!important;right:6px!important;bottom:9%!important;font-size:10px!important;border-radius:7px!important}
+}
