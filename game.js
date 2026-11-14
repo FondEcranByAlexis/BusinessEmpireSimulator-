@@ -5958,46 +5958,45 @@ function updateCityStairHeight(previousX,previousZ){
   cityFloor=0;cityStairFlight=null;cityStairBuilding=null;p.y=1.7;
   return;
  }
- const start=building.z-7.2,end=building.z+3.0;
- const inside=Math.abs(p.x-building.stair.x)<1.07&&p.z>=start-.16&&p.z<=end+.16;
- if(!inside){
-  if(cityStairFlight!==null){
-   const flight=cityStairFlight;
-   const reachTop=flight%2===0?p.z>=end-.2:p.z<=start+.2;
-   cityFloor=reachTop?Math.min(building.floors-1,flight+1):flight;
-   cityStairFlight=null;
-  }
-  cityFloor=Math.min(building.floors-1,Math.max(0,cityFloor));
-  p.y=1.7+cityFloor*3.1;
-  return;
- }
  if(cityStairBuilding!==building.id){
   cityStairBuilding=building.id;cityFloor=0;cityStairFlight=null;
  }
+ const start=building.z-7.2,end=building.z+3.0,length=end-start;
+ const inside=Math.abs(p.x-building.stair.x)<1.07&&p.z>=start-.22&&p.z<=end+.22;
+ if(!inside){
+  // Sur un palier, la hauteur de l'étage reste fixe.
+  if(cityStairFlight!==null){
+   const flight=cityStairFlight;
+   const upward=flight%2===0?end:start;
+   const downward=flight%2===0?start:end;
+   cityFloor=Math.abs(p.z-upward)<Math.abs(p.z-downward)?flight+1:flight;
+   cityFloor=Math.max(0,Math.min(building.floors-1,cityFloor));
+   cityStairFlight=null;
+  }
+  p.y=1.7+cityFloor*3.1;
+  return;
+ }
  const dz=p.z-previousZ;
  if(cityStairFlight===null){
-  // Choisir la volée inférieure lorsque le joueur commence à descendre :
-  // évite de le bloquer sur la volée montante de l'étage supérieur.
-  const dzEntry=p.z-previousZ;
-  const downFlight=Math.max(0,cityFloor-1);
-  const downDirection=downFlight%2===0?-1:1;
-  const wantsDown=cityFloor>0&&dzEntry*downDirection>.001;
-  cityStairFlight=wantsDown?downFlight:Math.min(building.floors-2,Math.max(0,cityFloor));
+  const lower=Math.max(0,cityFloor-1),upper=Math.min(building.floors-2,cityFloor);
+  // Au palier supérieur, le joueur doit pouvoir emprunter la volée
+  // inférieure et descendre en suivant les marches, sans téléportation.
+  const descentDirection=lower%2===0?-1:1;
+  const ascentDirection=upper%2===0?1:-1;
+  const descending=cityFloor>0&&dz*descentDirection>.0001;
+  const ascending=cityFloor<building.floors-1&&dz*ascentDirection>.0001;
+  if(descending&&!ascending)cityStairFlight=lower;
+  else if(ascending&&!descending)cityStairFlight=upper;
+  else if(descending)cityStairFlight=lower;
+  else cityStairFlight=upper;
  }
- let flight=cityStairFlight;
- const ascendDirection=flight%2===0?1:-1;
- const progress=ascendDirection===1?(p.z-start)/(end-start):(end-p.z)/(end-start);
- // Demi-tour sur le palier haut : attaque de la volée suivante.
- if(flight<building.floors-2&&progress>.965&&dz*ascendDirection<-.001){
-  flight++;cityStairFlight=flight;cityFloor=flight;
- }
- const newDirection=flight%2===0?1:-1;
- const fraction=Math.max(0,Math.min(1,newDirection===1?(p.z-start)/(end-start):(end-p.z)/(end-start)));
- // Les quinze marches font chacune 20,7 cm. La hauteur interpolée évite
- // des à-coups sur joystick tout en suivant exactement les marches visibles.
- p.y=1.7+flight*3.1+fraction*3.1;
- if(fraction>.98)cityFloor=Math.min(building.floors-1,flight+1);
- else if(fraction<.02)cityFloor=flight;
+ const flight=Math.max(0,Math.min(building.floors-2,cityStairFlight));
+ const ascendingToBack=flight%2===0;
+ const ratio=Math.max(0,Math.min(1,(ascendingToBack?p.z-start:end-p.z)/length));
+ p.y=1.7+(flight+ratio)*3.1;
+ // Mettre à jour l'étage uniquement aux extrémités réelles de la volée.
+ if(ratio>=.985)cityFloor=Math.min(building.floors-1,flight+1);
+ else if(ratio<=.015)cityFloor=flight;
 }
 function movePlayer(dt){
  if(seatedAtCheckout||panel.style.display!=="none")return;
