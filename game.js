@@ -689,6 +689,9 @@ function changeSatisfaction(amount){
 }
 function hud(){
  updateSatisfactionDisplay();
+ const score=$("pointsHudValue");
+ if(score)score.textContent="N"+playerLevel()+" · "+progressionPoints().toLocaleString("fr-FR")+" pts"+
+   " · PS "+state.points.ps+" / PL "+state.points.pl+" / PM "+state.points.pm;
  $("money").textContent=Math.round(state.money).toLocaleString("fr-FR")+" €";
  $("day").textContent=state.day;
  $("stock").textContent=total();
@@ -1131,6 +1134,10 @@ function showDevTools(){
   state.lastNotifiedLevel=playerLevel();sync();showDevTools();
  });
  button(panel,"Ajouter 100 000 €",()=>{state.money+=100000;sync();showDevTools();});
+ for(const [key,label] of [["ps","satisfaction"],["pl","livraison"],["pm","mission"]])
+  button(panel,"TEST · +100 points de "+label,()=>{
+   awardPoints(key,100,"test développeur");sync();showDevTools();
+  });
  button(panel,goldenTestHighlights?"Masquer les balises des figurines":"Afficher les 100 figurines en surbrillance",()=>{
   goldenTestHighlights=!goldenTestHighlights;
   localStorage.setItem("fba-golden-test-highlights",String(goldenTestHighlights));
