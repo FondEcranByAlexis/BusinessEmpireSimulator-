@@ -1,10 +1,10 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.10";
-import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.10";
-import { installSurveillance } from "./surveillance.js?v=0.15.10";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.10";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.10";
-// Business Empire Simulator V0.15.10 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.11";
+import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.11";
+import { installSurveillance } from "./surveillance.js?v=0.15.11";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.11";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.11";
+// Business Empire Simulator V0.15.11 — version synchronisée
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -567,7 +567,7 @@ state.storeName=state.storeName||DEFAULT_STORE_NAME;
 state.employeeNames??={};
 state.workerName=state.workerName||"George";
 state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSentHomeDay:0;
-// V0.15.10 : points de satisfaction (PS), livraison (PL), mission (PM).
+// V0.15.11 : points de satisfaction (PS), livraison (PL), mission (PM).
 // L'argent et le chiffre d'affaires n'augmentent jamais directement le niveau.
 const DAILY_MISSION_GOALS=[
  {key:"served",name:"Servir 8 clients dans la journée",target:8,reward:80},
@@ -629,7 +629,7 @@ function showDailyMissions(){
  button(panel,"Retour au menu",showMainMenu);
 }
 const finance=state.finance;
-// Bilan quotidien V0.15.10 : instantané journalier persistant, indépendant
+// Bilan quotidien V0.15.11 : instantané journalier persistant, indépendant
 // des statistiques cumulées et des niveaux de progression.
 function makeDayStartStats(){
  return {
@@ -2611,6 +2611,53 @@ for(const x of [17.1,20.1,22.8,25.6])corridorPart(x,4.76,5.45,1.7,.06,.55,0xfff7
 const coldRemovedEnd=scene.children.indexOf(coldToLogisticsPassage[0]);
 for(const mesh of scene.children.slice(removedColdMeshStart,coldRemovedEnd))mesh.visible=false;
 for(const hit of colliders.slice(removedColdColliderStart))hit.disabled=true;
+// V0.15.11 — Chambre froide reconstruite au flanc est de la réserve sèche.
+// Elle est au-delà du couloir logistique (z>10.8) et laisse ce dernier intact.
+// Accès direct depuis la réserve principale, passage de 2.8 m, sans porte bloquante.
+const coldRoom2={west:15.3,east:23.5,south:10.85,north:20,entryZ:15.4,entryWidth:2.8};
+const coldRoom2CenterX=(coldRoom2.west+coldRoom2.east)/2;
+const coldRoom2CenterZ=(coldRoom2.south+coldRoom2.north)/2;
+const coldRoom2Floor=cube(coldRoom2CenterX,-.14,coldRoom2CenterZ,8.2,.28,9.15,0xb0d7e7);
+cube(coldRoom2CenterX,5.08,coldRoom2CenterZ,8.2,.17,9.15,0xe0f2fe);
+const westLowerEnd=coldRoom2.entryZ-coldRoom2.entryWidth/2;
+const westUpperStart=coldRoom2.entryZ+coldRoom2.entryWidth/2;
+const coldWall=(x,z,w,d,color=0xdbeafe)=>{
+ cube(x,2.5,z,w,5,d,color,true);
+ cube(x,.13,z,w,.24,d,0x64748b);
+};
+coldWall(coldRoom2.west,(coldRoom2.south+westLowerEnd)/2,.22,westLowerEnd-coldRoom2.south);
+coldWall(coldRoom2.west,(westUpperStart+coldRoom2.north)/2,.22,coldRoom2.north-westUpperStart);
+coldWall(coldRoom2.east,coldRoom2CenterZ,.22,9.15);
+coldWall(coldRoom2CenterX,coldRoom2.south,8.2,.22);
+coldWall(coldRoom2CenterX,coldRoom2.north,8.2,.22);
+cube(coldRoom2.west,4.28,coldRoom2.entryZ,.22,1.45,coldRoom2.entryWidth,0xcbd5e1);
+// Huisserie inox, panneaux isolants et panneaux de direction visibles depuis la réserve.
+for(const z of [westLowerEnd,westUpperStart])
+ cube(coldRoom2.west-.09,1.65,z,.12,3.3,.10,0x64748b);
+const coldDoorLabel=(()=>{
+ const canvas=document.createElement("canvas");canvas.width=640;canvas.height=160;
+ const ctx=canvas.getContext("2d");ctx.fillStyle="#075985";ctx.fillRect(0,0,640,160);
+ ctx.strokeStyle="#bae6fd";ctx.lineWidth=7;ctx.strokeRect(4,4,632,152);
+ ctx.fillStyle="#ffffff";ctx.font="bold 48px Arial";ctx.textAlign="center";
+ ctx.fillText("CHAMBRE FROIDE",320,74);ctx.font="30px Arial";
+ ctx.fillText("ACCÈS DEPUIS LA RÉSERVE",320,126);
+ const sign=new THREE.Mesh(new THREE.PlaneGeometry(3.1,.78),
+  new THREE.MeshBasicMaterial({map:gameTexture(canvas),side:THREE.DoubleSide}));
+ sign.rotation.y=-Math.PI/2;sign.position.set(coldRoom2.west-.22,3.91,coldRoom2.entryZ);
+ scene.add(sign);return sign;
+})();
+for(const z of [12.4,18.2])for(const x of [17.1,21.6]){
+ // Racks bas et aérés pour laisser la circulation centrale libre.
+ for(const y of [.67,1.72,2.77])cube(x,y,z,1.32,.085,1.42,0x94a3b8);
+ for(const dx of [-.61,.61])for(const dz of [-.64,.64])
+  cube(x+dx,1.65,z+dz,.055,3.3,.055,0x64748b);
+}
+for(const z of [12.4,18.2]){
+ cube(19.35,4.86,z,1.9,.045,.45,0xf8fafc).material=zonePanel("cold");
+}
+cube(23.13,4.1,11.43,.7,.65,.24,0x64748b); // Groupe froid
+const coldRoom2Switch=cube(coldRoom2.west-.13,1.35,17.2,.07,.15,.13,0x22c55e);
+
 cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Passage libre entre ancienne réserve et agrandissement (ancien mur du fond supprimé).
 // Cloison de fond continue et opaque : l'interrupteur est fixé sur sa face intérieure.
@@ -4214,9 +4261,8 @@ function toggleColdRoomLights(){setZoneLighting("cold");}
 function toggleStockroomLights(){setLightCircuit(STORAGE_LIGHTS,"Réserves sèche et électronique");}
 function toggleLights(){setLightCircuit(COMMERCIAL_LIGHTS,"Espaces de vente");}
 // Les emplacements libres sont partagés par toutes les références de la zone.
-for(const [xs,zs] of [[[16.35,20.15],[3.1,7.8]],[[16.6,22.5],[11,14.8]]]){
- for(const x of xs)for(const z of zs)addStorageRack("cold",x,z,[.65,1.7,2.75],1.22);
-}
+for(const x of [17.1,21.6])for(const z of [12.4,18.2])
+ addStorageRack("cold",x,z,[.67,1.72,2.77],1.22);
 const storageBatches=new Map();
 const storageBoxGeometry=new THREE.BoxGeometry(1,1,1);
 storageBoxGeometry.clearGroups();
@@ -4269,7 +4315,6 @@ function renderStorageCartons(product,loose,slots){
 function refreshBoxes(){
  for(const batch of storageBatches.values())batch.visible=false;
  for(const kind of STORAGE_KINDS){
-  if(kind==="cold"){storageOverflow[kind]=0;continue;} // Aucun carton visible dans la chambre froide retirée.
   const bays=storageBayCount(kind);
   const racks=storageRacks[kind].filter(rack=>(!rack.requiresUpgrade||state.upgrades[rack.requiresUpgrade])&&
    (rack.bay===undefined||rack.bay<bays)&&
@@ -4341,7 +4386,10 @@ function refreshCarry(){
 }
 function near(x,z,r=2.5){return Math.hypot(camera.position.x-x,camera.position.z-z)<=r;}
 function atReserve(){return camera.position.x>19.2&&camera.position.x<24&&camera.position.z>-22.5&&camera.position.z<-9.5||inStorageWing("dry",camera.position.x,camera.position.z)||camera.position.x>10.35&&camera.position.x<15.05&&camera.position.z>1.8&&camera.position.z<(state.upgrades.store2?37.25:state.upgrades.store1?30.45:23.45);}
-function atColdRoom(){return inStorageWing("cold",camera.position.x,camera.position.z)||camera.position.x>15.55&&camera.position.x<23.75&&camera.position.z>1.8&&camera.position.z<16.8;}
+function atColdRoom(){
+ return camera.position.x>coldRoom2.west+.08&&camera.position.x<coldRoom2.east-.2&&
+  camera.position.z>coldRoom2.south+.2&&camera.position.z<coldRoom2.north-.2;
+}
 function atElectronicsReserve(){
  const {x,z}=camera.position;
  return (x>10.35&&x<19.2&&z>-22.5&&z<-9)||(x>10.35&&x<17.8&&z>=-9&&z<-3)||inStorageWing("electronics",x,z)||!!state.upgrades.store2&&x>=15.3&&x<20.35&&z>30.75&&z<43.7;
@@ -4436,7 +4484,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.15.10 : le couloir logistique possède deux portes distinctes sur son
+// V0.15.11 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4447,7 +4495,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.15.10 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.15.11 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4466,7 +4514,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.15.10 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.15.11 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -4670,7 +4718,7 @@ scene.add(workerGroup);
 const WORKER_DOCK=[25.65,-23.8];
 function storageWorkPoint(p){
  const kind=storageKind(p);
- return kind==="electronics"?[17.95,35]:kind==="cold"?[19.5,5.5]:[13,5.5];
+ return kind==="electronics"?[17.95,35]:kind==="cold"?[19.35,15.4]:[13,5.5];
 }
 function staffRoute(group,point){
  const [x,z]=point;
@@ -5438,7 +5486,9 @@ function blocked(x,z,r=.4){
  // Le volume accessible suit les extensions physiques de la réserve.
  const reserveDepth=23.45;
  const reserve=x>10.35&&x<15.05&&z>1.8&&z<reserveDepth;
- const cold=x>15.05&&x<27.1&&z>3.35&&z<7.55; // Passage vers le couloir logistique
+ const cold=(x>15.05&&x<27.1&&z>3.35&&z<7.55) // Couloir logistique existant
+  ||(x>coldRoom2.west+.15&&x<coldRoom2.east-.15&&
+     z>coldRoom2.south+.15&&z<coldRoom2.north-.15); // Chambre froide nouvelle
  const electronicsReserve=!STORAGE_REBUILD_PENDING&&state.upgrades.store2&&x>29.55&&x<34.05&&z>-6.25&&z<6.7;
  const relocatedDry=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>34.25&&x<38.85&&z>-6.55&&z<(state.upgrades.store2?0.35:-6.5);
  const electronicsReserveDoor=state.upgrades.store2&&x>30.55&&x<33.35&&z>-7.4&&z<-5.7;
@@ -5452,7 +5502,10 @@ function blocked(x,z,r=.4){
  const cityWalk=x>CITY_BOUNDS.minX+r&&x<CITY_BOUNDS.maxX-r&&z>CITY_BOUNDS.minZ-r&&z<CITY_BOUNDS.maxZ-r;
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
 
- const coldDoor=x>=15.0-r&&x<=15.6+r&&z>3.35+r&&z<7.55-r;
+ const coldDoor=(x>=15.0-r&&x<=15.6+r&&z>3.35+r&&z<7.55-r)
+  ||(x>=coldRoom2.west-.45&&x<=coldRoom2.west+.45&&
+     z>coldRoom2.entryZ-coldRoom2.entryWidth/2+r&&
+     z<coldRoom2.entryZ+coldRoom2.entryWidth/2-r);
  const serviceDoor=x>23.65&&x<25.3&&z>3.35+r&&z<7.55-r;
  const serviceCorridor=x>24.0&&x<29.7&&z>-24.0&&z<7.4;
  // Réserve en L autour de la salle de pause : aile arrière + aile latérale.
@@ -7361,4 +7414,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.10 !");
+animate();toast("Business Empire Simulator V0.15.11 !");
