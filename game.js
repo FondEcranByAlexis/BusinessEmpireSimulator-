@@ -6949,7 +6949,11 @@ openButton.addEventListener("click",()=>{
  dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();playSound("shopOpen");toast("Magasin ouvert — affluence "+customerTraffic().label.toLowerCase());
 });
 function business(dt){
- if(dailyReportShowing)return;
+ if(dailyReportShowing){
+  // Fermer le bilan via « Fermer » ou « Commencer » reprend la simulation.
+  if(panel.style.display==="none")dailyReportShowing=false;
+  else return;
+ }
  // Le joueur prépare son magasin entre 7 h et 8 h.
  if(!dayStarted){
   if(preopenTimer<PREOPEN_SECONDS){
