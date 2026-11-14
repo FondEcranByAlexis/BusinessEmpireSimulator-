@@ -1,7 +1,7 @@
 // Paliers et programme approuvés pour les niveaux 1 à 200.
 export const LEVEL_REWARDS = [
   ["Six rayons de départ. Diable de manutention · 125 €.", "", "Magasin de départ", "Réserve sèche · 30 cartons", "Chambre froide de départ · 20 cartons"],
-  ["Riz, conserves et papier toilette", "", "", "", ""],
+  ["Riz, conserves et papier toilette. Service de livraison à domicile + camionnette · 1 800 €.", "Livraisons locales · niveau 2", "", "", ""],
   ["Biscuits", "", "", "Réserve agrandie I · 900 € · +30, jusqu’à 60 cartons", ""],
   ["Fromage et pizza surgelée après licence. Café, jus, chocolat et 11 autres références après licence d’épicerie.", "Frais et surgelés · 650 €. Épicerie de l’extension · 800 €, après Extension I.", "Extension I · 1 800 € · chantier de 3 services", "Extension I · +40, jusqu’à 100 cartons en réserve sèche", ""],
   ["Céréales et neuf références électroniques après ouverture de l’Extension II.", "", "Extension Électronique II · 3 000 € · après Extension I · chantier de 3 services en partie normale", "Réserve sèche · +60, jusqu’à 160 cartons. Réserve électronique · 60 cartons.", ""],
@@ -225,11 +225,35 @@ export const LEVEL_PHASES = [
 ];
 
 export const MAX_LEVEL = 200;
-export const LEVEL_THRESHOLDS = [0, 500, 2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000];
-for (const [first, last, , increment] of LEVEL_PHASES) {
-  for (let level = first; level <= last; level++) {
-    LEVEL_THRESHOLDS.push(LEVEL_THRESHOLDS.at(-1) + increment);
-  }
+// V0.15.02 : équilibrage provisoire des 30 premiers niveaux.
+// Objectifs de tests : niveau 10 ≈ 180 min ; niveau 30 ≈ 1050 min.
+// Ces durées sont des cibles de playtesting, pas des chronomètres imposés.
+export const EDITION_LIMITS={demo:{maxLevel:10,targetMinutes:180},early:{maxLevel:30,targetMinutes:1050},full:{maxLevel:200,targetMinutes:null}};
+export const LEVEL_THRESHOLDS=[0,500,1200,2100,3400,5000,7100,9800,13200,17500];
+// N11–20 : montée progressive lorsque le magasin s'agrandit.
+for(let i=0;i<10;i++)LEVEL_THRESHOLDS.push(LEVEL_THRESHOLDS.at(-1)+5000+i*450);
+// N21–30 : commerce, frais et premières équipes.
+for(let i=0;i<10;i++)LEVEL_THRESHOLDS.push(LEVEL_THRESHOLDS.at(-1)+13000+i*750);
+// Les niveaux 31–200 conservent la structure des paliers ultérieurs.
+for(const [first,last,,increment] of LEVEL_PHASES){
+ if(last<=30)continue;
+ for(let level=Math.max(31,first);level<=last;level++)
+  LEVEL_THRESHOLDS.push(LEVEL_THRESHOLDS.at(-1)+increment);
+}
+// Ancien barème conservé uniquement pour migrer les sauvegardes sans perdre
+// le niveau déjà atteint et sans falsifier le vrai chiffre d'affaires.
+export const LEGACY_LEVEL_THRESHOLDS=[0,500,2000,4000,8000,16000,32000,64000,128000,256000];
+for(const [first,last,,increment] of LEVEL_PHASES)
+ for(let level=first;level<=last;level++)
+  LEGACY_LEVEL_THRESHOLDS.push(LEGACY_LEVEL_THRESHOLDS.at(-1)+increment);
+export function remapLegacyRevenue(legacyRevenue){
+ const r=Math.max(0,Number(legacyRevenue)||0);
+ let level=1;
+ while(level<MAX_LEVEL&&LEGACY_LEVEL_THRESHOLDS[level]<=r)level++;
+ const oldStart=LEGACY_LEVEL_THRESHOLDS[level-1],oldNext=LEGACY_LEVEL_THRESHOLDS[level]??oldStart;
+ const newStart=LEVEL_THRESHOLDS[level-1],newNext=LEVEL_THRESHOLDS[level]??newStart;
+ const fraction=oldNext>oldStart?Math.min(1,(r-oldStart)/(oldNext-oldStart)):0;
+ return Math.floor(newStart+(newNext-newStart)*fraction);
 }
 export function revenueThreshold(level) {
   return LEVEL_THRESHOLDS[level - 1] ?? null;
