@@ -256,9 +256,18 @@ export function installCity({THREE,scene}){
     else if(distance<2*length){lx=max;lz=min+distance-length;heading=Math.PI;}
     else if(distance<3*length){lx=max-(distance-2*length);lz=max;heading=Math.PI/2;}
     else{lx=min;lz=max-(distance-3*length);heading=0;}
-    c.group.position.x=c.blockX+lx;
-    c.group.position.z=c.blockZ+lz;
-    c.group.rotation.y=heading;
+    const nextX=c.blockX+lx,nextZ=c.blockZ+lz;
+    // Les voitures ne doivent pas traverser le joueur immobile.
+    // Elles gardent leur position précédente tant que la zone est occupée.
+    const px=position.x,pz=position.z;
+    const nearPlayer=Math.hypot(nextX-px,nextZ-pz)<2.25;
+    const wasSafe=c.positionReady&&Math.hypot(c.group.position.x-px,c.group.position.z-pz)>=2.25;
+    if(!nearPlayer||!wasSafe){
+     c.group.position.x=nextX;
+     c.group.position.z=nextZ;
+     c.group.rotation.y=heading;
+    }
+    c.positionReady=true;
    }
   }
  }
