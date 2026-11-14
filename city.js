@@ -147,7 +147,7 @@ export function installCity({THREE,scene}){
   }
   return {lamps,axis,pole,box};
  }
- function car(parent,x,z,axis,i,blockX,blockZ){
+ function car(parent,x,z,axis,i,blockX,blockZ,carIndex){
   const group=new THREE.Group();group.position.set(x,0,z);parent.add(group);
   if(axis==="x")group.rotation.y=Math.PI/2;
   const color=materials.vehicle[i%materials.vehicle.length];
@@ -161,8 +161,13 @@ export function installCity({THREE,scene}){
    make(group,materials.marking,side,.65,-1.66,.32,.19,.05);
    make(group,materials.rear,side,.65,1.66,.32,.18,.05);
   }
-  const speed=4+hash(i,Math.floor(x+z))*5;
-  return {group,axis,speed,phase:hash(i,Math.floor(z+x))*350,originX:x,originZ:z,blockX,blockZ,lights:[]};
+  // Deux voitures par îlot : même allure et espacement d'un demi-tour de
+  // circuit. Elles ne peuvent donc pas se dépasser ou se superposer.
+  const speed=5+hash(Math.round(blockX),Math.round(blockZ))*2.5;
+  const circuitLength=4*(95.7-4.3);
+  const phase=hash(Math.round(blockX),Math.round(blockZ),31)*circuitLength+
+   carIndex*circuitLength/2;
+  return {group,axis,speed,phase,originX:x,originZ:z,blockX,blockZ,lights:[]};
  }
  function chunk(cx,cz,detail){
   const group=new THREE.Group();group.name="Quartier "+cx+","+cz;root.add(group);
@@ -199,8 +204,8 @@ export function installCity({THREE,scene}){
    // Deux voitures par sous-bloc, sans collision physique: elles ne coincent
    // pas le joueur. Mouvement local sur les axes, avec arret aux feux.
    if(detail){
-    localTraffic.push(car(group,x+25,z+4.3,"x",bx+bz*4+cx*7+cz*17,x,z));
-    localTraffic.push(car(group,x+4.3,z+55,"z",bx+bz*4+cx*9+cz*11+2,x,z));
+    localTraffic.push(car(group,x+25,z+4.3,"x",bx+bz*4+cx*7+cz*17,x,z,0));
+    localTraffic.push(car(group,x+4.3,z+55,"z",bx+bz*4+cx*9+cz*11+2,x,z,1));
    }
   }
   active.set(cx+","+cz,{group,traffic:localTraffic,lights,cx,cz,detail});
