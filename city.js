@@ -70,7 +70,10 @@ export function installCity({THREE,scene}){
    // Silhouette economique des quartiers distants (3 meshes/immeuble).
    make(child,mat,0,h/2,0,w,h,d);
    make(child,materials.roof,0,h+.12,0,w+.45,.24,d+.45);
-   make(child,materials.window,0,h/2,-d/2-.18,w*.45,h*.55,.05);
+   // À distance, pas de grand panneau vitré traversant la façade :
+   // ce rectangle bleu créait un artefact très visible sur les immeubles.
+   for(const side of [-1,1])for(let floor=0;floor<floors;floor++)
+    make(child,materials.window,side*w*.31,floor*3.1+1.65,-d/2-.18,1.18,1.32,.035);
    return;
   }
   make(child,materials.floor,0,-.01,0,w,.15,d);
@@ -140,7 +143,7 @@ export function installCity({THREE,scene}){
     make(child,materials.floor,side*(w/2-3),y+.4,5,1.9,.65,2.2);
     make(child,materials.steel,side*(w/2-2),y+1.05,-3,.8,2.1,.65);
    }
-   make(child,materials.window,0,y+1.6,-d/2-.19,1.2,1.3,.04);
+   // Pas de vitrage central : l'entrée doit rester une porte pleine.
    for(const side of [-1,1]){
     make(child,materials.window,side*w*.32,y+1.6,-d/2-.19,1.3,1.45,.06);
     make(child,materials.window,side*w*.32,y+1.6,d/2+.19,1.3,1.45,.06);
@@ -197,11 +200,13 @@ export function installCity({THREE,scene}){
     make(group,materials.marking,x+dx,.09,z+1.2,2.8,.016,.12);
     make(group,materials.marking,x+1.2,.09,z+dx,.12,.016,2.8);
    }
-   // Quatre passages piétons distincts autour de CHAQUE carrefour.
+   // Quatre passages PAR îlot, uniquement SUR les deux chaussées
+   // réellement construites : deux sur la rue horizontale, deux sur la
+   // verticale. Aucun décalage négatif hors de la zone chargée.
    for(let p=-3;p<=3;p++){
-    for(const offset of [-13.5,13.5]){
-     make(group,materials.marking,x+p*1.05,.09,z+offset,.64,.018,2.6);
+    for(const offset of [13.5,86.5]){
      make(group,materials.marking,x+offset,.09,z+p*1.05,2.6,.018,.64);
+     make(group,materials.marking,x+p*1.05,.09,z+offset,.64,.018,2.6);
     }
    }
    // Feux sur chaque axe et pour les deux sens de circulation.
