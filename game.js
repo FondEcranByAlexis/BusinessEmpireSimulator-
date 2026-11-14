@@ -1,10 +1,10 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.02";
-import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.02";
-import { installSurveillance } from "./surveillance.js?v=0.15.02";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue } from "./progression.js?v=0.15.02";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.02";
-// Business Empire Simulator V0.15.02 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.03";
+import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.03";
+import { installSurveillance } from "./surveillance.js?v=0.15.03";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.03";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.03";
+// Business Empire Simulator V0.15.03 — version synchronisée
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -249,20 +249,22 @@ function inStorageWing(kind,x,z){
  const bays=storageBayCount(kind);
  return bays>0&&z<wing.start+bays*STORAGE_BAY_DEPTH-.25;
 }
+// Le revenu reste comptable : le niveau dépend seulement des points cumulés.
 function progressionRevenue(){
  const f=state.finance?.revenue||0;
  return Math.max(0,(state.levelRevenue||0)+Math.max(0,f-(state.levelRevenueCheckpoint||0)));
 }
 function playerLevel(){
  if(DEV_MODE&&Number.isFinite(state.devLevel))return Math.max(1,Math.min(MAX_LEVEL,Math.floor(state.devLevel)));
- return Math.min(LEVEL_CAP,levelForRevenue(progressionRevenue()));
+ return Math.min(LEVEL_CAP,levelForPoints(progressionPoints()));
 }
-function nextLevelRevenue(){return playerLevel()>=LEVEL_CAP?null:revenueThreshold(playerLevel()+1);}
+function progressionPoints(){return (state.points?.ps||0)+(state.points?.pl||0)+(state.points?.pm||0);}
+function nextLevelRevenue(){return playerLevel()>=LEVEL_CAP?null:pointThreshold(playerLevel()+1);}
 function nextLevelLabel(){
  const next=nextLevelRevenue();
  return next===null?(GAME_EDITION==="demo"?"Limite de la démo atteinte : niveau 10":
   GAME_EDITION==="early"?"Limite de l'accès anticipé atteinte : niveau 30":"Niveau maximum atteint"):
-  "Niveau suivant à "+euro(next)+" de CA de progression";
+  "Niveau suivant à "+next.toLocaleString("fr-FR")+" points";
 }
 function activeCapacity(kind){
  return capacityUpgrades.reduce((total,u)=>total+(state.upgrades[u.id]?(u.capacity[kind]||0):0),0);
@@ -447,8 +449,10 @@ function load(){
      s.levelRevenueCheckpoint=previousRevenue;
     }
     if(current.homeDelivery&&typeof current.homeDelivery==="object")s.homeDelivery=current.homeDelivery;
+    if(current.points&&typeof current.points==="object")s.points=current.points;
+    if(current.dailyMission&&typeof current.dailyMission==="object")s.dailyMission=current.dailyMission;
    if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
-   if(Number.isInteger(current.lastNotifiedLevel)&&current.lastNotifiedLevel>=1&&[1,2].includes(current.progressionVersion))s.lastNotifiedLevel=Math.min(current.lastNotifiedLevel,MAX_LEVEL);
+   if(Number.isInteger(current.lastNotifiedLevel)&&current.lastNotifiedLevel>=1&&[1,2,3].includes(current.progressionVersion))s.lastNotifiedLevel=Math.min(current.lastNotifiedLevel,MAX_LEVEL);
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
    if(typeof current.storeName==="string")s.storeName=current.storeName.trim().slice(0,40);
    if(current.employeeNames&&typeof current.employeeNames==="object"){
@@ -515,6 +519,21 @@ function load(){
 }
 const state=load();
 state.levelRevenue??=0;state.levelRevenueCheckpoint??=0;
+if(!state.points||typeof state.points!=="object"){
+ // Conversion du niveau déjà obtenu vers le nouveau barème en points.
+ // La trésorerie et le CA réel ne changent pas.
+ const oldProgress=Math.max(0,state.levelRevenue+
+  Math.max(0,(state.finance?.revenue||0)-state.levelRevenueCheckpoint));
+ const oldLevel=levelForRevenue(oldProgress);
+ const before=revenueThreshold(oldLevel),after=revenueThreshold(Math.min(MAX_LEVEL,oldLevel+1));
+ const progress=after>before?Math.max(0,Math.min(1,(oldProgress-before)/(after-before))):0;
+ const start=pointThreshold(oldLevel),finish=pointThreshold(Math.min(MAX_LEVEL,oldLevel+1));
+ state.points={ps:0,pl:0,pm:Math.floor(start+progress*Math.max(0,finish-start))};
+}
+for(const kind of ["ps","pl","pm"])
+ state.points[kind]=Math.max(0,Math.floor(Number(state.points[kind])||0));
+state.dailyMission=state.dailyMission&&typeof state.dailyMission==="object"?state.dailyMission:
+ {day:state.day,served:0,restocks:0,deliveries:0,claimed:[]};
 state.homeDelivery??={completed:0,active:null};
 state.homeDelivery.completed=Math.max(0,Math.floor(Number(state.homeDelivery.completed)||0));
 if(state.homeDelivery.active&&!Number.isInteger(state.homeDelivery.active.id))state.homeDelivery.active=null;
@@ -535,7 +554,7 @@ if(DEV_MODE&&state.construction){
 }
 // Les niveaux déjà acquis ne déclenchent aucune notification rétroactive.
 if(!Number.isInteger(state.lastNotifiedLevel))state.lastNotifiedLevel=playerLevel();
-state.progressionVersion=2;
+state.progressionVersion=3;
 state.management=state.management??{};
 state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
 state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
@@ -553,9 +572,7 @@ function save(){
   if(stockerCargo&&stockerUnits)inTransit.push({role:"shelf",cargo:{product:{id:stockerCargo},quantity:stockerUnits}});
   if(held)inTransit.push({role:held.source==="delivery"?"dock":"shelf",cargo:{product:{id:held.id},quantity:held.quantity}});
   const snapshot=inTransit.length?{...state,inventory:{...state.inventory},deliveryDock:[...state.deliveryDock]}:{...state};
-  // Progression recalibrée indépendante de la comptabilité réelle.
-  snapshot.levelRevenue=progressionRevenue();
-  snapshot.levelRevenueCheckpoint=state.finance.revenue;
+  // PS / PL / PM persistés indépendamment du chiffre d'affaires.
   for(const unit of inTransit){
    const {product,quantity}=unit.cargo;
    if(unit.role==="dock"){
@@ -684,8 +701,9 @@ function showProgression(first){
  if(!Number.isInteger(first)||first<1||first>MAX_LEVEL)first=Math.floor((playerLevel()-1)/10)*10+1;
  const last=Math.min(MAX_LEVEL,first+9);
  openPanel("Progression · niveaux "+first+" à "+last);
- paragraph("Niveau "+playerLevel()+" · CA réel "+euro(finance.revenue)+
-  " · progression recalibrée "+euro(progressionRevenue())); 
+ paragraph("Niveau "+playerLevel()+" · "+progressionPoints().toLocaleString("fr-FR")+
+  " points (PS "+state.points.ps+" · PL "+state.points.pl+" · PM "+state.points.pm+")");
+ paragraph("Chiffre d'affaires comptable : "+euro(finance.revenue)+" — n'augmente pas le niveau."); 
  paragraph(GAME_EDITION==="demo"?"Démo · limite niveau 10 · durée cible 3 h":
   GAME_EDITION==="early"?"Accès anticipé · limite niveau 30 · durée cible 17 h 30":
   "Version développement complète · objectifs de test : N10 ≈ 3 h, N30 ≈ 17 h 30");
@@ -703,7 +721,7 @@ function showProgression(first){
  for(let level=first;level<=last;level++){
   const group=document.createElement("details");
   const title=document.createElement("summary");
-  title.textContent=(level<=playerLevel()?"✓ ":"")+"Niveau "+level+" · "+euro(revenueThreshold(level));
+  title.textContent=(level<=playerLevel()?"✓ ":"")+"Niveau "+level+" · "+(pointThreshold(level)||0).toLocaleString("fr-FR")+" points";
   group.open=level===playerLevel();
   group.appendChild(title);
   for(const description of milestoneEntries(level)){
@@ -1040,14 +1058,14 @@ function showDevTools(){
  openPanel("FBA GAMES — MODE TEST");
  paragraph("Sauvegarde de test indépendante. Ces commandes ne modifient pas ta partie normale.");
  paragraph("Niveau de test : "+playerLevel()+" | Argent : "+euro(state.money));
- paragraph(Number.isFinite(state.devLevel)?"Progression manuelle":"Progression par chiffre d’affaires");
+ paragraph(Number.isFinite(state.devLevel)?"Niveau forcé pour le test":"Progression PS · PL · PM");
  const selector=inputNumber("Choisis un niveau entre 1 et "+MAX_LEVEL,playerLevel(),1,MAX_LEVEL);
  button(panel,"Appliquer le niveau",()=>{
   const level=Number(selector.value);
   if(!Number.isInteger(level)||level<1||level>MAX_LEVEL){toast("Saisis un niveau de 1 à "+MAX_LEVEL);return;}
   state.devLevel=level;state.lastNotifiedLevel=level;sync();showDevTools();toast("Niveau de test : "+level);
  });
- if(Number.isFinite(state.devLevel))button(panel,"Reprendre la progression par les ventes",()=>{
+ if(Number.isFinite(state.devLevel))button(panel,"Reprendre la progression par les points",()=>{
   delete state.devLevel;
   state.lastNotifiedLevel=playerLevel();sync();showDevTools();
  });
@@ -4285,7 +4303,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.15.02 : le couloir logistique possède deux portes distinctes sur son
+// V0.15.03 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4296,7 +4314,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.15.02 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.15.03 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4315,7 +4333,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.15.02 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.15.03 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -7160,4 +7178,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.02 !");
+animate();toast("Business Empire Simulator V0.15.03 !");
