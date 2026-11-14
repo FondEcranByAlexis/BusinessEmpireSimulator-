@@ -262,9 +262,11 @@ export function installCity({THREE,scene}){
     // Les voitures ne doivent pas traverser le joueur immobile.
     // Elles gardent leur position précédente tant que la zone est occupée.
     const px=position.x,pz=position.z;
-    const nearPlayer=Math.hypot(nextX-px,nextZ-pz)<2.25;
-    const wasSafe=c.positionReady&&Math.hypot(c.group.position.x-px,c.group.position.z-pz)>=2.25;
-    if(!nearPlayer||!wasSafe){
+    // Toujours céder le passage au joueur, même lorsqu'il avance
+    // en direction de la voiture. Aucune exception si elle était déjà proche.
+    const safetyRadius=2.55;
+    const nearPlayer=Math.hypot(nextX-px,nextZ-pz)<safetyRadius;
+    if(!nearPlayer){
      c.distance=distance;
      c.group.position.x=nextX;
      c.group.position.z=nextZ;
@@ -275,12 +277,21 @@ export function installCity({THREE,scene}){
   }
  }
  // Collision douce contre les carrosseries : pas de traversée du véhicule.
- function vehicleBlocked(x,z,r=.32){
+ function vehicleBlocked(x,z,r=.32,fromX=null,fromZ=null){
   for(const sector of active.values())for(const c of sector.traffic){
    if(!c.group.visible)continue;
-   const dx=Math.abs(x-c.group.position.x),dz=Math.abs(z-c.group.position.z);
-   const longAxis=c.axis==="x";
-   if(dx<(longAxis?1.7:.92)+r&&dz<(longAxis?.92:1.7)+r)return true;
+   // Collision circulaire : fonctionne dans les virages et dans les
+   // quatre sens, sans rectangle orienté selon l'ancien axe du véhicule.
+   const radius=1.85+r;
+   const distance=Math.hypot(x-c.group.position.x,z-c.group.position.z);
+   if(distance>=radius)continue;
+   // Lorsque le joueur est déjà trop proche, autoriser uniquement le recul
+   // (sinon il resterait définitivement emprisonné dans la collision).
+   if(Number.isFinite(fromX)&&Number.isFinite(fromZ)){
+    const current=Math.hypot(fromX-c.group.position.x,fromZ-c.group.position.z);
+    if(distance>current+.0001)continue;
+   }
+   return true;
   }
   return false;
  }
