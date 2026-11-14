@@ -4363,11 +4363,17 @@ function storageCartonBatch(product,loose,count){
  batch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
  storageBatches.set(key,batch);scene.add(batch);return batch;
 }
+// Aucun carton ne doit réapparaître dans l'ancienne chambre froide
+// devenue couloir logistique, même si d'anciens emplacements restent sauvegardés.
+function retiredColdCartonPosition(x,z){
+ return x>=15.0&&x<=24.25&&z>=1.45&&z<=9.75;
+}
 function renderStorageCartons(product,loose,slots){
- if(!slots.length)return;
- const batch=storageCartonBatch(product,loose,slots.length);
- batch.count=slots.length;batch.visible=true;
- slots.forEach((slot,index)=>{
+ const safeSlots=slots.filter(slot=>!retiredColdCartonPosition(slot.x,slot.z));
+ if(!safeSlots.length)return;
+ const batch=storageCartonBatch(product,loose,safeSlots.length);
+ batch.count=safeSlots.length;batch.visible=true;
+ safeSlots.forEach((slot,index)=>{
   storagePosition.set(slot.x,slot.y,slot.z);
   storageRotation.setFromAxisAngle(storageUp,slot.angle);
   storageScale.set(slot.width,STORAGE_CARTON_HEIGHT,.46);
@@ -4396,7 +4402,7 @@ function refreshBoxes(){
    // Ne jamais dessiner de cartons dans l'ancien volume frigorifique
    // qui sert maintenant de passage logistique.
    slots:[...rack.slots,...rack.overflow].filter(slot=>
-    !(slot.x>15.45&&slot.x<24.1&&slot.z>1.7&&slot.z<9.45)),
+    !retiredColdCartonPosition(slot.x,slot.z)),
    owner:null,used:0
   })).filter(rack=>rack.slots.length);
   const pools=kind==="dry"?{
