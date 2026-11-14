@@ -1,10 +1,15 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.01";
-import { installSurveillance } from "./surveillance.js?v=0.15.01";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.15.01";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.01";
-// Business Empire Simulator V0.15.01 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.02";
+import { makeDeliveryVan } from "./delivery-van.js?v=0.15.02";
+import { installSurveillance } from "./surveillance.js?v=0.15.02";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue } from "./progression.js?v=0.15.02";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.02";
+// Business Empire Simulator V0.15.02 — version synchronisée
 const $=id=>document.getElementById(id);
+const requestedEdition=new URLSearchParams(location.search).get("edition");
+const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
+const LEVEL_CAP=EDITION_LIMITS[GAME_EDITION].maxLevel;
+const DELIVERY_UNLOCK_COST=1800;
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
 const DEV_ACTIVATION=new URLSearchParams(location.search).get("fba-test");
@@ -183,6 +188,8 @@ const upgradeCatalog=[
  {id:AUTO_SHOWROOM,name:"Showroom FBA Automobile",level:45,cost:18000,requires:FRONT_HALL,category:"extensions",construction:true,description:"Ouvre un showroom pour exposer, commander et vendre des voitures."},
  {id:"autoLicense",name:"Licence Automobile",level:46,cost:3500,requires:AUTO_SHOWROOM,category:"licences",description:"Autorise la vente de voitures électriques et thermiques."},
  {id:"handtruck",name:"Diable de manutention",level:1,cost:125,description:"Transporte jusqu’à 3 cartons du quai vers les trois zones de stockage."},
+ {id:"homeDeliveryVan",name:"Livraisons à domicile + fourgon FBA",level:2,cost:DELIVERY_UNLOCK_COST,
+  category:"licences",description:"Débloque la camionnette FBA et les missions de livraison en ville. Paiement unique."},
  {id:"reserve1",name:"Réserve agrandie I",level:3,cost:900,description:"Capacité de stockage : 30 à 60 cartons."},
  {id:"store1",name:"Extension du magasin I",level:4,cost:1800,description:"Agrandit le magasin et la réserve sèche : +40 places de stockage, jusqu’à 100 cartons après l’amélioration du niveau 3."},
  {id:"store2",name:"Extension Électronique II",level:5,cost:3000,requires:"store1",description:"Hall électronique avec neuf rayons disponibles dès l’ouverture et un emplacement pour les téléphones au niveau 6. Réserve électronique : 60 cartons. Réserve sèche : +60 cartons."},
@@ -242,11 +249,15 @@ function inStorageWing(kind,x,z){
  const bays=storageBayCount(kind);
  return bays>0&&z<wing.start+bays*STORAGE_BAY_DEPTH-.25;
 }
+function progressionRevenue(){
+ const f=state.finance?.revenue||0;
+ return Math.max(0,(state.levelRevenue||0)+Math.max(0,f-(state.levelRevenueCheckpoint||0)));
+}
 function playerLevel(){
  if(DEV_MODE&&Number.isFinite(state.devLevel))return Math.max(1,Math.min(MAX_LEVEL,Math.floor(state.devLevel)));
- return levelForRevenue(state.finance.revenue);
+ return Math.min(LEVEL_CAP,levelForRevenue(progressionRevenue()));
 }
-function nextLevelRevenue(){return revenueThreshold(playerLevel()+1);}
+function nextLevelRevenue(){return playerLevel()>=LEVEL_CAP?null:revenueThreshold(playerLevel()+1);}
 function nextLevelLabel(){
  const next=nextLevelRevenue();
  return next===null?"Niveau maximum atteint":"Niveau suivant à "+euro(next)+" de CA";
@@ -425,8 +436,17 @@ function load(){
   if(current?.inventory){
    if(Number.isFinite(current.devLevel))s.devLevel=current.devLevel;
    for(const k of ["money","day","sales"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
+    if(Number.isFinite(current.levelRevenue)&&Number.isFinite(current.levelRevenueCheckpoint)){
+     s.levelRevenue=Math.max(0,current.levelRevenue);
+     s.levelRevenueCheckpoint=Math.max(0,current.levelRevenueCheckpoint);
+    }else{
+     const previousRevenue=Math.max(0,Number(current.finance?.revenue)||0);
+     s.levelRevenue=remapLegacyRevenue(previousRevenue);
+     s.levelRevenueCheckpoint=previousRevenue;
+    }
+    if(current.homeDelivery&&typeof current.homeDelivery==="object")s.homeDelivery=current.homeDelivery;
    if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
-   if(Number.isInteger(current.lastNotifiedLevel)&&current.lastNotifiedLevel>=1&&current.progressionVersion===1)s.lastNotifiedLevel=Math.min(current.lastNotifiedLevel,MAX_LEVEL);
+   if(Number.isInteger(current.lastNotifiedLevel)&&current.lastNotifiedLevel>=1&&[1,2].includes(current.progressionVersion))s.lastNotifiedLevel=Math.min(current.lastNotifiedLevel,MAX_LEVEL);
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
    if(typeof current.storeName==="string")s.storeName=current.storeName.trim().slice(0,40);
    if(current.employeeNames&&typeof current.employeeNames==="object"){
@@ -492,6 +512,10 @@ function load(){
  return s;
 }
 const state=load();
+state.levelRevenue??=0;state.levelRevenueCheckpoint??=0;
+state.homeDelivery??={completed:0,active:null};
+state.homeDelivery.completed=Math.max(0,Math.floor(Number(state.homeDelivery.completed)||0));
+if(state.homeDelivery.active&&!Number.isInteger(state.homeDelivery.active.id))state.homeDelivery.active=null;
 const GOLDEN_TOTAL=100,GOLDEN_REWARD=100000;
 const goldenPrevious=state.goldenCollection&&typeof state.goldenCollection==="object"?state.goldenCollection:{};
 state.goldenCollection={
@@ -509,7 +533,7 @@ if(DEV_MODE&&state.construction){
 }
 // Les niveaux déjà acquis ne déclenchent aucune notification rétroactive.
 if(!Number.isInteger(state.lastNotifiedLevel))state.lastNotifiedLevel=playerLevel();
-state.progressionVersion=1;
+state.progressionVersion=2;
 state.management=state.management??{};
 state.supplierOrders=Array.isArray(state.supplierOrders)?state.supplierOrders:[];
 state.deliveryDock=Array.isArray(state.deliveryDock)?state.deliveryDock:[];
@@ -526,7 +550,10 @@ function save(){
   if(workerCargo)inTransit.push({role:"dock",cargo:{product:{id:workerCargo.id},quantity:workerCargo.qty}});
   if(stockerCargo&&stockerUnits)inTransit.push({role:"shelf",cargo:{product:{id:stockerCargo},quantity:stockerUnits}});
   if(held)inTransit.push({role:held.source==="delivery"?"dock":"shelf",cargo:{product:{id:held.id},quantity:held.quantity}});
-  const snapshot=inTransit.length?{...state,inventory:{...state.inventory},deliveryDock:[...state.deliveryDock]}:state;
+  const snapshot=inTransit.length?{...state,inventory:{...state.inventory},deliveryDock:[...state.deliveryDock]}:{...state};
+  // Progression recalibrée indépendante de la comptabilité réelle.
+  snapshot.levelRevenue=progressionRevenue();
+  snapshot.levelRevenueCheckpoint=state.finance.revenue;
   for(const unit of inTransit){
    const {product,quantity}=unit.cargo;
    if(unit.role==="dock"){
@@ -4237,7 +4264,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.15.01 : le couloir logistique possède deux portes distinctes sur son
+// V0.15.02 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4248,7 +4275,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.15.01 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.15.02 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4267,7 +4294,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.15.01 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.15.02 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -7109,4 +7136,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.01 !");
+animate();toast("Business Empire Simulator V0.15.02 !");
