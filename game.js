@@ -3095,7 +3095,6 @@ function refreshExtension(){
  hallGate.visible=!state.upgrades[FRONT_HALL];
  hallGroup.visible=!!state.upgrades[FRONT_HALL];
  directorRoom.visible=directorOpen();securityStation.visible=exitPorticoes.visible=securityOpen();
- if(typeof surveillance!=="undefined")surveillance.setDeskVisible(securityOpen());
  intimateSign.visible=adultContentAllowed()&&playerLevel()>=ADULT_LEVEL&&!!state.upgrades.intimateLicense;
  showroomGroup.visible=!!state.upgrades[AUTO_SHOWROOM];
  autoLinkGroup.visible=autoLinkOpen();
@@ -5801,6 +5800,7 @@ function blocked(x,z,r=.4){
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
  if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  if(cityWallBlocked(x,z,r))return true;
+ if(cityWalk&&fbaCity.vehicleBlocked(x,z,r))return true;
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
  // Les anciens colliders orphelins à l'intérieur de la réserve en L
  // n'ont plus de mur visible. Ne jamais désactiver les nouveaux racks,
