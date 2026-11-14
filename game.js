@@ -1279,8 +1279,21 @@ function showGoldenCollection(){
  paragraph(state.goldenCollection.rewardClaimed?"Récompense reçue.":"Récompense non encore débloquée.");
  button(panel,"Retour",showMainMenu);
 }
+// Menu d'interaction compact ; toutes les anciennes fonctions restent disponibles.
 function showMainMenu(){
  openPanel("☰ Menu principal");
+ paragraph("Accès rapide aux actions les plus utilisées.");
+ button(panel,"Reprendre le jeu",()=>panel.style.display="none");
+ button(panel,"Ordinateur de gestion",()=>showComputer());
+ button(panel,"Stocks et réserves",showStocks);
+ button(panel,"Carte de la ville",showCityMap);
+ button(panel,"Employés et recrutement",()=>showTeamManagement());
+ button(panel,"Licences et améliorations",()=>showUpgrades("licences"));
+ button(panel,"Paramètres",showSettings);
+ button(panel,"Toutes les fonctionnalités",showMainMenuAdvanced);
+}
+function showMainMenuAdvanced(){
+ openPanel("☰ Menu complet");
  paragraph("Business Empire Simulator — Gestion du magasin"+(DEV_MODE?" | MODE TEST":"")+
   (GAME_EDITION==="demo"?" | DÉMO · Niveaux 1–10":GAME_EDITION==="early"?" | ACCÈS ANTICIPÉ · Niveaux 1–30":" | Version complète"));
  button(panel,paused?"▶ Reprendre la partie":"⏸ Mettre en pause",()=>{
