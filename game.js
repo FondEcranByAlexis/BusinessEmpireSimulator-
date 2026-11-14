@@ -6970,7 +6970,8 @@ function goldenCandidates(){
  // Ordre déterministe dispersé : ne pas remplir la ville quartier par quartier.
  for(let k=0;k<100;k++){
   const i=k*37%100,ix=i%10,iz=Math.floor(i/10);
-  const x=-1000+ix*200+112,z=75+iz*200+112;
+  // Au bord des trottoirs : en dehors des façades (qui commencent vers +11 m).
+  const x=-1000+ix*200+8,z=75+iz*200+16;
   pools.ville.push([x,z,"ville",0]);
  }
  return pools;
