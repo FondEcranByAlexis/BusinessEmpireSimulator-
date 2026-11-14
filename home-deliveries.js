@@ -1,6 +1,6 @@
-// FBA Livraisons V0.15.06 — missions locales, véhicule, sauvegarde et récompenses.
-import {makeDeliveryVan} from "./delivery-van.js?v=0.15.06";
-import {cityBuildingsForBlock} from "./city.js?v=0.15.06";
+// FBA Livraisons V0.15.08 — missions locales, véhicule, sauvegarde et récompenses.
+import {makeDeliveryVan} from "./delivery-van.js?v=0.15.08";
+import {cityBuildingsForBlock} from "./city.js?v=0.15.08";
 export function installHomeDeliveries(o){
  const {THREE,scene,state,camera,playerLevel,blocked,notify,save,sync,checkLevelUp,openPanel,paragraph,button,panel,getControls,setHeading,clearLook,resetFloor}=o;
  const PRICE=1800,DEPOT={x:-24,z:40};
@@ -63,8 +63,12 @@ export function installHomeDeliveries(o){
  }
 
  const el=document.createElement("div");
- el.style.cssText="position:fixed;right:7px;top:48px;max-width:180px;z-index:12;background:#0f172add;color:#fff;border:1px solid #0891b2;border-radius:7px;padding:5px 7px;font:600 11px system-ui;pointer-events:none;display:none";
- document.body.append(el);
+ // Intégré dans la colonne d'actions : chrono (au-dessus), Carte, puis Fourgon.
+ // Le badge suit automatiquement la hauteur des boutons, sans chevauchement.
+ el.style.cssText="position:relative;right:auto;top:auto;width:100%;min-width:0;max-width:180px;z-index:auto;background:#0f172add;color:#fff;border:1px solid #0891b2;border-radius:7px;padding:5px 7px;font:600 10px/1.35 system-ui;pointer-events:none;overflow-wrap:anywhere;display:none";
+ const actionsColumn=document.getElementById("actions");
+ if(actionsColumn)actionsColumn.insertBefore(el,actionsColumn.children[1]??null);
+ else document.body.append(el);
  // Guidage GPS : flèche orientée selon la caméra ou le véhicule, et parcours
  // routier sur la grille de 100 m de FBA City. Aucun GPS externe nécessaire.
  const guidance=document.createElement("div");
