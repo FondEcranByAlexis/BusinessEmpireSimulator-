@@ -1,10 +1,10 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.19";
-import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.19";
-import { installSurveillance } from "./surveillance.js?v=0.15.19";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.19";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.19";
-// Business Empire Simulator V0.15.19 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.20";
+import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.20";
+import { installSurveillance } from "./surveillance.js?v=0.15.20";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.20";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.20";
+// Business Empire Simulator V0.15.20 — version synchronisée
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5400,7 +5400,7 @@ function interact(){
  if(held){
   const p=catalog.find(item=>item.id===held.id);
   if(p&&currentStorageKind()){
-   if(!atStorageFor(p)){toast("Zone de rangement : "+storageName(storageKind(p));return;}
+   if(!atStorageFor(p)){toast("Zone de rangement : "+storageName(storageKind(p)));return;}
    showReserve();return;
   }
   placeHeldArticle();return;
@@ -7609,4 +7609,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.19 !");
+animate();toast("Business Empire Simulator V0.15.20 !");
