@@ -2447,7 +2447,7 @@ function updateLighting(){
    lightOn(zone)?1.05+(1-daylight)*2.5:.38+(1-daylight)*.24;
  }
  for(const [zone,material] of zonePanels)material.color.setHex(lightOn(zone)?(zone==="cold"?0xdff5ff:0xfff7db):0x64748b);
- for(const [zones,switchMesh] of [[COMMERCIAL_LIGHTS,lightSwitch],[STORAGE_LIGHTS,stockroomSwitch],[["cold"],coldSwitch]]){
+ for(const [zones,switchMesh] of [[COMMERCIAL_LIGHTS,lightSwitch],[STORAGE_LIGHTS,stockroomSwitch],[["cold"],coldSwitch],[["cold"],coldRoom2Switch]]){
   const enabled=zones.filter(lightOn).length;
   switchMesh.material.color.setHex(enabled===zones.length?0x22c55e:enabled===0?0xef4444:0xf59e0b);
  }
@@ -2656,7 +2656,8 @@ for(const z of [12.4,18.2]){
  cube(19.35,4.86,z,1.9,.045,.45,0xf8fafc).material=zonePanel("cold");
 }
 cube(23.13,4.1,11.43,.7,.65,.24,0x64748b); // Groupe froid
-const coldRoom2Switch=cube(coldRoom2.west-.13,1.35,17.2,.07,.15,.13,0x22c55e);
+const coldRoom2SwitchPlate=cube(coldRoom2.west-.20,1.35,13.25,.06,.27,.23,0xf8fafc);
+const coldRoom2Switch=cube(coldRoom2.west-.25,1.35,13.25,.065,.13,.12,0x22c55e);
 
 cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Passage libre entre ancienne réserve et agrandissement (ancien mur du fond supprimé).
@@ -5224,7 +5225,7 @@ function interact(){
  if(stockerGroup.visible&&near(stockerGroup.position.x,stockerGroup.position.z,2.25)){showStockerInteraction();return;}
  if(state.workerEnabled&&workerGroup.visible&&near(workerGroup.position.x,workerGroup.position.z,2.25)){showWorkerInteraction();return;}
  if(near(25.65,-24.3,3.2)){showDeliveryDock();return;}
- if(near(15.0,7.35,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
+ if(near(15.0,13.25,1.15)&&camera.position.x<15.3&&camera.position.x>13.7){toggleColdRoomLights();return;}
  if(near(10.2,7.8,1.45)&&camera.position.x>10.2){toggleStockroomLights();return;}
  if(currentStorageKind()){showReserve();return;}
  if(directorOpen()&&near(DIRECTOR_DESK.x,DIRECTOR_DESK.z,2.5)){showDirectorOffice();return;}
