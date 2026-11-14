@@ -84,7 +84,7 @@ export function installHomeDeliveries(o){
   state.money+=fee;state.finance.revenue+=fee;state.finance.transactions++;
   state.homeDelivery.completed=(state.homeDelivery.completed||0)+1;
   state.homeDelivery.active=null;state.cityMapTarget=null;
-  sync();checkLevelUp();notify("Commande "+j.id+" livrée : +"+fee+" €");return true;
+  o.awardDelivery?.();sync();checkLevelUp();notify("Commande "+j.id+" livrée : +"+fee+" €");return true;
  }
  function interact(){
   if(driving)return exit();
