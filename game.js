@@ -6306,7 +6306,7 @@ const teamUnits=Object.entries(STAFF_PLANS).flatMap(([role,plan])=>plan.levels.m
   role==="shelf"?[12.3+(index%3)*.58,4.8+Math.floor(index/3)*.7]:
   [index%2?1.3:-1.3,7.4-index*.65];
  return {role,id:role+(index+1),name:plan.label+" "+(index+1),level,wage:plan.wage,
-  ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:index*.44,patrol:index,cargo:null,target:null};
+  ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:role==="security"?index*3.5:index*.44,patrol:role==="security"?index*2:index,cargo:null,target:null};
 }));
 const SHELF_TEAMS={cold:"Frais et surgelés",dry:"Produits secs et informatique"};
 const shelfRoster=teamUnits.filter(unit=>unit.role==="shelf");
@@ -6444,8 +6444,8 @@ function walkTeamRoute(unit,dt,speed){
  faceNpc(unit.group,dx,dz,dt);unit.stride+=step*5.3;
  const swing=Math.sin(unit.stride)*.33;
  unit.legs[0].rotation.x=swing;unit.legs[1].rotation.x=-swing;
- unit.arms[0].rotation.x=unit.cargo?-.70:-swing*.65;
- unit.arms[1].rotation.x=unit.cargo?-.70:swing*.65;
+ unit.arms[0].rotation.x=unit.cargo?.70:-swing*.65;
+ unit.arms[1].rotation.x=unit.cargo?.70:swing*.65;
 }
 function teamRouteTo(unit,point){
  unit.route=staffRoute(unit.group,point);
@@ -6453,8 +6453,19 @@ function teamRouteTo(unit,point){
 }
 function updateTeamJob(unit){
  if(unit.role==="security"){
-  const points=[[-2.4,7.6],[-2.7,3.4],[2.75,3.4],[2.75,-2.65],[-2.8,-2.65]];
-  if(state.upgrades[FRONT_HALL])points.splice(1,0,[-10.2,6.7],[-19,7.9],[-27,3.5],[-26,-9.4],[-12,5.1]);
+  // Chaque garde possède une zone de ronde distincte : ils ne passent plus
+  // tous par les mêmes cinq points, même lorsqu'ils sont recrutés ensemble.
+  const circuits=[
+   [[-2.4,7.6],[-2.7,3.4],[2.75,3.4],[2.75,-2.65],[-2.8,-2.65]],
+   [[3.0,7.1],[5.2,2.8],[4.0,-4.4],[.5,-6.0],[1.8,4.2]],
+   [[-9.7,5.9],[-13.2,5.7],[-19,7.5],[-25,4.6],[-25,-4.0]],
+   [[-26,-8.7],[-19,-8.1],[-13.5,-6.7],[-13.8,2.3],[-20,2.5]]
+  ];
+  const index=Number(unit.id.replace("security",""))-1;
+  const circuit=circuits[Math.max(0,index)%circuits.length];
+  // Les deux rondes extérieures attendent la construction du hall.
+  const alternative=circuits[index%2];
+  const points=index>=2&&!state.upgrades[FRONT_HALL]?alternative:circuit;
   const point=points[unit.patrol++%points.length];
   teamRouteTo(unit,point);
   return;
@@ -6508,6 +6519,11 @@ function updateExpandedTeam(dt){
    walkTeamRoute(unit,dt,(unit.cargo?1.55:1.85)*trained);
   }else{
    for(const leg of unit.legs)leg.rotation.x=0;
+   if(unit.role==="shelf"&&unit.cargo){
+    unit.arms[0].rotation.x=unit.arms[1].rotation.x=.55;
+   }else{
+    unit.arms[0].rotation.x=unit.arms[1].rotation.x=0;
+   }
    unit.delay-=dt;
    if(unit.delay<=0){unit.delay=unit.role==="security"?1:2.5;updateTeamJob(unit);}
   }
