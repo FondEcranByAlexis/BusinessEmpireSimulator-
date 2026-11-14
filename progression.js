@@ -255,6 +255,23 @@ export function remapLegacyRevenue(legacyRevenue){
  const fraction=oldNext>oldStart?Math.min(1,(r-oldStart)/(oldNext-oldStart)):0;
  return Math.floor(newStart+(newNext-newStart)*fraction);
 }
+// Barème V0.15.03 : la progression ne dépend plus du chiffre d'affaires.
+// PS = service et satisfaction client, PL = livraisons, PM = missions.
+// Cibles d'équilibrage : démo niveau 10 ≈ 3 h ; accès anticipé niveau 30 ≈ 17 h 30.
+// Les durées restent à confirmer par chronométrage réel.
+export const LEVEL_POINT_THRESHOLDS=[0,80,190,340,530,770,1050,1390,1800,2300];
+for(let i=0;i<10;i++)LEVEL_POINT_THRESHOLDS.push(LEVEL_POINT_THRESHOLDS.at(-1)+450+i*55);
+for(let i=0;i<10;i++)LEVEL_POINT_THRESHOLDS.push(LEVEL_POINT_THRESHOLDS.at(-1)+950+i*85);
+for(let level=31;level<=MAX_LEVEL;level++){
+ const gain=Math.round(1700*Math.pow(1.095,level-31));
+ LEVEL_POINT_THRESHOLDS.push(LEVEL_POINT_THRESHOLDS.at(-1)+gain);
+}
+export function pointThreshold(level){return LEVEL_POINT_THRESHOLDS[level-1]??null;}
+export function levelForPoints(points){
+ const score=Math.max(0,Number(points)||0);let lo=0,hi=MAX_LEVEL-1;
+ while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(LEVEL_POINT_THRESHOLDS[mid]<=score)lo=mid;else hi=mid-1;}
+ return lo+1;
+}
 export function revenueThreshold(level) {
   return LEVEL_THRESHOLDS[level - 1] ?? null;
 }
