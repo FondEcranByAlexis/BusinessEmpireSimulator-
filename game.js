@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity } from "./city.js?v=0.14.82";
-import { installSurveillance } from "./surveillance.js?v=0.14.82";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.14.82";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.14.82";
-// Business Empire Simulator V0.14.82 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.00";
+import { installSurveillance } from "./surveillance.js?v=0.15.00";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.15.00";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.00";
+// Business Empire Simulator V0.15.00 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -1056,6 +1056,7 @@ function showMainMenu(){
  button(panel,"Paramètres",showSettings);
  button(panel,"Profil",showProfile);
  button(panel,"Figurines dorées : "+state.goldenCollection.found.length+"/100",showGoldenCollection);
+ button(panel,"Carte interactive 2 × 2 km",showCityMap);
  button(panel,"Progression des niveaux",showProgression);
  if(openDepartmentCount())button(panel,"Plan de la galerie",showMallMap);
  if(camera.position.z<ANNEX_ENTRY-1)button(panel,"Retour à la caisse",()=>{
@@ -1133,6 +1134,43 @@ function showDepartmentTravel(){
    panel.style.display="none";
   });
  }
+}
+// Carte interactive de la ville, avec zoom, position et cible future livraison.
+function showCityMap(){
+ openPanel("Carte interactive — FBA City 2 × 2 km");
+ const line=document.createElement("p");line.style.cssText="font-size:12px;margin:8px 0";panel.appendChild(line);
+ const controls=document.createElement("div");controls.style.cssText="display:flex;gap:6px;margin:8px 0";panel.appendChild(controls);
+ const canvas=document.createElement("canvas");canvas.width=600;canvas.height=600;
+ canvas.style.cssText="display:block;width:100%;aspect-ratio:1;background:#20333b;border-radius:8px;touch-action:manipulation";
+ panel.appendChild(canvas);
+ const ctx=canvas.getContext("2d");let zoom=1,cx=0,cz=1075,destination=null;
+ const at=(x,z)=>({x:(x-cx)/2000*zoom*600+300,y:(z-cz)/2000*zoom*600+300});
+ function draw(){
+  ctx.fillStyle="#172b38";ctx.fillRect(0,0,600,600);
+  const a=at(-1000,75),b=at(1000,2075);
+  ctx.fillStyle="#46664d";ctx.fillRect(a.x,a.y,b.x-a.x,b.y-a.y);
+  ctx.strokeStyle="#3d505e";ctx.lineWidth=Math.max(2,3*zoom);
+  for(let x=-1000;x<=1000;x+=100){let p=at(x,75),q=at(x,2075);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();}
+  for(let z=75;z<=2075;z+=100){let p=at(-1000,z),q=at(1000,z);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();}
+  if(zoom>=4){ctx.fillStyle="#cbd5e1";for(let i=0;i<20;i++)for(let j=0;j<20;j++)for(const b of cityBuildingsForBlock(i,j)){
+   let p=at(b.x-b.w/2,b.z-b.d/2),scale=zoom*600/2000;ctx.fillRect(p.x,p.y,b.w*scale,b.d*scale);
+  }}
+  let store=at(0,0);ctx.fillStyle="#f59e0b";ctx.fillRect(store.x-6,store.y-6,12,12);
+  if(DEV_MODE&&goldenTestHighlights){ctx.fillStyle="#fde047";for(const f of goldenFigures)if(!goldenFound.has(f.id)){let p=at(f.x,f.z);ctx.fillRect(p.x-2,p.y-2,4,4);}}
+  let you=at(camera.position.x,camera.position.z);ctx.fillStyle="#22d3ee";ctx.beginPath();ctx.arc(you.x,you.y,8,0,2*Math.PI);ctx.fill();
+  if(destination){let p=at(destination.x,destination.z);ctx.fillStyle="#fb7185";ctx.beginPath();ctx.arc(p.x,p.y,6,0,2*Math.PI);ctx.fill();}
+  ctx.fillStyle="white";ctx.font="bold 14px Arial";ctx.fillText("N ↑",552,22);
+  line.textContent="Vous : X "+Math.round(camera.position.x)+" · Z "+Math.round(camera.position.z)+(destination?" | Cible : X "+Math.round(destination.x)+" · Z "+Math.round(destination.z):"");
+ }
+ const control=(txt,fn)=>{let b=document.createElement("button");b.textContent=txt;b.style.cssText="flex:1;padding:8px;background:#334155;border-radius:6px";b.onclick=()=>{fn();draw()};controls.appendChild(b)};
+ control("−",()=>zoom=Math.max(1,zoom/2));control("+",()=>zoom=Math.min(16,zoom*2));
+ control("Moi",()=>{zoom=4;cx=camera.position.x;cz=camera.position.z;});
+ control("Tout",()=>{zoom=1;cx=0;cz=1075;});
+ canvas.addEventListener("click",e=>{let r=canvas.getBoundingClientRect();
+  destination={x:cx+((e.clientX-r.left)/r.width-.5)*2000/zoom,z:cz+((e.clientY-r.top)/r.height-.5)*2000/zoom};
+  draw();
+ });
+ draw();button(panel,"Fermer la carte",()=>panel.style.display="none");
 }
 function showMallMap(){
  openPanel("Plan de la galerie");
@@ -2079,7 +2117,7 @@ function finishCheckout(c,staffed=false){
 }
 // Scène et éclairage léger
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc9e8);
-installCity({THREE,scene});
+const fbaCity=installCity({THREE,scene});
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,100);
 camera.position.set(0,1.7,7.5);camera.rotation.order="YXZ";
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
@@ -4196,7 +4234,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.14.82 : le couloir logistique possède deux portes distinctes sur son
+// V0.15.00 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4207,7 +4245,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.14.82 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.15.00 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4226,7 +4264,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.14.82 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.15.00 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -4888,8 +4926,22 @@ function showCheckoutSeatPrompt(){
  button(panel,"S’asseoir à la caisse",sitAtCheckout);
  button(panel,"Ordinateur de gestion",showComputer);
 }
+// Navigation des paliers pour futurs clients et livraisons aux logements.
+let cityFloor=0;
+function cityStairPrompt(){
+ const b=cityBuildingAt(camera.position.x,camera.position.z);
+ if(!b||Math.hypot(camera.position.x-b.stair.x,camera.position.z-b.stair.z)>3)return false;
+ openPanel("Escalier — "+b.address);
+ paragraph("Rez-de-chaussée et "+(b.floors-1)+" étage(s) visitables.");
+ for(let level=0;level<b.floors;level++)button(panel,level?"Étage "+level:"Rez-de-chaussée",()=>{
+  cityFloor=level;camera.position.set(b.stair.x,1.7+level*3.1,b.stair.z);
+  panel.style.display="none";toast("Étage "+level+" — "+b.address);
+ });
+ button(panel,"Fermer",()=>panel.style.display="none");return true;
+}
 function interact(){
  if(!held&&collectNearbyGolden())return;
+ if(!held&&cityStairPrompt())return;
  if(seatedAtCheckout){
   if(checkoutUI.style.display==="none")showCheckout();
   return;
@@ -5176,7 +5228,7 @@ function blocked(x,z,r=.4){
  const parkingConnection=x>-11.2&&x<-7.8&&z>11.0&&z<78;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
- const cityWalk=x>-105+r&&x<105-r&&z>76+r&&z<232-r;
+ const cityWalk=x>CITY_BOUNDS.minX+r&&x<CITY_BOUNDS.maxX-r&&z>CITY_BOUNDS.minZ-r&&z<CITY_BOUNDS.maxZ-r;
  const reserveDoor=x>=9.45-r&&x<=10.55+r&&z>4.05+r&&z<6.95-r;
 
  const coldDoor=x>=15.0-r&&x<=15.6+r&&z>3.35+r&&z<7.55-r;
@@ -5353,6 +5405,7 @@ function movePlayer(dt){
  const {x,z}=camera.position;
  if(!blocked(camera.position.x+dx,camera.position.z))camera.position.x+=dx;
  if(!blocked(camera.position.x,camera.position.z+dz))camera.position.z+=dz;
+ if(cityFloor>0&&!cityBuildingAt(camera.position.x,camera.position.z)){cityFloor=0;camera.position.y=1.7;}
  stepDistance+=Math.hypot(camera.position.x-x,camera.position.z-z);
  if(stepDistance>=1.85){
   stepDistance-=1.85;
@@ -6821,7 +6874,7 @@ function animate(){
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  if(!paused&&ageOverlay.style.display==="none"){
-  movePlayer(dt);updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);
+  movePlayer(dt);fbaCity.update(camera.position,performance.now());updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);
   updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateTheftPolice(dt);updateRegisterIndicators();updateCheckoutRush(dt);
  }
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
@@ -6837,7 +6890,7 @@ function animate(){
  renderCustomerFeedback(dt);
  if(!surveillance.render())renderer.render(scene,camera);
 }
-batchShelfDisplays();indexColliders();
+batchShelfDisplays();indexColliders();fbaCity.update(camera.position,performance.now());
 // Collection de 100 figurines dorées : le magasin, la réserve initiale
 // et le parking sont accessibles dès le niveau 1, indépendamment des niveaux 100+.
 const goldenFound=new Set(state.goldenCollection.found);
@@ -7009,4 +7062,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.14.82 !");
+animate();toast("Business Empire Simulator V0.15.00 !");
