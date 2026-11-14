@@ -66,6 +66,13 @@ export function installCity({THREE,scene}){
   const {x,z,w,d,floors}=b,h=floors*3.1;
   const mat=b.id%3===0?materials.facadeAlt:materials.facade;
   const child=new THREE.Group();child.position.set(x,0,z);group.add(child);
+  if(!detail){
+   // Silhouette economique des quartiers distants (3 meshes/immeuble).
+   make(child,mat,0,h/2,0,w,h,d);
+   make(child,materials.roof,0,h+.12,0,w+.45,.24,d+.45);
+   make(child,materials.window,0,h/2,-d/2-.18,w*.45,h*.55,.05);
+   return;
+  }
   make(child,materials.floor,0,-.01,0,w,.15,d);
   make(child,mat,-w/2,h/2,0,.28,h,d);
   make(child,mat,w/2,h/2,0,.28,h,d);
@@ -76,14 +83,7 @@ export function installCity({THREE,scene}){
   make(child,mat,0,(h+2.7)/2,-d/2,2.6,h-2.7,.28);
   const door=make(child,materials.door,1.2,1.25,-d/2+.1,.06,2.5,1.18);
   make(child,materials.steel,1.22,1.1,-d/2+.7,.08,.10,.06);
-  if(!detail){
-   // Quartier distant : volumes basiques seulement, evite les gros draw calls.
-   for(let level=0;level<floors;level++)for(const side of [-1,1])
-    make(child,materials.window,side*w*.28,level*3.1+1.6,-d/2-.19,1.4,1.45,.06);
-   make(child,materials.roof,0,h+.12,0,w+.45,.24,d+.45);
-   return;
-  }
-  // Halls, escaliers et planchers d'etages. L'escalier prend l'aile gauche,
+    // Halls, escaliers et planchers d'etages. L'escalier prend l'aile gauche,
   // les paliers desservent des appartements avec passages au centre.
   for(let level=0;level<floors;level++){
    const y=level*3.1;
