@@ -6908,7 +6908,7 @@ function refreshGoldenHighlights(){
 function showGoldenTestPositions(){
  if(!DEV_MODE)return;
  openPanel("MODE TEST — Positions des 100 figurines");
- paragraph("Coordonnées de la carte 3D : X et Z. Espacement minimal de 9 m.");
+ paragraph("Coordonnées de la carte 2 × 2 km : X/Z, avec niveau des logements.");
  paragraph("Balises : "+(goldenTestHighlights?"actives":"désactivées"));
  const labels={magasin:"Supermarché",reserve:"Réserve historique",stockage:"Stockage sec et électronique",parking:"Parking et extérieurs",batiments:"Bâtiments de la ville",ville:"Rues et quartiers"};
  for(const [zone,label] of Object.entries(labels)){
@@ -6916,7 +6916,7 @@ function showGoldenTestPositions(){
   if(!figures.length)continue;
   paragraph(label+" — "+figures.length+" figurines");
   for(const f of figures)
-   paragraph((goldenFound.has(f.id)?"✓ ":"• ")+"N°"+String(f.id).padStart(3,"0")+" : X "+f.x.toFixed(2)+" · Z "+f.z.toFixed(2));
+   paragraph((goldenFound.has(f.id)?"✓ ":"• ")+"N°"+String(f.id).padStart(3,"0")+" : X "+f.x.toFixed(2)+" · Z "+f.z.toFixed(2)+(f.floor?" · étage "+f.floor:""));
  }
  button(panel,"Retour aux outils développeur",showDevTools);
 }
@@ -6933,94 +6933,68 @@ const goldenParts=[
 ];
 // Répartition géographique V2 : les 100 objets ne sont plus concentrés
 // dans un même secteur. Aucune figurine n'exige un niveau ou une extension.
-const GOLDEN_LAYOUT_VERSION=2;
-const GOLDEN_MIN_SPACING=9;
-const GOLDEN_CITY_BUILDINGS=[
- [-52,83,13,13],[-30,88,15,12],[-39,89,14,14],
- [37,91,15,15],[40,88,17,13],[58,92,12,12],
- [-52,119,16,14],[-27,120,14,12],[39,120,18,14],
- [29,121,17,13],[54,121,16,15]
-]; // Les Z des bâtiments sont locaux à FBA City, décalée de +45 en Z.
+const GOLDEN_LAYOUT_VERSION=3;
+const GOLDEN_MIN_SPACING=35; // Les figures en ville sont beaucoup plus espacées.
 function goldenCandidates(){
  const pools={magasin:[],reserve:[],stockage:[],parking:[],batiments:[],ville:[]};
- // Intérieur du supermarché, en évitant les racks et la caisse via blocked().
- for(const z of [-7,-2,3,7])for(const x of [-7,-2,3,7])
-  pools.magasin.push([x,z,"magasin"]);
- // Réserve historique, accessible dès le niveau 1.
- for(const z of [5.5,11,16.5,22])for(const x of [12.65,11.8,13.6])
-  pools.reserve.push([x,z,"reserve"]);
- // Stockage autour de la salle de pause, derrière la porte logistique.
- for(const z of [-21,-16,-11.3,-6,-4]){
-  for(const x of [12.65,15.0,17,21.5,22.7]){
-   if(z>-9&&x>=17.6)continue;
-   pools.stockage.push([x,z,"stockage"]);
-  }
+ // Position des figures dans les zones existantes, sans extension payante.
+ for(const [x,z] of [[-7,-6],[5,-6],[-5,6],[5,6]])pools.magasin.push([x,z,"magasin",0]);
+ for(const [x,z] of [[12.7,3.1],[12.7,17.7]])pools.reserve.push([x,z,"reserve",0]);
+ for(const [x,z] of [[21.5,-11.5],[12.5,-16],[15.1,-5.5]])pools.stockage.push([x,z,"stockage",0]);
+ for(const [x,z] of [[-42,18],[-42,47],[-19,60],[-16,22],[-35,79],[-47,77]])
+  pools.parking.push([x,z,"parking",0]);
+ // Bâtiments résidentiels dispersés sur toute la ville.
+ for(let i=0;i<25;i++){
+  const col=(i*7+3)%20,row=(i*11+4)%20;
+  const b=cityBuildingsForBlock(col,row)[0];
+  if(!b)continue;
+  const floor=i%4===0?0:Math.min(b.floors-1,i%3===0?2:1);
+  pools.batiments.push([b.x,b.z+5,"batiments",floor]);
  }
- // Parking, allées extérieures et trottoirs accessibles.
- for(const z of [16,29,43,57,71])for(const x of [-46,-34,-22,-14])
-  pools.parking.push([x,z,"parking"]);
- // Un objet à l'intérieur de chaque bâtiment accessible de FBA City.
- // Les façades avant comportent une ouverture centrale, sans porte verrouillée.
- for(const [x,z] of GOLDEN_CITY_BUILDINGS)
-  pools.batiments.push([x,z+45,"batiments"]);
- // Plusieurs rues et quartiers ; alternance entre rangées afin que
- // la collecte s'étale géographiquement plutôt que sur une seule rue.
- const cityRows=[87,111,137,161,99,123,149,175];
- const cityCols=[-96,-72,-48,-24,0,24,48,72,96,-84,-60,-36,-12,12,36,60,84];
- for(const z of cityRows)for(const x of cityCols){
-  // Ne jamais placer une figurine de rue derrière les murs d'un immeuble.
-  if(GOLDEN_CITY_BUILDINGS.some(([bx,bz,w,d])=>
-    Math.abs(x-bx)<w/2+1.8&&Math.abs(z-(bz+45))<d/2+1.8))continue;
-  pools.ville.push([x,z,"ville"]);
+ // 100 intersections potentielles réparties en grille uniforme sur 4 km².
+ // Ordre déterministe dispersé : ne pas remplir la ville quartier par quartier.
+ for(let k=0;k<100;k++){
+  const i=k*37%100,ix=i%10,iz=Math.floor(i/10);
+  const x=-1000+ix*200+112,z=75+iz*200+112;
+  pools.ville.push([x,z,"ville",0]);
  }
  return pools;
 }
 function goldenPositions(){
- const stored=state.goldenCollection.positions;
- if(state.goldenCollection.layoutVersion===GOLDEN_LAYOUT_VERSION
-  &&Array.isArray(stored)&&stored.length===GOLDEN_TOTAL
-  &&stored.every(p=>Array.isArray(p)&&p.length===3&&
-     Number.isFinite(p[0])&&Number.isFinite(p[1])&&typeof p[2]==="string"))
-  return stored;
- const pools=goldenCandidates(),positions=[];
- const add=(candidate)=>{
-  const [x,z]=candidate;
-  // Vérification du point d'apparition avec marge, à niveau réel du joueur.
-  if(blocked(x,z,.42))return false;
-  if(positions.some(([px,pz])=>Math.hypot(px-x,pz-z)<GOLDEN_MIN_SPACING))return false;
-  positions.push(candidate);
-  return true;
+ const old=state.goldenCollection.positions;
+ if(state.goldenCollection.layoutVersion===GOLDEN_LAYOUT_VERSION&&
+  Array.isArray(old)&&old.length===GOLDEN_TOTAL&&
+  old.every(p=>Array.isArray(p)&&p.length===4&&p.slice(0,2).every(Number.isFinite)))
+  return old;
+ const pools=goldenCandidates(),points=[];
+ const add=c=>{
+  const [x,z,zone,floor]=c;
+  if(blocked(x,z,.3))return false;
+  // Ne pas concentrer les figurines dans des bâtiments mitoyens.
+  const minDistance=["magasin","reserve","stockage","parking"].includes(zone)?9:GOLDEN_MIN_SPACING;
+  if(points.some(p=>Math.hypot(p[0]-x,p[1]-z)<minDistance))return false;
+  points.push(c);return true;
  };
- // Chaque secteur doit contribuer ; les figurines restantes sont disséminées
- // dans les rues et bâtiments plutôt que concentrées dans le supermarché.
- const quotas={magasin:4,reserve:3,stockage:5,parking:14,batiments:9,ville:65};
+ const quotas={magasin:3,reserve:2,stockage:3,parking:5,batiments:17,ville:70};
  for(const [zone,limit] of Object.entries(quotas)){
   let added=0;
-  for(const candidate of pools[zone]){
-   if(added>=limit)break;
-   if(add(candidate))added++;
-  }
+  for(const c of pools[zone]){if(added===limit)break;if(add(c))added++;}
  }
- // Les collisions de certaines parties sauvegardées peuvent réduire les
- // emplacements possibles ; compléter avec les autres rues et zones.
+ // Compléter dans les rues en cas d'obstacle sur les zones initiales.
  for(const zone of ["ville","batiments","parking","stockage","reserve","magasin"]){
-  for(const candidate of pools[zone]){
-   if(positions.length===GOLDEN_TOTAL)break;
-   add(candidate);
-  }
-  if(positions.length===GOLDEN_TOTAL)break;
+  for(const c of pools[zone]){if(points.length===GOLDEN_TOTAL)break;add(c);}
+  if(points.length===GOLDEN_TOTAL)break;
  }
- if(positions.length!==GOLDEN_TOTAL)
-  throw Error("Collection dorée : "+positions.length+" emplacements sur 100");
- // Changer l'implantation ne retire aucune figurine déjà récupérée.
- // Les identifiants trouvés et l'état de la récompense sont préservés.
- state.goldenCollection.positions=positions;
+ if(points.length!==GOLDEN_TOTAL)
+  throw Error("Carte 2×2 : seulement "+points.length+" emplacements accessibles");
+ // Les IDs collectés, le compteur et la récompense restent inchangés.
+ state.goldenCollection.positions=points;
  state.goldenCollection.layoutVersion=GOLDEN_LAYOUT_VERSION;
- return positions;
+ return points;
 }
 function spawnGoldenFigures(){
- for(const [i,[x,z,zone]] of goldenPositions().entries()){
-  const id=i+1,group=new THREE.Group();group.position.set(x,0,z);
+ for(const [i,[x,z,zone,floor]] of goldenPositions().entries()){
+  const id=i+1,group=new THREE.Group();group.position.set(x,(floor||0)*3.1,z);
   for(const [geo,y,material] of goldenParts){
    const m=new THREE.Mesh(geo,goldenMaterials[material]);m.position.y=y;group.add(m);
   }
@@ -7028,7 +7002,7 @@ function spawnGoldenFigures(){
   group.userData.goldenId=id;scene.add(group);
   // La balise ne se voit qu'en mode test lorsqu'elle est activée :
   // faisceau lumineux, anneau au sol et couronne flottante.
-  const highlight=new THREE.Group();highlight.position.set(x,0,z);
+  const highlight=new THREE.Group();highlight.position.set(x,(floor||0)*3.1,z);
   const beam=new THREE.Mesh(goldenBeamGeometry,goldenBeamMaterial);beam.position.y=1.9;highlight.add(beam);
   for(const y of [.1,2.95]){
    const ring=new THREE.Mesh(goldenRingGeometry,goldenRingMaterial);
@@ -7036,7 +7010,7 @@ function spawnGoldenFigures(){
   }
   highlight.visible=DEV_MODE&&goldenTestHighlights&&!goldenFound.has(id);
   scene.add(highlight);
-  goldenFigures.push({id,x,z,zone,group,highlight});
+  goldenFigures.push({id,x,z,zone,floor:floor||0,group,highlight});
  }
 }
 function collectNearbyGolden(){
@@ -7044,6 +7018,7 @@ function collectNearbyGolden(){
  for(const figure of goldenFigures){
   if(goldenFound.has(figure.id))continue;
   const d=Math.hypot(camera.position.x-figure.x,camera.position.z-figure.z);
+  if(Math.abs(camera.position.y-((figure.floor||0)*3.1+1.4))>2.2)continue;
   if(d<distance){nearest=figure;distance=d;}
  }
  if(!nearest)return false;
