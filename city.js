@@ -235,7 +235,11 @@ export function installCity({THREE,scene}){
  let lastKey="",lastTrafficTime=null;
  function update(position,time=0){
   const px=position.x,pz=position.z;
-  const cx=Math.floor((px-CITY_BOUNDS.minX)/CHUNK),cz=Math.floor((pz-CITY_BOUNDS.minZ)/CHUNK);
+  // Le parking rejoint la ville par Z=75. Si le joueur passe juste sous
+  // cette limite, garder le premier quartier chargé au lieu de basculer
+  // en indice -1 (ce qui faisait disparaître immeubles, portes et voitures).
+  const cx=Math.max(0,Math.min(9,Math.floor((px-CITY_BOUNDS.minX)/CHUNK)));
+  const cz=Math.max(0,Math.min(9,Math.floor((pz-CITY_BOUNDS.minZ)/CHUNK)));
   const key=cx+","+cz;
   // Limiter la creation d'objets : seulement 3x3 quartiers autour du joueur.
   if(key!==lastKey){
