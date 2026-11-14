@@ -81,8 +81,19 @@ export function installCity({THREE,scene}){
   make(child,mat,-(w+2.6)/4,h/2,-d/2,(w-2.6)/2,h,.28);
   make(child,mat,(w+2.6)/4,h/2,-d/2,(w-2.6)/2,h,.28);
   make(child,mat,0,(h+2.7)/2,-d/2,2.6,h-2.7,.28);
-  const door=make(child,materials.door,1.2,1.25,-d/2+.1,.06,2.5,1.18);
-  make(child,materials.steel,1.22,1.1,-d/2+.7,.08,.10,.06);
+  // Hall d'entrée avec vitrage, dormant, poignée et seuil.
+  const door=make(child,materials.window,1.2,1.32,-d/2+.1,.065,2.55,1.12);
+  make(child,materials.steel,1.2,2.60,-d/2+.08,1.42,.10,.17);
+  for(const edge of [.48,1.9])make(child,materials.steel,edge,1.36,-d/2+.06,.085,2.60,.12);
+  make(child,materials.steel,1.19,.14,-d/2-.27,1.65,.14,.8);
+  make(child,materials.steel,.72,1.18,-d/2-.06,.13,.09,.09);
+  make(child,materials.door,-1.06,1.3,-d/2-.07,.10,2.60,1.0);
+  // Ascenseur visuel dans le hall : porte coulissante, cadre et voyants.
+  const liftX=w/2-3.25;
+  make(child,materials.steel,liftX,1.33,-d/2+3.3,2.0,2.66,.12);
+  for(const side of [-1,1])make(child,materials.door,liftX+side*.48,1.31,-d/2+3.22,.91,2.5,.06);
+  make(child,materials.window,liftX+1.14,1.35,-d/2+3.18,.18,.30,.07);
+  make(child,materials.green,liftX+1.14,1.35,-d/2+3.12,.07,.07,.02);
   // V0.15.01 : véritables planchers avec trémie d'escalier et marches
   // montables en première personne. Chaque volée relie deux étages.
   const stairX=-w/2+4,stairStart=-7.2,stairEnd=3.0,stairWidth=2.2;
@@ -188,8 +199,8 @@ export function installCity({THREE,scene}){
    }
    // Passages pietons a chaque carrefour.
    for(let p=-3;p<=3;p++){
-    make(group,materials.marking,x+p*1.05,.09,z+9.5,.64,.018,2.6);
-    make(group,materials.marking,x+9.5,.09,z+p*1.05,2.6,.018,.64);
+    make(group,materials.marking,x+p*1.05,.09,z+13.5,.64,.018,2.6);
+    make(group,materials.marking,x+13.5,.09,z+p*1.05,2.6,.018,.64);
    }
    // Feux sur chaque axe et pour les deux sens de circulation.
    if(detail){
