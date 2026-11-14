@@ -2778,7 +2778,9 @@ function storageRack(x,z,face,upgrade=null,kind="dry"){
 for(const z of [3.1,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
  storageRack(10.75,z,1);
 // Mur droit : interruption devant l'accès de la chambre froide z=4.25 à 6.65.
-for(const z of [3.2,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
+// Laisser libre l’accès latéral de 2,8 m vers la chambre froide reconstruite.
+// Les racks voisins restent présents de part et d’autre du passage.
+for(const z of [3.2,9.35,11.4,17.55,19.6,21.65])
  storageRack(14.55,z,-1);
 // Deux rangées supplémentaires, toujours sans étagère au milieu du passage.
 for(const z of [25.2,27.35,29.5]){
