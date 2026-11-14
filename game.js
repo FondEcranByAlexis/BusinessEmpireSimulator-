@@ -6481,8 +6481,13 @@ function updateTeamJob(unit){
   const index=Number(unit.id.replace("security",""))-1;
   const circuit=circuits[Math.max(0,index)%circuits.length];
   // Les deux rondes extérieures attendent la construction du hall.
-  const alternative=circuits[index%2];
-  const points=index>=2&&!state.upgrades[FRONT_HALL]?alternative:circuit;
+  const innerCircuits=[
+   [[-2.4,7.6],[-2.7,3.4],[2.75,3.4],[2.75,-2.65],[-2.8,-2.65]],
+   [[3.0,7.1],[5.2,2.8],[4.0,-4.4],[.5,-6.0],[1.8,4.2]],
+   [[-6.2,-6.8],[-6.4,-2.2],[-5.5,2.4],[-6.3,6.6]],
+   [[5.6,-6.8],[5.8,-3.3],[6.0,.6],[5.2,5.3]]
+  ];
+  const points=!state.upgrades[FRONT_HALL]?innerCircuits[index%innerCircuits.length]:circuit;
   const point=points[unit.patrol++%points.length];
   teamRouteTo(unit,point);
   return;
