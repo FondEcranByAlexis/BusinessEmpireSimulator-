@@ -465,6 +465,8 @@ function load(){
    if(Array.isArray(current.deliveryDock))s.deliveryDock=current.deliveryDock.filter(it=>it&&typeof it.id==="string"&&Number.isFinite(it.qty));
    if(current.management&&typeof current.management==="object")s.management=current.management;
     if(current.goldenCollection&&typeof current.goldenCollection==="object")s.goldenCollection=current.goldenCollection;
+    if(current.cityMapTarget&&Number.isFinite(current.cityMapTarget.x)&&Number.isFinite(current.cityMapTarget.z))
+     s.cityMapTarget={x:current.cityMapTarget.x,z:current.cityMapTarget.z};
    // Une session rechargée démarre en préparation à 07:00.
    s.hour=7;
    for(const p of catalog){
