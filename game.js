@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.00";
-import { installSurveillance } from "./surveillance.js?v=0.15.00";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.15.00";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.00";
-// Business Empire Simulator V0.15.00 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.01";
+import { installSurveillance } from "./surveillance.js?v=0.15.01";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, revenueThreshold, levelForRevenue } from "./progression.js?v=0.15.01";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.01";
+// Business Empire Simulator V0.15.01 — version synchronisée
 const $=id=>document.getElementById(id);
 const NORMAL_SAVE="business-empire-v04", DEV_SAVE="business-empire-dev-v01", LEGACY="business-empire-v02";
 // L'activation est locale au navigateur, pas une authentification sécurisée.
@@ -4237,7 +4237,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.15.00 : le couloir logistique possède deux portes distinctes sur son
+// V0.15.01 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4248,7 +4248,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.15.00 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.15.01 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4267,7 +4267,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.15.00 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.15.01 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -4930,15 +4930,19 @@ function showCheckoutSeatPrompt(){
  button(panel,"Ordinateur de gestion",showComputer);
 }
 // Navigation des paliers pour futurs clients et livraisons aux logements.
-let cityFloor=0;
+let cityFloor=0,cityStairFlight=null,cityStairBuilding=null;
 function cityStairPrompt(){
  const b=cityBuildingAt(camera.position.x,camera.position.z);
- if(!b||Math.hypot(camera.position.x-b.stair.x,camera.position.z-b.stair.z)>3)return false;
+ if(!b||Math.abs(camera.position.x-b.stair.x)>2.3||
+  camera.position.z<b.z-8.2||camera.position.z>b.z+4.0)return false;
  openPanel("Escalier — "+b.address);
  paragraph("Rez-de-chaussée et "+(b.floors-1)+" étage(s) visitables.");
  for(let level=0;level<b.floors;level++)button(panel,level?"Étage "+level:"Rez-de-chaussée",()=>{
-  cityFloor=level;camera.position.set(b.stair.x,1.7+level*3.1,b.stair.z);
-  panel.style.display="none";toast("Étage "+level+" — "+b.address);
+  cityFloor=level;cityStairFlight=null;cityStairBuilding=b.id;
+  // Les paliers alternent d'un bout à l'autre de la cage d'escalier.
+  const landingZ=level%2===0?b.z-7.6:b.z+3.45;
+  camera.position.set(b.stair.x,1.7+level*3.1,landingZ);
+  panel.style.display="none";toast("Palier étage "+level+" — "+b.address);
  });
  button(panel,"Fermer",()=>panel.style.display="none");return true;
 }
@@ -5402,11 +5406,59 @@ function employeeBreakLabel(journey){
  return null;
 }
 let stepDistance=0;
+// Escalier physique : la caméra suit réellement la hauteur des marches.
+// Les collisions historiques du magasin sont en X/Z uniquement ; la ville
+// gère donc séparément la hauteur des étages et celle de la volée empruntée.
+function updateCityStairHeight(previousX,previousZ){
+ const p=camera.position;
+ const building=cityBuildingAt(p.x,p.z);
+ if(!building){
+  cityFloor=0;cityStairFlight=null;cityStairBuilding=null;p.y=1.7;
+  return;
+ }
+ const start=building.z-7.2,end=building.z+3.0;
+ const inside=Math.abs(p.x-building.stair.x)<1.07&&p.z>=start-.16&&p.z<=end+.16;
+ if(!inside){
+  if(cityStairFlight!==null){
+   const flight=cityStairFlight;
+   const reachTop=flight%2===0?p.z>=end-.2:p.z<=start+.2;
+   cityFloor=reachTop?Math.min(building.floors-1,flight+1):flight;
+   cityStairFlight=null;
+  }
+  cityFloor=Math.min(building.floors-1,Math.max(0,cityFloor));
+  p.y=1.7+cityFloor*3.1;
+  return;
+ }
+ if(cityStairBuilding!==building.id){
+  cityStairBuilding=building.id;cityFloor=0;cityStairFlight=null;
+ }
+ const dz=p.z-previousZ;
+ if(cityStairFlight===null){
+  // Un palier donne accès à la volée montante correspondant à son étage.
+  // Aux étages supérieurs, l'option Interagir permet aussi de redescendre.
+  cityStairFlight=Math.min(building.floors-2,Math.max(0,cityFloor));
+ }
+ let flight=cityStairFlight;
+ const ascendDirection=flight%2===0?1:-1;
+ const progress=ascendDirection===1?(p.z-start)/(end-start):(end-p.z)/(end-start);
+ // Demi-tour sur le palier haut : attaque de la volée suivante.
+ if(flight<building.floors-2&&progress>.965&&dz*ascendDirection<-.001){
+  flight++;cityStairFlight=flight;cityFloor=flight;
+ }
+ const newDirection=flight%2===0?1:-1;
+ const fraction=Math.max(0,Math.min(1,newDirection===1?(p.z-start)/(end-start):(end-p.z)/(end-start)));
+ // Les quinze marches font chacune 20,7 cm. La hauteur interpolée évite
+ // des à-coups sur joystick tout en suivant exactement les marches visibles.
+ p.y=1.7+flight*3.1+fraction*3.1;
+ if(fraction>.98)cityFloor=Math.min(building.floors-1,flight+1);
+ else if(fraction<.02)cityFloor=flight;
+}
 function movePlayer(dt){
  if(seatedAtCheckout||panel.style.display!=="none")return;
  if(flyMode){
   const f=Number(keys.forward)-Number(keys.backward)-joyY,side=Number(keys.right)-Number(keys.left)+joyX;
   const speed=18*dt;
+  cityStairFlight=null;cityFloor=0;cityStairBuilding=null;
   camera.position.x+=(-Math.sin(yaw)*f+Math.cos(yaw)*side)*speed;
   camera.position.z+=(-Math.cos(yaw)*f-Math.sin(yaw)*side)*speed;
   camera.position.y=Math.max(1.7,Math.min(180,camera.position.y+(Number(flyUp)-Number(flyDown))*speed));
@@ -5422,7 +5474,8 @@ function movePlayer(dt){
  const {x,z}=camera.position;
  if(!blocked(camera.position.x+dx,camera.position.z))camera.position.x+=dx;
  if(!blocked(camera.position.x,camera.position.z+dz))camera.position.z+=dz;
- if(cityFloor>0&&!cityBuildingAt(camera.position.x,camera.position.z)){cityFloor=0;camera.position.y=1.7;}
+ if(cityBuildingAt(camera.position.x,camera.position.z)||cityFloor>0)
+  updateCityStairHeight(x,z);
  stepDistance+=Math.hypot(camera.position.x-x,camera.position.z-z);
  if(stepDistance>=1.85){
   stepDistance-=1.85;
@@ -7056,4 +7109,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.00 !");
+animate();toast("Business Empire Simulator V0.15.01 !");
