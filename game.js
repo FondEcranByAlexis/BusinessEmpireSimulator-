@@ -3429,7 +3429,8 @@ function buildStoreExterior(){
   const face=new THREE.Mesh(signGeometry,signMaterial);
   face.position.set(x,2.32,z-.045);group.add(face);
  }
- for(const [x,z] of [[-11.7,31.5],[-10.9,78],[-48,31.5]])stopSign(x,z);
+ // Panneaux sur l’accotement, en retrait des voies et des places.
+ for(const [x,z] of [[-13.7,31.5],[-13.7,78],[-51.2,31.5]])stopSign(x,z);
  // La chaussée reste dégagée à la sortie du parking.
  // Ancienne pelouse supprimée : elle recouvrait une partie du parking élargi.
  part(0,-.04,12.22,PARKING_HALF_WIDTH*2,.10,3.94,concrete);
