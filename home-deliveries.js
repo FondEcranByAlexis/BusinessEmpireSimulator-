@@ -56,7 +56,7 @@ export function installHomeDeliveries(o){
   if(job().stage!=="accepted"){notify("La commande est déjà dans le véhicule");return;}
   job().stage="loaded";
   state.cityMapTarget={x:job().x,z:job().z};
-  rebuildRoute();sync();show();
+  rebuildRoute();sync();panel.style.display="none";
   notify("Commande n°"+job().id+" récupérée — suis le GPS !");
  }
 
