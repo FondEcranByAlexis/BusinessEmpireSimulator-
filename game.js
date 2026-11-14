@@ -260,7 +260,9 @@ function playerLevel(){
 function nextLevelRevenue(){return playerLevel()>=LEVEL_CAP?null:revenueThreshold(playerLevel()+1);}
 function nextLevelLabel(){
  const next=nextLevelRevenue();
- return next===null?"Niveau maximum atteint":"Niveau suivant à "+euro(next)+" de CA";
+ return next===null?(GAME_EDITION==="demo"?"Limite de la démo atteinte : niveau 10":
+  GAME_EDITION==="early"?"Limite de l'accès anticipé atteinte : niveau 30":"Niveau maximum atteint"):
+  "Niveau suivant à "+euro(next)+" de CA de progression";
 }
 function activeCapacity(kind){
  return capacityUpgrades.reduce((total,u)=>total+(state.upgrades[u.id]?(u.capacity[kind]||0):0),0);
@@ -1080,7 +1082,8 @@ function showGoldenCollection(){
 }
 function showMainMenu(){
  openPanel("☰ Menu principal");
- paragraph("Business Empire Simulator — Gestion du magasin"+(DEV_MODE?" | MODE TEST":""));
+ paragraph("Business Empire Simulator — Gestion du magasin"+(DEV_MODE?" | MODE TEST":"")+
+  (GAME_EDITION==="demo"?" | DÉMO · Niveaux 1–10":GAME_EDITION==="early"?" | ACCÈS ANTICIPÉ · Niveaux 1–30":" | Version complète"));
  button(panel,paused?"▶ Reprendre la partie":"⏸ Mettre en pause",()=>{
   paused=!paused;
   if(paused){showMainMenu();toast("Partie en pause");}
