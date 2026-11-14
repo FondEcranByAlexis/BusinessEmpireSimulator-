@@ -103,18 +103,21 @@ export function installCity({THREE,scene}){
    if(level<floors-1){
     const risingToBack=level%2===0,steps=15;
     const length=stairEnd-stairStart;
+    // Deux volées adjacentes : chacune occupe son côté de la cage.
+    // Le palier permet de choisir montée ou descente sans superposer les marches.
+    const flightX=stairX+(level%2===0?-.56:.56),flightWidth=.98;
     for(let k=0;k<steps;k++){
      const fraction=(k+1)/steps,stepY=y+fraction*3.1;
      const stepZ=risingToBack?stairStart+(k+.5)*length/steps:
        stairEnd-(k+.5)*length/steps;
-     make(child,materials.steel,stairX,stepY-.105,stepZ,stairWidth,.21,length/steps+.025);
+     make(child,materials.steel,flightX,stepY-.105,stepZ,flightWidth,.21,length/steps+.025);
     }
     // Main courante le long de la montée.
     for(const side of [-1,1]){
      for(let k=0;k<steps;k+=3){
       const t=(k+1)/steps;
       const rz=risingToBack?stairStart+t*length:stairEnd-t*length;
-      make(child,materials.steel,stairX+side*(stairWidth/2+.10),y+3.1*t+.48,rz,.055,.96,.055);
+      make(child,materials.steel,flightX+side*(flightWidth/2+.04),y+3.1*t+.48,rz,.042,.96,.042);
      }
     }
    }
