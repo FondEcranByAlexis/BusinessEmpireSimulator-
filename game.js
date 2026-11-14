@@ -2416,7 +2416,8 @@ function finishCheckout(c,staffed=false){
 // Scène et éclairage léger
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc9e8);
 const fbaCity=installCity({THREE,scene});
-const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,100);
+// Portée augmentée pour éviter le découpage brutal de la scène près de Z75.
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,165);
 camera.position.set(0,1.7,7.5);camera.rotation.order="YXZ";
 const homeDeliveryService=installHomeDeliveries({
  THREE,scene,camera,state,playerLevel,blocked,notify:toast,save,sync,checkLevelUp,
@@ -3424,13 +3425,19 @@ function buildStoreExterior(){
  const stopTexture=gameTexture(stopCanvas);
  const signMaterial=new THREE.MeshBasicMaterial({map:stopTexture,transparent:true,side:THREE.DoubleSide,depthWrite:false});
  const signGeometry=new THREE.PlaneGeometry(1.15,1.15);
- function stopSign(x,z){
+ function stopSign(x,z,angle=Math.PI/4){
   part(x,1.1,z,.09,2.2,.09,poleMat);
   const face=new THREE.Mesh(signGeometry,signMaterial);
-  face.position.set(x,2.32,z-.045);group.add(face);
+  face.position.set(x,2.32,z-.045);
+  // Orientation vers l'approche du carrefour : 45° à droite.
+  face.rotation.y=angle;
+  group.add(face);
  }
- // Panneaux sur l’accotement, en retrait des voies et des places.
- for(const [x,z] of [[-13.7,31.5],[-13.7,78],[-51.2,31.5]])stopSign(x,z);
+ // Position de référence demandée : ancien X-14 / Z32 -> X-11 / Z33.
+ // Les autres STOP suivent le même retrait et la même orientation.
+ for(const [x,z,angle] of [
+  [-11,33,Math.PI/4],[-11,79,Math.PI/4],[-48.5,33,Math.PI/4]
+ ])stopSign(x,z,angle);
  // La chaussée reste dégagée à la sortie du parking.
  // Ancienne pelouse supprimée : elle recouvrait une partie du parking élargi.
  part(0,-.04,12.22,PARKING_HALF_WIDTH*2,.10,3.94,concrete);
