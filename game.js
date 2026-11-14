@@ -2661,7 +2661,10 @@ for(const x of [15.32,23.98]){
 for(const x of [17.1,20.1,22.8,25.6])corridorPart(x,4.76,5.45,1.7,.06,.55,0xfff7db);
 // Retirer uniquement les éléments de l'ancienne chambre froide, et non le nouveau passage.
 const coldRemovedEnd=scene.children.indexOf(coldToLogisticsPassage[0]);
-for(const mesh of scene.children.slice(removedColdMeshStart,coldRemovedEnd))mesh.visible=false;
+// Retirer définitivement le décor obsolète pour éviter qu'il réapparaisse
+// au rafraîchissement des éléments de scène (dont les anciens cartons).
+const formerColdObjects=scene.children.slice(removedColdMeshStart,coldRemovedEnd);
+for(const mesh of formerColdObjects){mesh.visible=false;scene.remove(mesh);}
 for(const hit of colliders.slice(removedColdColliderStart))hit.disabled=true;
 // V0.15.11 — Chambre froide reconstruite au flanc est de la réserve sèche.
 // Elle est au-delà du couloir logistique (z>10.8) et laisse ce dernier intact.
@@ -4390,8 +4393,12 @@ function refreshBoxes(){
   // Chaque rack est réservé à une référence, y compris pour son stock en vrac.
   // On évite ainsi de mélanger l'eau, le sucre, les pâtes, etc. sur le même meuble.
   const createPool=selected=>selected.map(rack=>({
-   slots:[...rack.slots,...rack.overflow],owner:null,used:0
-  }));
+   // Ne jamais dessiner de cartons dans l'ancien volume frigorifique
+   // qui sert maintenant de passage logistique.
+   slots:[...rack.slots,...rack.overflow].filter(slot=>
+    !(slot.x>15.45&&slot.x<24.1&&slot.z>1.7&&slot.z<9.45)),
+   owner:null,used:0
+  })).filter(rack=>rack.slots.length);
   const pools=kind==="dry"?{
    original:createPool(racks.filter(rack=>!rack.newStorageRoom)),
    extension:createPool(racks.filter(rack=>rack.newStorageRoom))
@@ -5429,6 +5436,16 @@ function cityStairPrompt(){
   camera.position.z<b.z-8.2||camera.position.z>b.z+4.0)return false;
  openPanel("Escalier — "+b.address);
  paragraph("Rez-de-chaussée et "+(b.floors-1)+" étage(s) visitables.");
+ // Commandes accessibles sur mobile : permettent de repartir d'un palier
+ // même si le joueur est bloqué par la géométrie de l'escalier.
+ function reachLanding(level){
+  cityFloor=level;cityStairFlight=null;cityStairBuilding=b.id;
+  const landingZ=level%2===0?b.z-7.6:b.z+3.45;
+  camera.position.set(b.stair.x,1.7+level*3.1,landingZ);
+  panel.style.display="none";toast("Palier étage "+level+" — "+b.address);
+ }
+ if(cityFloor>0)button(panel,"DESCENDRE À L'ÉTAGE "+(cityFloor-1),()=>reachLanding(cityFloor-1));
+ if(cityFloor<b.floors-1)button(panel,"MONTER À L'ÉTAGE "+(cityFloor+1),()=>reachLanding(cityFloor+1));
  for(let level=0;level<b.floors;level++)button(panel,level?"Étage "+level:"Rez-de-chaussée",()=>{
   cityFloor=level;cityStairFlight=null;cityStairBuilding=b.id;
   // Les paliers alternent d'un bout à l'autre de la cage d'escalier.
