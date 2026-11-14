@@ -1,10 +1,10 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.06";
-import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.06";
-import { installSurveillance } from "./surveillance.js?v=0.15.06";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.06";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.06";
-// Business Empire Simulator V0.15.06 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.07";
+import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.07";
+import { installSurveillance } from "./surveillance.js?v=0.15.07";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.07";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.07";
+// Business Empire Simulator V0.15.07 — version synchronisée
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -451,6 +451,8 @@ function load(){
     if(current.homeDelivery&&typeof current.homeDelivery==="object")s.homeDelivery=current.homeDelivery;
     if(current.points&&typeof current.points==="object")s.points=current.points;
     if(current.dailyMission&&typeof current.dailyMission==="object")s.dailyMission=current.dailyMission;
+    if(current.dayStartStats&&typeof current.dayStartStats==="object")s.dayStartStats=current.dayStartStats;
+    if(current.lastDailyReport&&typeof current.lastDailyReport==="object")s.lastDailyReport=current.lastDailyReport;
    if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
    if(Number.isInteger(current.lastNotifiedLevel)&&current.lastNotifiedLevel>=1&&[1,2,3].includes(current.progressionVersion))s.lastNotifiedLevel=Math.min(current.lastNotifiedLevel,MAX_LEVEL);
    if(typeof current.playerName==="string")s.playerName=current.playerName.slice(0,24);
@@ -564,7 +566,7 @@ state.storeName=state.storeName||DEFAULT_STORE_NAME;
 state.employeeNames??={};
 state.workerName=state.workerName||"George";
 state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSentHomeDay:0;
-// V0.15.06 : points de satisfaction (PS), livraison (PL), mission (PM).
+// V0.15.07 : points de satisfaction (PS), livraison (PL), mission (PM).
 // L'argent et le chiffre d'affaires n'augmentent jamais directement le niveau.
 const DAILY_MISSION_GOALS=[
  {key:"served",name:"Servir 8 clients dans la journée",target:8,reward:80},
@@ -626,6 +628,64 @@ function showDailyMissions(){
  button(panel,"Retour au menu",showMainMenu);
 }
 const finance=state.finance;
+// Bilan quotidien V0.15.07 : instantané journalier persistant, indépendant
+// des statistiques cumulées et des niveaux de progression.
+function makeDayStartStats(){
+ return {
+  day:state.day,sales:state.sales,transactions:finance.transactions,
+  revenue:finance.revenue,supplies:finance.supplies,charges:finance.charges,
+  money:state.money,satisfaction:state.satisfaction,
+  ps:state.points.ps,pl:state.points.pl,pm:state.points.pm,
+  workerPaid:state.workerPaidTotal||0,stockerPaid:state.stockerPaidTotal||0
+ };
+}
+if(!state.dayStartStats||state.dayStartStats.day!==state.day)
+ state.dayStartStats=makeDayStartStats();
+let dailyReportShowing=false;
+function makeDailyReport(dayNumber,dateText){
+ const b=state.dayStartStats??makeDayStartStats();
+ const day=todayMission();
+ return {
+  day:dayNumber,date:dateText,served:day.served,restocks:day.restocks,
+  deliveries:day.deliveries,completedMissions:[...day.claimed],
+  sales:Math.max(0,state.sales-b.sales),
+  transactions:Math.max(0,finance.transactions-b.transactions),
+  revenue:finance.revenue-b.revenue,
+  supplies:finance.supplies-b.supplies,
+  charges:finance.charges-b.charges,
+  wagePayments:(state.workerPaidTotal||0)-(b.workerPaid||0)+
+   (state.stockerPaidTotal||0)-(b.stockerPaid||0),
+  satisfactionStart:b.satisfaction,satisfactionEnd:state.satisfaction,
+  ps:state.points.ps-b.ps,pl:state.points.pl-b.pl,pm:state.points.pm-b.pm,
+  treasury:state.money
+ };
+}
+function showDailyReport(report=state.lastDailyReport){
+ if(!report)return;
+ dailyReportShowing=true;
+ openPanel("Bilan de fin de journée · Jour "+report.day);
+ paragraph(report.date+" — Résultats du supermarché");
+ paragraph("Clients servis : "+report.served+" · Ventes d'articles : "+report.sales+
+  " · Encaissements : "+report.transactions);
+ paragraph("Réassorts manuels : "+report.restocks+" · Livraisons réalisées : "+report.deliveries);
+ paragraph("Satisfaction : "+report.satisfactionStart+" % → "+report.satisfactionEnd+" %");
+ paragraph("Points gagnés : +"+report.ps+" PS · +"+report.pl+" PL · +"+report.pm+" PM"+
+  " (total +"+(report.ps+report.pl+report.pm)+")");
+ paragraph("Missions accomplies : "+report.completedMissions.length+"/"+DAILY_MISSION_GOALS.length);
+ for(const goal of DAILY_MISSION_GOALS){
+  paragraph((report.completedMissions.includes(goal.key)?"✓ ":"○ ")+goal.name);
+ }
+ const result=report.revenue-report.supplies-report.charges-report.wagePayments;
+ paragraph("Chiffre d'affaires du jour : "+euro(report.revenue));
+ paragraph("Achats fournisseurs : "+euro(report.supplies)+" · Charges : "+euro(report.charges)+
+  " · Salaires payés : "+euro(report.wagePayments));
+ paragraph("Résultat simplifié : "+euro(result)+" · Trésorerie : "+euro(report.treasury));
+ paragraph("Le résultat est indicatif : il ne tient pas compte de la valeur du stock ni des salaires restant dus.");
+ button(panel,"Commencer la journée suivante",()=>{
+  dailyReportShowing=false;panel.style.display="none";
+ });
+}
+
 function save(){
  try{
   const inTransit=teamUnits.filter(unit=>unit.cargo);
@@ -1078,7 +1138,7 @@ function switchDevMode(enable){
 }
 function showTestReset(){
  openPanel("Repartir au niveau 1 en mode test");
- paragraph("Tu recommences au jour 1 avec 1 000 €, le stock de départ et aucune amélioration. Les niveaux se débloquent au fil de tes ventes.");
+ paragraph("Tu recommences au jour 1 avec 1 000 €, le stock de départ et aucune amélioration. Les niveaux progressent avec les PS, PL et PM, jamais avec le chiffre d'affaires.");
  button(panel,"Confirmer la réinitialisation du test",()=>{
   if(!DEV_MODE)return;
   try{
@@ -1104,7 +1164,7 @@ function showPlaytime(){
   if(!playtime.running&&playtime.ms===0)playtime.startLevel=playerLevel();
   playtime.running=!playtime.running;playtimeSave();showPlaytime();
  });
- paragraph("Relevés automatiques — niveaux franchis par les ventes :");
+ paragraph("Relevés automatiques — niveaux franchis grâce aux points PS / PL / PM :");
  if(!playtime.splits.length)paragraph("Aucun relevé pour le moment.");
  for(const s of playtime.splits.slice(-40))paragraph("Niveau "+s.level+" : "+playtimeFormat(s.ms));
  button(panel,"Copier le bilan des temps",()=>{
@@ -1177,6 +1237,7 @@ function showMainMenu(){
  });
  button(panel,"Paramètres",showSettings);
  button(panel,"Profil",showProfile);
+ if(state.lastDailyReport)button(panel,"Dernier bilan de fin de journée",()=>showDailyReport());
  button(panel,"Figurines dorées : "+state.goldenCollection.found.length+"/100",showGoldenCollection);
  button(panel,"Carte interactive 2 × 2 km",showCityMap);
  button(panel,"Livraisons à domicile"+(state.homeDelivery.active?" · commande en cours":""),homeDeliveryService.show);
@@ -4374,7 +4435,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.15.06 : le couloir logistique possède deux portes distinctes sur son
+// V0.15.07 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4385,7 +4446,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.15.06 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.15.07 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4404,7 +4465,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.15.06 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.15.07 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -6888,6 +6949,7 @@ openButton.addEventListener("click",()=>{
  dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();playSound("shopOpen");toast("Magasin ouvert — affluence "+customerTraffic().label.toLowerCase());
 });
 function business(dt){
+ if(dailyReportShowing)return;
  // Le joueur prépare son magasin entre 7 h et 8 h.
  if(!dayStarted){
   if(preopenTimer<PREOPEN_SECONDS){
@@ -6923,14 +6985,18 @@ function business(dt){
   if(finishedDate.getUTCDate()===new Date(Date.UTC(finishedDate.getUTCFullYear(),finishedDate.getUTCMonth()+1,0)).getUTCDate()){settleWorkerPayroll();const paid=Math.min(Math.max(0,state.money),state.stockerWageDue);state.money-=paid;state.stockerWageDue-=paid;state.stockerPaidTotal+=paid;}
   const wages=Object.values(state.management.teamWorked??{}).reduce((sum,entry)=>sum+(entry.day===state.day?entry.wage:0),0);
   state.money-=wages;finance.charges+=wages;
+  // Capturer le jour terminé AVANT remise à zéro des missions.
+  const finishedReport=makeDailyReport(state.day,dateLabel());
+  state.lastDailyReport=finishedReport;
   dayTimer=0;preopenTimer=0;state.hour=PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
   todayMission();
   processStandingOrders();
   processOrderPicker();
   dayStarted=false;closing=false;shopOpen=false;spawnTimer=0;
+  state.dayStartStats=makeDayStartStats();
   updateOpen();sync();
-  toast(dateLabel()+" — 7 h : préparation, charges "+euro(DAILY_CHARGES));
+  showDailyReport(finishedReport);
  }
  updateTime();
 }
@@ -7251,4 +7317,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.06 !");
+animate();toast("Business Empire Simulator V0.15.07 !");
