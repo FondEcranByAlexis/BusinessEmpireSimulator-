@@ -4366,7 +4366,10 @@ function storageCartonBatch(product,loose,count){
 // Aucun carton ne doit réapparaître dans l'ancienne chambre froide
 // devenue couloir logistique, même si d'anciens emplacements restent sauvegardés.
 function retiredColdCartonPosition(x,z){
- return x>=15.0&&x<=24.25&&z>=1.45&&z<=9.75;
+ // L'ancienne zone s'étend aussi vers Z21..Z47, aux alentours de X22.
+ // Les stocks sont préservés : seuls les emplacements graphiques sont écartés.
+ return (x>=15.0&&x<=24.25&&z>=1.45&&z<=9.75)||
+  (x>=20.0&&x<=24.5&&z>=20.0&&z<=48.0);
 }
 function renderStorageCartons(product,loose,slots){
  const safeSlots=slots.filter(slot=>!retiredColdCartonPosition(slot.x,slot.z));
@@ -5960,47 +5963,45 @@ let stepDistance=0;
 function updateCityStairHeight(previousX,previousZ){
  const p=camera.position;
  const building=cityBuildingAt(p.x,p.z);
- if(!building){
-  cityFloor=0;cityStairFlight=null;cityStairBuilding=null;p.y=1.7;
-  return;
- }
+ if(!building){cityFloor=0;cityStairFlight=null;cityStairBuilding=null;p.y=1.7;return;}
  if(cityStairBuilding!==building.id){
   cityStairBuilding=building.id;cityFloor=0;cityStairFlight=null;
  }
  const start=building.z-7.2,end=building.z+3.0,length=end-start;
- const inside=Math.abs(p.x-building.stair.x)<1.07&&p.z>=start-.22&&p.z<=end+.22;
+ const lane=p.x-building.stair.x;
+ const inside=Math.abs(lane)<1.09&&p.z>=start-.23&&p.z<=end+.23;
  if(!inside){
-  // Sur un palier, la hauteur de l'étage reste fixe.
   if(cityStairFlight!==null){
-   const flight=cityStairFlight;
-   const upward=flight%2===0?end:start;
-   const downward=flight%2===0?start:end;
-   cityFloor=Math.abs(p.z-upward)<Math.abs(p.z-downward)?flight+1:flight;
-   cityFloor=Math.max(0,Math.min(building.floors-1,cityFloor));
+   const floor=cityStairFlight,topZ=floor%2===0?end:start;
+   const bottomZ=floor%2===0?start:end;
+   cityFloor=Math.abs(p.z-topZ)<Math.abs(p.z-bottomZ)?floor+1:floor;
    cityStairFlight=null;
   }
-  p.y=1.7+cityFloor*3.1;
-  return;
+  cityFloor=Math.max(0,Math.min(building.floors-1,cityFloor));
+  p.y=1.7+cityFloor*3.1;return;
  }
- const dz=p.z-previousZ;
- if(cityStairFlight===null){
-  const lower=Math.max(0,cityFloor-1),upper=Math.min(building.floors-2,cityFloor);
-  // Au palier supérieur, le joueur doit pouvoir emprunter la volée
-  // inférieure et descendre en suivant les marches, sans téléportation.
-  const descentDirection=lower%2===0?-1:1;
-  const ascentDirection=upper%2===0?1:-1;
-  const descending=cityFloor>0&&dz*descentDirection>.0001;
-  const ascending=cityFloor<building.floors-1&&dz*ascentDirection>.0001;
-  if(descending&&!ascending)cityStairFlight=lower;
-  else if(ascending&&!descending)cityStairFlight=upper;
-  else if(descending)cityStairFlight=lower;
-  else cityStairFlight=upper;
+ // Les volées impaires et paires ont désormais des couloirs X différents.
+ // À un palier intermédiaire : côté de la volée inférieure = descente,
+ // côté de la volée supérieure = montée. Les deux restent accessibles.
+ const lower=Math.max(0,cityFloor-1),upper=Math.min(building.floors-2,cityFloor);
+ let desired;
+ if(cityFloor<=0)desired=0;
+ else if(cityFloor>=building.floors-1)desired=building.floors-2;
+ else{
+  const lowerX=lower%2===0?-.56:.56;
+  const upperX=upper%2===0?-.56:.56;
+  desired=Math.abs(lane-upperX)<Math.abs(lane-lowerX)?upper:lower;
+ }
+ // Ne changer de volée que sur un palier (extrémité d'une marche).
+ if(cityStairFlight===null)cityStairFlight=desired;
+ else if(desired!==cityStairFlight){
+  const previous=cityStairFlight;
+  const ratio=(previous%2===0?p.z-start:end-p.z)/length;
+  if(ratio<.075||ratio>.925)cityStairFlight=desired;
  }
  const flight=Math.max(0,Math.min(building.floors-2,cityStairFlight));
- const ascendingToBack=flight%2===0;
- const ratio=Math.max(0,Math.min(1,(ascendingToBack?p.z-start:end-p.z)/length));
+ const ratio=Math.max(0,Math.min(1,(flight%2===0?p.z-start:end-p.z)/length));
  p.y=1.7+(flight+ratio)*3.1;
- // Mettre à jour l'étage uniquement aux extrémités réelles de la volée.
  if(ratio>=.985)cityFloor=Math.min(building.floors-1,flight+1);
  else if(ratio<=.015)cityFloor=flight;
 }
