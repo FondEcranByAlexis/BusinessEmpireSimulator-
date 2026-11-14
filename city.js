@@ -62,7 +62,7 @@ export function installCity({THREE,scene}){
  };
  // Terrain de fond tres leger ; les routes sont instanciees localement.
  make(root,materials.grass,0,-.22,1075,2000,.30,2000);
- function building(group,b){
+ function building(group,b,detail=true){
   const {x,z,w,d,floors}=b,h=floors*3.1;
   const mat=b.id%3===0?materials.facadeAlt:materials.facade;
   const child=new THREE.Group();child.position.set(x,0,z);group.add(child);
@@ -76,6 +76,13 @@ export function installCity({THREE,scene}){
   make(child,mat,0,(h+2.7)/2,-d/2,2.6,h-2.7,.28);
   const door=make(child,materials.door,1.2,1.25,-d/2+.1,.06,2.5,1.18);
   make(child,materials.steel,1.22,1.1,-d/2+.7,.08,.10,.06);
+  if(!detail){
+   // Quartier distant : volumes basiques seulement, evite les gros draw calls.
+   for(let level=0;level<floors;level++)for(const side of [-1,1])
+    make(child,materials.window,side*w*.28,level*3.1+1.6,-d/2-.19,1.4,1.45,.06);
+   make(child,materials.roof,0,h+.12,0,w+.45,.24,d+.45);
+   return;
+  }
   // Halls, escaliers et planchers d'etages. L'escalier prend l'aile gauche,
   // les paliers desservent des appartements avec passages au centre.
   for(let level=0;level<floors;level++){
@@ -134,7 +141,7 @@ export function installCity({THREE,scene}){
   const speed=4+hash(i,Math.floor(x+z))*5;
   return {group,axis,speed,phase:hash(i,Math.floor(z+x))*200,originX:x,originZ:z,lights:[]};
  }
- function chunk(cx,cz){
+ function chunk(cx,cz,detail){
   const group=new THREE.Group();group.name="Quartier "+cx+","+cz;root.add(group);
   const x0=CITY_BOUNDS.minX+cx*CHUNK,z0=CITY_BOUNDS.minZ+cz*CHUNK;
   const localTraffic=[],lights=[];
@@ -153,18 +160,20 @@ export function installCity({THREE,scene}){
     make(group,materials.marking,x+p*1.05,.09,z+6.5,.64,.018,2.6);
     make(group,materials.marking,x+6.5,.09,z+p*1.05,2.6,.018,.64);
    }
-   lights.push(trafficLight(group,x+9,z+9,"z"));
-   for(const b of cityBuildingsForBlock(cx*2+bx,cz*2+bz))building(group,b);
+   if(detail)lights.push(trafficLight(group,x+9,z+9,"z"));
+   for(const b of cityBuildingsForBlock(cx*2+bx,cz*2+bz))building(group,b,detail);
    for(const tx of [x+12,x+92])for(const tz of [z+30,z+75]){
     make(group,materials.trunk,tx,1.15,tz,.37,2.3,.37,cylinder);
     make(group,materials.tree,tx,3.20,tz,2.3,3.1,2.3,cone);
    }
    // Deux voitures par sous-bloc, sans collision physique: elles ne coincent
    // pas le joueur. Mouvement local sur les axes, avec arret aux feux.
-   localTraffic.push(car(group,x+25,z+4.3,"x",bx+bz*4+cx*7+cz*17));
-   localTraffic.push(car(group,x+4.3,z+55,"z",bx+bz*4+cx*9+cz*11+2));
+   if(detail){
+    localTraffic.push(car(group,x+25,z+4.3,"x",bx+bz*4+cx*7+cz*17));
+    localTraffic.push(car(group,x+4.3,z+55,"z",bx+bz*4+cx*9+cz*11+2));
+   }
   }
-  active.set(cx+","+cz,{group,traffic:localTraffic,lights,cx,cz});
+  active.set(cx+","+cz,{group,traffic:localTraffic,lights,cx,cz,detail});
  }
  const visibleRadius=1;
  let lastKey="";
@@ -177,7 +186,12 @@ export function installCity({THREE,scene}){
    lastKey=key;
    for(let ix=cx-visibleRadius;ix<=cx+visibleRadius;ix++)for(let iz=cz-visibleRadius;iz<=cz+visibleRadius;iz++){
     if(ix<0||iz<0||ix>=10||iz>=10)continue;
-    if(!active.has(ix+","+iz))chunk(ix,iz);
+    const detail=ix===cx&&iz===cz;
+    const existing=active.get(ix+","+iz);
+    if(existing&&existing.detail!==detail){
+     root.remove(existing.group);active.delete(ix+","+iz);
+    }
+    if(!active.has(ix+","+iz))chunk(ix,iz,detail);
    }
    for(const [k,item] of active){
     if(Math.abs(item.cx-cx)>visibleRadius||Math.abs(item.cz-cz)>visibleRadius){
