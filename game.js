@@ -1,6 +1,6 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.02";
-import { makeDeliveryVan } from "./delivery-van.js?v=0.15.02";
+import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.02";
 import { installSurveillance } from "./surveillance.js?v=0.15.02";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue } from "./progression.js?v=0.15.02";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.02";
@@ -682,7 +682,11 @@ function showProgression(first){
  if(!Number.isInteger(first)||first<1||first>MAX_LEVEL)first=Math.floor((playerLevel()-1)/10)*10+1;
  const last=Math.min(MAX_LEVEL,first+9);
  openPanel("Progression · niveaux "+first+" à "+last);
- paragraph("Niveau "+playerLevel()+" · "+euro(finance.revenue)+" de CA encaissé");
+ paragraph("Niveau "+playerLevel()+" · CA réel "+euro(finance.revenue)+
+  " · progression recalibrée "+euro(progressionRevenue())); 
+ paragraph(GAME_EDITION==="demo"?"Démo · limite niveau 10 · durée cible 3 h":
+  GAME_EDITION==="early"?"Accès anticipé · limite niveau 30 · durée cible 17 h 30":
+  "Version développement complète · objectifs de test : N10 ≈ 3 h, N30 ≈ 17 h 30");
  paragraph("Les entrées marquées « Programme » décrivent des fonctionnalités prévues.");
  const select=document.createElement("select");
  select.setAttribute("aria-label","Tranche de niveaux");
@@ -1086,6 +1090,7 @@ function showMainMenu(){
  button(panel,"Profil",showProfile);
  button(panel,"Figurines dorées : "+state.goldenCollection.found.length+"/100",showGoldenCollection);
  button(panel,"Carte interactive 2 × 2 km",showCityMap);
+ button(panel,"Livraisons à domicile"+(state.homeDelivery.active?" · commande en cours":""),homeDeliveryService.show);
  button(panel,"Progression des niveaux",showProgression);
  if(openDepartmentCount())button(panel,"Plan de la galerie",showMallMap);
  if(camera.position.z<ANNEX_ENTRY-1)button(panel,"Retour à la caisse",()=>{
@@ -1172,7 +1177,8 @@ function showCityMap(){
  const canvas=document.createElement("canvas");canvas.width=600;canvas.height=600;
  canvas.style.cssText="display:block;width:100%;aspect-ratio:1;background:#20333b;border-radius:8px;touch-action:manipulation";
  panel.appendChild(canvas);
- const ctx=canvas.getContext("2d");let zoom=1,cx=0,cz=1000,destination=state.cityMapTarget||null;
+ const ctx=canvas.getContext("2d");let zoom=1,cx=0,cz=1000,destination=state.homeDelivery.active?{
+  x:state.homeDelivery.active.x,z:state.homeDelivery.active.z}:state.cityMapTarget||null;
  // Afficher aussi le supermarché de départ, juste avant la limite sud de la ville.
  const at=(x,z)=>({x:(x-cx)/2200*zoom*600+300,y:(z-cz)/2200*zoom*600+300});
  function draw(){
@@ -2150,6 +2156,18 @@ const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc9e8);
 const fbaCity=installCity({THREE,scene});
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,100);
 camera.position.set(0,1.7,7.5);camera.rotation.order="YXZ";
+const homeDeliveryService=installHomeDeliveries({
+ THREE,scene,camera,state,playerLevel,blocked,notify:toast,save,sync,checkLevelUp,
+ openPanel,paragraph,button,panel,
+ getControls:()=>({keys,joyX,joyY}),
+ setHeading:(heading,x,y,z)=>{
+  camera.position.set(x,y,z);yaw=targetYaw=heading;pitch=targetPitch=-.08;
+ },
+ clearLook:()=>releaseMouseLook(),resetFloor:()=>{
+  cityFloor=0;cityStairFlight=null;cityStairBuilding=null;
+ },
+ isHeld:()=>!!held,showMenu:()=>showMainMenu(),showMap:()=>showCityMap()
+});
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
 const GRAPHICS_KEY="fba-graphics";
 const graphicsPresets={fluid:.78,balanced:1,detail:1.35};
@@ -4974,6 +4992,7 @@ function cityStairPrompt(){
  button(panel,"Fermer",()=>panel.style.display="none");return true;
 }
 function interact(){
+ if(homeDeliveryService.interact())return;
  if(!held&&collectNearbyGolden())return;
  if(!held&&cityStairPrompt())return;
  if(seatedAtCheckout){
@@ -5482,6 +5501,7 @@ function updateCityStairHeight(previousX,previousZ){
 }
 function movePlayer(dt){
  if(seatedAtCheckout||panel.style.display!=="none")return;
+ if(homeDeliveryService.move(dt,keys,joyX,joyY))return;
  if(flyMode){
   const f=Number(keys.forward)-Number(keys.backward)-joyY,side=Number(keys.right)-Number(keys.left)+joyX;
   const speed=18*dt;
@@ -6974,6 +6994,7 @@ function animate(){
   movePlayer(dt);fbaCity.update(camera.position,performance.now());updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);
   updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateTheftPolice(dt);updateRegisterIndicators();updateCheckoutRush(dt);
  }
+ homeDeliveryService.refresh();
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
  handtruckButton.style.display=canUseHandtruck()?"block":"none";
