@@ -1,12 +1,13 @@
-// FBA Livraisons V0.15.05 — missions locales, véhicule, sauvegarde et récompenses.
-import {makeDeliveryVan} from "./delivery-van.js?v=0.15.05";
-import {cityBuildingsForBlock} from "./city.js?v=0.15.05";
+// FBA Livraisons V0.15.06 — missions locales, véhicule, sauvegarde et récompenses.
+import {makeDeliveryVan} from "./delivery-van.js?v=0.15.06";
+import {cityBuildingsForBlock} from "./city.js?v=0.15.06";
 export function installHomeDeliveries(o){
  const {THREE,scene,state,camera,playerLevel,blocked,notify,save,sync,checkLevelUp,openPanel,paragraph,button,panel,getControls,setHeading,clearLook,resetFloor}=o;
  const PRICE=1800,DEPOT={x:-24,z:40};
  const van=makeDeliveryVan({THREE,scene});van.setPosition(DEPOT.x,DEPOT.z,Math.PI);
  let driving=false,heading=Math.PI,speed=0;
  state.homeDelivery??={completed:0,active:null};
+ state.homeDelivery.returning=!!state.homeDelivery.returning;
  // Place réservée aux livraisons : peinture au sol et panneau près du fourgon.
  // Elle est attachée à la scène du supermarché, sans collision bloquante.
  const bay=new THREE.Group();bay.name="Emplacement réservé — FBA Livraisons";scene.add(bay);
@@ -52,6 +53,7 @@ export function installHomeDeliveries(o){
   if(driving||!valid()||!nearBay()||!parkedAtBay()){
    notify("Stationne le fourgon sur la place FBA Livraisons et approche-toi.");return;
   }
+  if(state.homeDelivery.returning){notify("Ramène d'abord le fourgon au parking FBA Livraisons");return;}
   if(!job())state.homeDelivery.active=next();
   if(job().stage!=="accepted"){notify("La commande est déjà dans le véhicule");return;}
   job().stage="loaded";
@@ -98,7 +100,19 @@ export function installHomeDeliveries(o){
  }
  function routeStart(){return driving?van.position:{x:camera.position.x,z:camera.position.z};}
  function routeDestination(j){
-  return j.stage==="accepted"?{x:van.position.x,z:van.position.z}: {x:j.x,z:j.z};
+  if(state.homeDelivery.returning){
+   // À pied, retrouver d'abord le véhicule ; en conduite, retour au magasin.
+   return !driving&&d2(routeStart(),van.position)>7?
+    {x:van.position.x,z:van.position.z}:{...DEPOT};
+  }
+  return j.stage==="accepted"?{x:van.position.x,z:van.position.z}:{x:j.x,z:j.z};
+ }
+ function guidancePhase(){
+  if(state.homeDelivery.returning)return !driving&&d2(routeStart(),van.position)>7?"van":"return";
+  const j=job();return j&&j.stage==="loaded"?"client":"none";
+ }
+ function guidanceSignature(){
+  const j=job();return guidancePhase()+":"+(j?.id??state.homeDelivery.completed);
  }
  function drawRoute(){
   for(const child of routeGroup.children){routeGroup.remove(child);child.geometry.dispose();}
@@ -120,21 +134,21 @@ export function installHomeDeliveries(o){
   lines.frustumCulled=false;routeGroup.add(lines);
  }
  function rebuildRoute(){
-  const j=job();
-  if(!j||j.stage!=="loaded"){clearRoute();return;}
+  const phase=guidancePhase(),j=job();
+  if(phase==="none"){clearRoute();return;}
   const start=routeStart(),destination=routeDestination(j);
   route=calculateRoute(start,destination);routeIndex=1;
-  routeSignature=j.id+":"+j.stage;lastReroute=performance.now();drawRoute();
+  routeSignature=guidanceSignature();lastReroute=performance.now();drawRoute();
  }
  function angle(a){return Math.atan2(-a.x,-a.z);}
  function normalize(a){return Math.atan2(Math.sin(a),Math.cos(a));}
  function updateGuidance(){
-  const j=job(),active=j&&j.stage==="loaded";
+  const j=job(),phase=guidancePhase(),active=phase!=="none";
   guidance.style.display=active?"block":"none";
-  routeGroup.visible=!!active;
+  routeGroup.visible=active;
   if(!active){if(route.length)clearRoute();return;}
   const pos=routeStart(),dest=routeDestination(j);
-  if(routeSignature!==j.id+":"+j.stage||route.length<2)rebuildRoute();
+  if(routeSignature!==guidanceSignature()||route.length<2)rebuildRoute();
   if(!route.length)return;
   while(routeIndex<route.length-1&&d2(pos,route[routeIndex])<13)routeIndex++;
   // Si le joueur quitte le parcours, redessiner depuis sa position réelle.
@@ -150,7 +164,9 @@ export function installHomeDeliveries(o){
   const metres=Math.round(d2(pos,dest));
   let remaining=d2(pos,waypoint);
   for(let k=routeIndex;k<route.length-1;k++)remaining+=d2(route[k],route[k+1]);
-  detail.textContent=j.address+" · "+Math.round(remaining)+" m de trajet ("+metres+" m direct)";
+  detail.textContent=(state.homeDelivery.returning?
+   phase==="van"?"Rejoins le fourgon":"Retour — FBA Supermarket":j.address)+
+   " · "+Math.round(remaining)+" m de trajet ("+metres+" m direct)";
  }
  const dist=(x,z)=>Math.hypot(camera.position.x-x,camera.position.z-z);
  const nearVan=(r=5)=>dist(van.position.x,van.position.z)<r;
@@ -165,6 +181,12 @@ export function installHomeDeliveries(o){
    fee:160+Math.round(Math.hypot(b.x,b.z-35)*.15),stage:"accepted"};
  }
  function refresh(){
+  // Valider le retour lorsque le fourgon atteint sa place réservée.
+  if(state.homeDelivery.returning&&driving&&parkedAtBay()&&Math.abs(speed)<1.2){
+   state.homeDelivery.returning=false;state.cityMapTarget=null;
+   clearRoute();save();
+   notify("Retour au magasin terminé — place FBA Livraisons atteinte !");
+  }
   updateGuidance();
   bay.visible=!!state.upgrades.homeDeliveryVan;
   const atCustomer=nearCustomer(),atPickup=valid()&&nearBay()&&parkedAtBay()&&
@@ -177,6 +199,7 @@ export function installHomeDeliveries(o){
   if(!state.upgrades.homeDeliveryVan){el.style.display="none";return;}
   const j=job();el.style.display="block";
   el.textContent=driving?"FOURGON FBA · "+Math.round(Math.abs(speed)*3.6)+" km/h":
+   state.homeDelivery.returning?"RETOUR AU MAGASIN · "+Math.round(d2(van.position,DEPOT))+" m":
    j?(j.stage==="loaded"?"LIVRAISON":"COLIS À CHARGER")+
     " · "+Math.round(dist(j.x,j.z))+" m":"FOURGON FBA";
  }
@@ -213,7 +236,7 @@ export function installHomeDeliveries(o){
   return true;
  }
  function accept(){
-  if(!valid()||job())return;
+  if(!valid()||job()||state.homeDelivery.returning)return;
   state.homeDelivery.active=next();
   state.cityMapTarget={x:job().x,z:job().z};
   sync();show();notify("Commande reçue : charge le colis au parking du magasin");
@@ -233,8 +256,13 @@ export function installHomeDeliveries(o){
   const j=job(),fee=Math.round(j.fee);
   state.money+=fee;state.finance.revenue+=fee;state.finance.transactions++;
   state.homeDelivery.completed=(state.homeDelivery.completed||0)+1;
-  state.homeDelivery.active=null;state.cityMapTarget=null;clearRoute();
-  o.awardDelivery?.();sync();checkLevelUp();notify("Commande "+j.id+" livrée : +"+fee+" €");return true;
+  state.homeDelivery.active=null;
+  state.homeDelivery.returning=true;
+  state.cityMapTarget={...DEPOT};
+  rebuildRoute();
+  o.awardDelivery?.();sync();checkLevelUp();
+  notify("Commande "+j.id+" livrée : +"+fee+" € — suis le GPS retour au magasin !");
+  return true;
  }
  function interact(){
   if(driving)return exit();
@@ -263,17 +291,19 @@ export function installHomeDeliveries(o){
    return;
   }
   paragraph("Place réservée FBA Livraisons : parking X −24 / Z 40, panneau bleu.");
+  if(state.homeDelivery.returning)
+   paragraph("Retour en cours : suis le tracé GPS jusqu'à la place réservée pour terminer la tournée.");
   paragraph("Pour récupérer un colis, gare le fourgon dans la place et utilise « Récupérer une commande ».");
   if(valid()&&nearBay()&&parkedAtBay()&&(!job()||job().stage==="accepted"))
    button(panel,job()?"Charger la commande":"Récupérer une commande",pickupAtBay);
   if(driving){button(panel,"Descendre du fourgon",()=>{exit();panel.style.display="none";});return;}
   if(nearVan(4.5))button(panel,"Conduire le fourgon",enter);
   const active=job();
-  if(!active){
+  if(!active&&!state.homeDelivery.returning){
    const candidate=next();
    paragraph("Prochain client : "+candidate.address+" · prime "+candidate.fee+" €");
    button(panel,"Accepter une commande",accept);
-  }else{
+  }else if(active){
    paragraph("Commande "+active.id+" : "+active.address+", rez-de-chaussée.");
    paragraph("Prime : "+active.fee+" € · Distance : "+Math.round(dist(active.x,active.z))+" m");
    paragraph(active.stage==="accepted"?"Statut : charger le colis au parking":"Statut : colis chargé");
@@ -282,7 +312,11 @@ export function installHomeDeliveries(o){
    button(panel,"Voir l'adresse sur la carte",o.showMap);
   }
   if(!nearVan(9))button(panel,"Rappeler le fourgon au parking",()=>{
-   van.setPosition(DEPOT.x,DEPOT.z,Math.PI);heading=Math.PI;speed=0;sync();show();
+   van.setPosition(DEPOT.x,DEPOT.z,Math.PI);heading=Math.PI;speed=0;
+   if(state.homeDelivery.returning){
+    state.homeDelivery.returning=false;state.cityMapTarget=null;clearRoute();
+   }
+   sync();show();
   });
   button(panel,"Retour au menu",o.showMenu);
  }
