@@ -4453,6 +4453,7 @@ let held=null;
 const carriedCarton=new THREE.Group();
 carriedCarton.position.set(.38,-.43,-.83);
 camera.add(carriedCarton);
+carriedCarton.visible=false;
 const handCardboard=new THREE.MeshBasicMaterial({color:0xb9874e,side:THREE.DoubleSide,depthTest:false});
 const handInside=new THREE.MeshBasicMaterial({color:0x69482e,side:THREE.DoubleSide,depthTest:false});
 const handSkin=new THREE.MeshBasicMaterial({color:0xd1a17d,depthTest:false});
@@ -4460,7 +4461,35 @@ function carryPart(w,h,d,x,y,z,material,parent=carriedCarton){
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
  m.position.set(x,y,z);m.renderOrder=999;parent.add(m);return m;
 }
-carryPart(.49,.32,.37,0,0,0,handCardboard);
+// Parois creuses pour voir les marchandises quand le couvercle est ouvert.
+carryPart(.49,.028,.37,0,-.155,0,handCardboard);
+for(const z of [-.17,.17])carryPart(.49,.29,.03,0,0,z,handCardboard);
+for(const x of [-.23,.23])carryPart(.03,.29,.34,x,0,0,handCardboard);
+const cartonGoods=[];
+for(let i=0;i<10;i++){
+ const good=carryPart(.11,.12,.11,-.15+(i%3)*.15,-.07+Math.floor(i/9)*.10,-.09+Math.floor(i/3)%3*.09,
+  new THREE.MeshBasicMaterial({color:0x93c5fd,depthTest:false}));
+ cartonGoods.push(good);
+}
+const cartonLabelCanvas=document.createElement("canvas");
+cartonLabelCanvas.width=512;cartonLabelCanvas.height=160;
+const cartonLabelTexture=new THREE.CanvasTexture(cartonLabelCanvas);
+const cartonLabelMesh=new THREE.Mesh(new THREE.PlaneGeometry(.41,.12),
+ new THREE.MeshBasicMaterial({map:cartonLabelTexture,transparent:true,depthTest:false}));
+cartonLabelMesh.position.set(0,.005,.189);cartonLabelMesh.renderOrder=1000;
+carriedCarton.add(cartonLabelMesh);
+let carryLabelProduct="";
+function updateCartonLabel(p){
+ if(carryLabelProduct===p.id)return;
+ carryLabelProduct=p.id;
+ const c=cartonLabelCanvas.getContext("2d");
+ c.fillStyle="#f8fafc";c.fillRect(0,0,512,160);
+ c.fillStyle="#1e293b";c.font="bold 42px Arial";c.textAlign="center";
+ c.fillText(p.name.toUpperCase().slice(0,21),256,66);
+ c.font="30px Arial";c.fillText("FBA SUPERMARKET",256,120);
+ cartonLabelTexture.needsUpdate=true;
+ for(const m of cartonGoods)m.material.color.setHex(p.color||0x93c5fd);
+}
 const cartonTop=carryPart(.49,.018,.37,0,.168,0,handCardboard);
 const cartonOpenGroup=new THREE.Group();carriedCarton.add(cartonOpenGroup);
 const cartonTopInterior=carryPart(.44,.015,.32,0,.162,0,handInside,cartonOpenGroup);
@@ -4506,6 +4535,11 @@ function refreshCarry(){
  carryLabel.style.display=p?"block":"none";
  carryLabel.textContent=p?(held.source==="loose"?"Produits en vrac : ":held.source==="delivery"?"Livraison : ":"Carton : ")+p.name+" — "+held.quantity+" produit(s)"+(held.source==="box"?(held.opened?" · OUVERT":" · FERMÉ"):""):"";
  carriedCarton.visible=!!p&&held.source==="box";
+ if(carriedCarton.visible){
+  updateCartonLabel(p);
+  const count=Math.min(10,Math.ceil(held.quantity/BOX_UNITS)===1?held.quantity:10);
+  cartonGoods.forEach((mesh,i)=>mesh.visible=i<count);
+ }
  cartonTop.visible=carriedCarton.visible&&!cartonOpened();
  cartonOpenGroup.visible=carriedCarton.visible&&cartonOpened();
  carryActions.style.display=carriedCarton.visible?"flex":"none";
