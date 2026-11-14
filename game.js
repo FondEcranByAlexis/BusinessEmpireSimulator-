@@ -4501,18 +4501,32 @@ const cartonFlaps=[
 ];
 cartonFlaps[0].rotation.z=-.4;cartonFlaps[1].rotation.z=.4;
 cartonFlaps[2].rotation.x=.4;cartonFlaps[3].rotation.x=-.4;
-const leftHand=carryPart(.18,.11,.24,-.35,-.09,.04,handSkin);
-const rightHand=carryPart(.18,.11,.24,.35,-.09,.04,handSkin);
+// Mains articulées au premier plan : avant-bras, paumes et doigts.
+const leftHand=new THREE.Group(),rightHand=new THREE.Group();
+carriedCarton.add(leftHand,rightHand);
+function makeHand(group,side){
+ const arm=carryPart(.19,.19,.38,0,-.12,.16,handSkin,group);
+ const palm=carryPart(.23,.12,.21,0,0,-.12,handSkin,group);
+ for(let i=0;i<4;i++)carryPart(.045,.055,.19,(i-1.5)*.055,.005,-.29,handSkin,group);
+ carryPart(.065,.08,.15,side*.14,-.025,-.15,handSkin,group).rotation.y=side*.55;
+ return {arm,palm};
+}
+makeHand(leftHand,-1);makeHand(rightHand,1);
+leftHand.position.set(-.39,-.06,.08);
+rightHand.position.set(.39,-.06,.08);
 // Animation d'un article sorti du carton et posé sur le rayon.
 const placementGoods=new THREE.Group();
 placementGoods.visible=false;camera.add(placementGoods);
 const animatedItem=new THREE.Mesh(new THREE.BoxGeometry(.105,.13,.105),
  new THREE.MeshBasicMaterial({color:0x93c5fd,depthTest:false}));
 animatedItem.renderOrder=1001;placementGoods.add(animatedItem);
-const animatedHand=new THREE.Mesh(new THREE.BoxGeometry(.14,.14,.22),handSkin);
-animatedHand.position.set(.085,-.09,.02);animatedHand.renderOrder=1002;placementGoods.add(animatedHand);
+const animatedHand=new THREE.Group();placementGoods.add(animatedHand);
+carryPart(.20,.14,.32,.10,-.10,.16,handSkin,animatedHand);
+carryPart(.22,.12,.19,.04,-.035,-.08,handSkin,animatedHand);
+for(let i=0;i<4;i++)carryPart(.043,.06,.18,-.045+i*.053,-.02,-.23,handSkin,animatedHand);
 let itemAnimationTime=0,itemAnimationActive=false;
-let cartonFlapProgress=0;
+let cartonFlapProgress=0,flapHandTime=0,flapHandDirection=0;
+function easeCarton(t){return t*t*(3-2*t);}
 function startPlacementAnimation(p){
  itemAnimationTime=0;itemAnimationActive=true;
  animatedItem.material.color.setHex(p.color||0x93c5fd);
@@ -4521,25 +4535,42 @@ function startPlacementAnimation(p){
 function updateCartonAnimations(dt){
  const active=carriedCarton.visible;
  const target=active&&cartonOpened()?1:0;
- cartonFlapProgress+=(target-cartonFlapProgress)*Math.min(1,dt*9);
- cartonFlaps[0].rotation.z=-.4-1.05*cartonFlapProgress;
- cartonFlaps[1].rotation.z=.4+1.05*cartonFlapProgress;
- cartonFlaps[2].rotation.x=.4+1.05*cartonFlapProgress;
- cartonFlaps[3].rotation.x=-.4-1.05*cartonFlapProgress;
+ // Ouverture/fermeture complète sur environ 0,85 seconde.
+ const step=dt/0.85;
+ cartonFlapProgress+=Math.sign(target-cartonFlapProgress)*
+  Math.min(Math.abs(target-cartonFlapProgress),step);
+ const p=easeCarton(cartonFlapProgress);
+ cartonOpenGroup.visible=active&&(cartonFlapProgress>.001||target===1);
+ cartonTop.visible=active&&cartonFlapProgress<.002&&target===0;
+ cartonFlaps[0].rotation.z=-.02-1.45*p;
+ cartonFlaps[1].rotation.z=.02+1.45*p;
+ cartonFlaps[2].rotation.x=.02+1.45*p;
+ cartonFlaps[3].rotation.x=-.02-1.45*p;
+ // Les paumes atteignent successivement les bords du carton et les rabats.
+ // Les deux mains se déplacent nettement dans le champ de vision.
  if(active){
-  carriedCarton.position.y=-.43+Math.sin(performance.now()*.003)*.008;
+  carriedCarton.position.y=-.38+Math.sin(performance.now()*.003)*.006;
+  leftHand.position.set(-.39+.10*p,-.06+.23*p,.08-.24*p);
+  rightHand.position.set(.39-.10*p,-.06+.23*p,.08-.24*p);
+  leftHand.rotation.z=-.22-.55*p;
+  rightHand.rotation.z=.22+.55*p;
+  leftHand.rotation.x=-.4*p;
+  rightHand.rotation.x=-.4*p;
  }
- leftHand.position.y=-.09+.015*cartonFlapProgress;
- rightHand.position.y=-.09+.015*cartonFlapProgress;
  if(itemAnimationActive){
   itemAnimationTime+=dt;
-  const t=Math.min(1,itemAnimationTime/.60);
-  const smooth=t*t*(3-2*t);
-  placementGoods.position.set(.39-.43*smooth,-.40+.24*Math.sin(Math.PI*t)+.12*smooth,
-   -.82-.38*smooth);
-  placementGoods.rotation.z=-.25*smooth;
-  if(t>=1){itemAnimationActive=false;placementGoods.visible=false;}
- }
+  const t=Math.min(1,itemAnimationTime/.95);
+  const smooth=easeCarton(t);
+  // Phase 1 : plongée de la main dans le carton ; phase 2 : retrait de
+  // l'article ; phase 3 : allonge du bras vers l'étagère.
+  const reach=t<.28?easeCarton(t/.28):t<.55?1:easeCarton(1-(t-.55)/.45);
+  placementGoods.position.set(.40-.62*smooth,
+   -.35+.25*reach+.15*smooth,
+   -.79-.65*smooth);
+  placementGoods.rotation.z=-.55*smooth;
+  rightHand.visible=false;
+  if(t>=1){itemAnimationActive=false;placementGoods.visible=false;rightHand.visible=true;}
+ }else rightHand.visible=true;
 }
 const carryActions=document.createElement("div");
 Object.assign(carryActions.style,{position:"fixed",right:"12px",bottom:"23%",zIndex:"27",display:"none",
@@ -4557,7 +4588,7 @@ placeOneButton.addEventListener("click",()=>placeHeldArticle());
 document.body.appendChild(carryActions);
 function cartonOpened(){return !!held&&held.source==="box"&&held.opened===true;}
 function setCartonOpen(open){
- if(!held||held.source!=="box")return;
+ if(!held||held.source!=="box"||itemAnimationActive)return;
  held.opened=!!open;
  refreshCarry();
  toast(open?"Carton ouvert : touche le bouton vert « Déposer 1 article » à droite de l’écran (E sur PC)":
@@ -4585,8 +4616,8 @@ function refreshCarry(){
   const count=Math.min(10,Math.ceil(held.quantity/BOX_UNITS)===1?held.quantity:10);
   cartonGoods.forEach((mesh,i)=>mesh.visible=i<count);
  }
- cartonTop.visible=carriedCarton.visible&&!cartonOpened();
- cartonOpenGroup.visible=carriedCarton.visible&&cartonOpened();
+ // La transition visuelle est pilotée par updateCartonAnimations, pour éviter
+ // que les rabats disparaissent instantanément avant la fermeture.
  carryActions.style.display=carriedCarton.visible?"flex":"none";
  cartonActionButton.textContent=cartonOpened()?"REFERMER LE CARTON":"OUVRIR LE CARTON";
  placeOneButton.style.display=cartonOpened()?"block":"none";
@@ -5424,7 +5455,9 @@ function placeHeldArticle(){
  if(held.source==="box"&&!cartonOpened()){
   toast("Ouvre d'abord le carton avec le bouton Ouvrir le carton");return false;
  }
- if(held.source==="box"&&itemAnimationActive)return false;
+ if(held.source==="box"&&(itemAnimationActive||cartonFlapProgress<.98)){
+  toast("Termine d'ouvrir le carton avant de prendre un article");return false;
+ }
  const placed=held.source==="box"?1:Math.min(space,held.quantity);
  if(held.source==="box")startPlacementAnimation(p);
  a.shelf+=placed;held.quantity-=placed;
