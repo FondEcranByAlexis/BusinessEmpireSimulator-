@@ -4372,42 +4372,57 @@ function renderStorageCartons(product,loose,slots){
  });
  batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();
 }
+// Répartition physique : les références du magasin historique restent dans
+// la réserve de la caisse n°1 ; celles des extensions vont près de la salle de pause.
+// Les stocks sauvegardés ne changent pas : seul l'emplacement des meshes est calculé.
+function originalStoreProduct(p){
+ return !!p.starter||(!p.license&&p.kind!=="electronics"&&
+  p.x>=-10&&p.x<=10&&p.z>=-10&&p.z<=10);
+}
 function refreshBoxes(){
  for(const batch of storageBatches.values())batch.visible=false;
  for(const kind of STORAGE_KINDS){
   const bays=storageBayCount(kind);
   const racks=storageRacks[kind].filter(rack=>(!rack.requiresUpgrade||state.upgrades[rack.requiresUpgrade])&&
    (rack.bay===undefined||rack.bay<bays)&&
-   (!STORAGE_REBUILD_PENDING||rack.newStorageRoom||kind==="cold"||(kind==="dry"&&!rack.requiresUpgrade&&rack.bay===undefined))).sort((a,b)=>Number(!!b.newStorageRoom)-Number(!!a.newStorageRoom)).map(rack=>({rack,used:0}));
-  const products=catalog.filter(product=>storageKind(product)===kind&&contentVisible(product));
-  const cartons=new Map();
-  // Grouper les cartons fermés sur un même meuble lorsque la place le permet.
-  for(const product of products){
-   const count=state.inventory[product.id].boxes;
-   if(!count)continue;
-   const location=(count>10?racks.find(({used})=>used===0):null)??
-    racks.find(({rack,used})=>rack.slots.length-used>=count);
-   if(!location)continue;
-   cartons.set(product.id,location.rack.slots.slice(location.used,location.used+count));
-   location.used+=count;
+   (!STORAGE_REBUILD_PENDING||rack.newStorageRoom||kind==="cold"||(kind==="dry"&&!rack.requiresUpgrade&&rack.bay===undefined)));
+  // Chaque zone possède ses propres emplacements, utilisés une seule fois.
+  // Les étagères principales sont utilisées avant les emplacements de débordement.
+  const makePool=selected=>({
+   slots:[...selected.flatMap(rack=>rack.slots),...selected.flatMap(rack=>rack.overflow)],
+   offset:0
+  });
+  const older=racks.filter(rack=>!rack.newStorageRoom);
+  const newer=racks.filter(rack=>rack.newStorageRoom);
+  const pools=kind==="dry"?{original:makePool(older),extension:makePool(newer)}:
+   {original:makePool(racks),extension:makePool([])};
+  function take(pool,count){
+   const free=Math.max(0,pool.slots.length-pool.offset);
+   const n=Math.min(count,free);
+   const result=pool.slots.slice(pool.offset,pool.offset+n);
+   pool.offset+=n;
+   return result;
   }
-  const free=racks.flatMap(({rack,used})=>rack.slots.slice(used));
-  free.push(...racks.flatMap(({rack})=>rack.overflow));
-  let next=0;
+  function slotsFor(product,count){
+   const primary=kind==="dry"&&!originalStoreProduct(product)?"extension":"original";
+   const secondary=primary==="original"?"extension":"original";
+   const first=take(pools[primary],count);
+   return first.length===count?first:first.concat(take(pools[secondary],count-first.length));
+  }
+  const products=catalog.filter(product=>storageKind(product)===kind&&contentVisible(product));
   storageOverflow[kind]=0;
   for(const product of products){
    const count=state.inventory[product.id].boxes;
-   const slots=cartons.get(product.id)??free.slice(next,next+count);
-   if(!cartons.has(product.id))next+=slots.length;
+   if(!count)continue;
+   const slots=slotsFor(product,count);
    renderStorageCartons(product,false,slots);
    storageOverflow[kind]+=count-slots.length;
   }
-  // Les bacs de vrac utilisent les places restantes après les cartons fermés.
+  // Le stock en vrac suit la même destination que les cartons fermés.
   for(const product of products){
    const count=Math.ceil(state.inventory[product.id].reserve/BOX_UNITS);
    if(!count)continue;
-   const slots=free.slice(next,next+count);
-   next+=slots.length;
+   const slots=slotsFor(product,count);
    renderStorageCartons(product,true,slots);
    storageOverflow[kind]+=count-slots.length;
   }
