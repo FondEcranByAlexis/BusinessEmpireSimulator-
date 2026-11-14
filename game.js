@@ -1,10 +1,10 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.08";
-import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.08";
-import { installSurveillance } from "./surveillance.js?v=0.15.08";
-import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.08";
-import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.08";
-// Business Empire Simulator V0.15.08 — version synchronisée
+import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.09";
+import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.09";
+import { installSurveillance } from "./surveillance.js?v=0.15.09";
+import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.09";
+import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.09";
+// Business Empire Simulator V0.15.09 — version synchronisée
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -567,7 +567,7 @@ state.storeName=state.storeName||DEFAULT_STORE_NAME;
 state.employeeNames??={};
 state.workerName=state.workerName||"George";
 state.workerSentHomeDay=Number.isInteger(state.workerSentHomeDay)?state.workerSentHomeDay:0;
-// V0.15.08 : points de satisfaction (PS), livraison (PL), mission (PM).
+// V0.15.09 : points de satisfaction (PS), livraison (PL), mission (PM).
 // L'argent et le chiffre d'affaires n'augmentent jamais directement le niveau.
 const DAILY_MISSION_GOALS=[
  {key:"served",name:"Servir 8 clients dans la journée",target:8,reward:80},
@@ -629,7 +629,7 @@ function showDailyMissions(){
  button(panel,"Retour au menu",showMainMenu);
 }
 const finance=state.finance;
-// Bilan quotidien V0.15.08 : instantané journalier persistant, indépendant
+// Bilan quotidien V0.15.09 : instantané journalier persistant, indépendant
 // des statistiques cumulées et des niveaux de progression.
 function makeDayStartStats(){
  return {
@@ -4436,7 +4436,7 @@ function showDisposal(p){
 // Accès technique indépendant, côté est, jusqu'au véritable arrière du magasin (z négatif).
 // Les clients entrent côté z positif ; le quai se trouve au-delà du fond du magasin.
 const serviceCorridorFloor=cube(25.65,-.15,-8.3,3.1,.3,31.4,0xb9c1c8);
-// V0.15.08 : le couloir logistique possède deux portes distinctes sur son
+// V0.15.09 : le couloir logistique possède deux portes distinctes sur son
 // mur OUEST (x=24.1), conformément au repérage vert fourni par le joueur.
 // Entrée des réserves, près de la salle de pause, centrée en z=-11.3.
 // Segment nord : z=-24..-12.6 ; entre les portes : z=-10..-7.3.
@@ -4447,7 +4447,7 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.15.08 : annulation de l'ouverture erronée du mur EST (repère rouge).
+// V0.15.09 : annulation de l'ouverture erronée du mur EST (repère rouge).
 // Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
 cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
@@ -4466,7 +4466,7 @@ storageAccessSign.rotation.y=Math.PI/2;
 scene.add(storageAccessSign);
 // Repérer les anciennes collisions avant la construction de la nouvelle réserve.
 const storageRoomLegacyColliders=new Set(colliders);
-// V0.15.08 — réserve en L réellement agrandie autour de la salle de pause.
+// V0.15.09 — réserve en L réellement agrandie autour de la salle de pause.
 // La salle de pause reste intacte : x=17.8..24.1, z=-9..-3.
 // Stockage arrière : x=10.35..24.1 / z=-22.5..-9 ; aile latérale :
 // x=10.35..17.8 / z=-9..-3. Toutes les surfaces sont jointives.
@@ -5687,8 +5687,11 @@ function movePlayer(dt){
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
 const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
-const PREOPEN_HOUR=7,PREOPEN_SECONDS=45; // Préparation matinale de 7 h à 8 h
-let preopenTimer=0;
+const PREOPEN_HOUR=7,PREOPEN_SECONDS=45; // Préparation jusqu'à l'heure de départ choisie
+const CONSTRUCTION_READY_HOUR=7.5;
+let preopenTimer=0,constructionMorningTimer=0,constructionMorningRunning=false;
+const activeConstructionDay=()=>!!state.construction&&!state.upgrades[state.construction.target||"store1"];
+const morningHoldHour=()=>activeConstructionDay()?CONSTRUCTION_READY_HOUR:OPEN_HOUR;
 let lastHudMinute=-1,lastHudDay=0;
 function updateTime(){
  const minute=Math.floor(state.hour*60);
@@ -6933,18 +6936,36 @@ function updateCustomers(dt){
 const openButton=$("openShop");
 let dayStarted=false,closing=false;
 function updateOpen(){
- openButton.textContent=shopOpen?"Fermer le magasin":closing?"Fermeture en cours":"Ouvrir le magasin";
- openButton.disabled=closing||state.hour<OPEN_HOUR||(isSunday()&&state.sundayMode==="closed")||state.hour>=closingHour();
- openButton.title=isSunday()&&state.sundayMode==="closed"?"Fermé le dimanche (modifiable sur le PC)":state.hour<OPEN_HOUR?"Ouverture possible à 08:00":"";
+ const constructionReady=activeConstructionDay()&&!dayStarted&&!constructionMorningRunning&&state.hour>=CONSTRUCTION_READY_HOUR&&state.hour<OPEN_HOUR;
+ const sundayClosed=isSunday()&&state.sundayMode==="closed";
+ openButton.textContent=shopOpen?"Fermer le magasin":closing?"Fermeture en cours":
+  constructionMorningRunning?"Préparation des ouvriers…":
+  constructionReady?"Démarrer la journée des ouvriers":
+  !dayStarted&&sundayClosed&&state.hour>=OPEN_HOUR?"Passer le dimanche fermé":"Ouvrir le magasin";
+ openButton.disabled=closing||constructionMorningRunning||
+  (state.hour<OPEN_HOUR&&!constructionReady)||(state.hour>=closingHour()&&dayStarted);
+ openButton.title=constructionReady?"Travaux : le temps démarre à 07:30. Ouvriers de 08:00 à 17:00.":
+  constructionMorningRunning?"La matinée avance jusqu'à 08:00":
+  state.hour<OPEN_HOUR?"Ouverture possible à 08:00":"";
  updateTime();
 }
 openButton.addEventListener("click",()=>{
  if(paused){toast("Reprends la partie avant d’ouvrir le magasin");return;}
  if(closing){toast("Attends le départ des derniers clients");return;}
+ if(constructionMorningRunning)return;
+ if(activeConstructionDay()&&!dayStarted&&state.hour>=CONSTRUCTION_READY_HOUR&&state.hour<OPEN_HOUR){
+  constructionMorningRunning=true;constructionMorningTimer=0;
+  updateOpen();toast("07:30 — préparation du chantier, les ouvriers commencent à 08:00");
+  return;
+ }
  if(state.hour<OPEN_HOUR){toast("Ouverture possible à 08:00");return;}
- if(isSunday()&&state.sundayMode==="closed"){toast("Dimanche fermé : change les horaires sur le PC");return;}
  if(shopOpen){
   shopOpen=false;updateOpen();playSound("shopClose");toast("Fermé aux nouveaux clients");return;
+ }
+ if(isSunday()&&state.sundayMode==="closed"){
+  if(!dayStarted){dayStarted=true;shopOpen=false;updateOpen();toast("Dimanche fermé — la journée s'écoule sans ouverture du magasin");}
+  else toast("Dimanche fermé : change les horaires sur le PC");
+  return;
  }
  if(state.hour>=closingHour()){toast("Horaire de fermeture dépassé");return;}
  dayStarted=true;shopOpen=true;spawnTimer=1;updateOpen();playSound("shopOpen");toast("Magasin ouvert — affluence "+customerTraffic().label.toLowerCase());
@@ -6955,12 +6976,29 @@ function business(dt){
   if(panel.style.display==="none")dailyReportShowing=false;
   else return;
  }
- // Le joueur prépare son magasin entre 7 h et 8 h.
+ // L'heure se bloque à 08:00 les jours classiques, à 07:30 les jours
+ // de chantier. Le joueur décide quand reprendre le temps du jeu.
  if(!dayStarted){
-  if(preopenTimer<PREOPEN_SECONDS){
-   preopenTimer=Math.min(PREOPEN_SECONDS,preopenTimer+dt);
-   state.hour=PREOPEN_HOUR+(preopenTimer/PREOPEN_SECONDS)*(OPEN_HOUR-PREOPEN_HOUR);
-   if(preopenTimer>=PREOPEN_SECONDS){state.hour=OPEN_HOUR;dayStarted=true;toast("08:00 — Tu peux ouvrir le magasin");}
+  if(constructionMorningRunning){
+   // 30 minutes de préparation chantier avant l'ouverture commerciale.
+   constructionMorningTimer=Math.min(PREOPEN_SECONDS/2,constructionMorningTimer+dt);
+   state.hour=CONSTRUCTION_READY_HOUR+
+    (constructionMorningTimer/(PREOPEN_SECONDS/2))*(OPEN_HOUR-CONSTRUCTION_READY_HOUR);
+   if(constructionMorningTimer>=PREOPEN_SECONDS/2){
+    state.hour=OPEN_HOUR;
+    constructionMorningRunning=false;
+    dayStarted=true; // le chantier et le temps démarrent, magasin encore fermé
+    toast("08:00 — ouvriers au travail ; tu peux ouvrir le magasin");
+   }
+  }else{
+   const stop=morningHoldHour();
+   if(state.hour<stop){
+    preopenTimer=Math.min(PREOPEN_SECONDS,preopenTimer+dt);
+    state.hour=Math.min(stop,PREOPEN_HOUR+(preopenTimer/PREOPEN_SECONDS)*(OPEN_HOUR-PREOPEN_HOUR));
+    if(state.hour>=stop)toast(activeConstructionDay()?
+     "07:30 — démarre la journée des ouvriers quand tu es prêt":
+     "08:00 — horloge en pause, ouvre le magasin pour commencer");
+   }else state.hour=stop;
   }
   dayTimer=0;updateOpen();return;
  }
@@ -6993,7 +7031,8 @@ function business(dt){
   // Capturer le jour terminé AVANT remise à zéro des missions.
   const finishedReport=makeDailyReport(state.day,dateLabel());
   state.lastDailyReport=finishedReport;
-  dayTimer=0;preopenTimer=0;state.hour=PREOPEN_HOUR;state.day++;
+  dayTimer=0;preopenTimer=0;constructionMorningTimer=0;constructionMorningRunning=false;
+  state.hour=PREOPEN_HOUR;state.day++;
   state.money-=DAILY_CHARGES;finance.charges+=DAILY_CHARGES;
   todayMission();
   processStandingOrders();
@@ -7322,4 +7361,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.08 !");
+animate();toast("Business Empire Simulator V0.15.09 !");
