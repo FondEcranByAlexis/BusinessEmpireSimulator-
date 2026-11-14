@@ -4511,7 +4511,7 @@ Object.assign(cartonActionButton.style,{padding:"12px",background:"#0e7490",colo
  borderRadius:"10px",fontWeight:"bold",border:"1px solid #67e8f9",touchAction:"manipulation"});
 carryActions.appendChild(cartonActionButton);
 const placeOneButton=document.createElement("button");
-placeOneButton.textContent="Déposer 1 article";
+placeOneButton.textContent="DÉPOSER 1 ARTICLE";
 Object.assign(placeOneButton.style,{padding:"13px",background:"#15803d",color:"#fff",
  borderRadius:"10px",fontWeight:"bold",border:"1px solid #86efac",touchAction:"manipulation"});
 carryActions.appendChild(placeOneButton);
@@ -4522,7 +4522,7 @@ function setCartonOpen(open){
  if(!held||held.source!=="box")return;
  held.opened=!!open;
  refreshCarry();
- toast(open?"Carton ouvert : appuie sur E pour déposer les articles un par un":
+ toast(open?"Carton ouvert : touche le bouton vert « Déposer 1 article » à droite de l’écran (E sur PC)":
   "Carton refermé : retourne dans la réserve correspondante");
 }
 cartonActionButton.addEventListener("click",()=>{
@@ -4550,7 +4550,7 @@ function refreshCarry(){
  cartonTop.visible=carriedCarton.visible&&!cartonOpened();
  cartonOpenGroup.visible=carriedCarton.visible&&cartonOpened();
  carryActions.style.display=carriedCarton.visible?"flex":"none";
- cartonActionButton.textContent=cartonOpened()?"Refermer le carton":"Ouvrir le carton";
+ cartonActionButton.textContent=cartonOpened()?"REFERMER LE CARTON":"OUVRIR LE CARTON";
  placeOneButton.style.display=cartonOpened()?"block":"none";
  updateShelfGuides();
 }
