@@ -8194,6 +8194,9 @@ function updateCustomers(dt){
     c.phase=c.reactionTimer>0?"reacting":"shopping";
    }
   }else if(c.phase==="reacting"){
+   // Retenter tant que la réaction dure si un autre dialogue occupait la voix.
+   if(c.reactionKind==="price")customerVoice(c,"price",["C’est beaucoup trop cher !","À ce prix-là, je préfère laisser.","Non merci, c’est hors de prix !"]);
+   else if(c.reactionKind==="stock")customerVoice(c,"stock",["Mince, il n’y en a plus !","Ah, le rayon est vide.","Dommage, je cherchais justement ça !"]);
    c.reactionTimer-=dt;
    if(c.reactionTimer<=0){c.reactionTimer=0;c.reactionKind=null;c.phase="shopping";}
   }else if(c.phase==="approachingQueue"){
