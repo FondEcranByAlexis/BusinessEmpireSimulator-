@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.39 — gestes clients et panneau de paiement
+// Business Empire Simulator V0.15.40 — déplacements et circulation
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6299,7 +6299,7 @@ function makeCustomer(){
  customers.push({
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
   speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,paymentCard,paymentBills,paymentPresented:false,priceTolerance:1.12+Math.random()*.33,
-  visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,walkAnimationBlend:0,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
+  visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,walkAnimationBlend:0,motionSpeed:0,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
   stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:citySpawnX,lastNavZ:citySpawnZ
  });
 }
@@ -6449,6 +6449,18 @@ function findNavPath(from,to){
  }
  return [];
 }
+// Accélération douce, ralentissement près des changements de cap.
+function customerStep(c,dt,remaining){
+ const target=c.speed*Math.max(.7,Math.min(1,remaining/1.1));
+ c.motionSpeed+=(target-c.motionSpeed)*(1-Math.exp(-3.5*dt));
+ return Math.min(remaining,Math.max(.18,c.motionSpeed)*dt);
+}
+function faceWalkingCustomer(c,dx,dz,dt){
+ if(Math.hypot(dx,dz)<.001)return;
+ const target=Math.atan2(-dx,-dz);
+ const delta=Math.atan2(Math.sin(target-c.group.rotation.y),Math.cos(target-c.group.rotation.y));
+ c.group.rotation.y+=delta*(1-Math.exp(-4.2*dt));
+}
 // Navigation réécrite : suivi de grille, arrivée réelle et récupération des impasses.
 function walk(c,t,dt){
  if(!t)return false;
@@ -6462,9 +6474,9 @@ function walk(c,t,dt){
    if(t.z<12.55){p.x=0;p.z=12.35;c.navTarget=null;c.navRoute=null;return false;}
    return true;
   }
-  const step=Math.min(c.speed*dt,dist);
+  const step=customerStep(c,dt,dist);
   const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
-  if(!blocked(nx,nz,.24)){p.x=nx;p.z=nz;c.walkTime+=step*5.5;c.walkingRecently=.24;faceNpc(c.group,dx,dz,dt*.65);}
+  if(!blocked(nx,nz,.24)){p.x=nx;p.z=nz;c.walkTime+=step*5.5;c.walkingRecently=.24;faceWalkingCustomer(c,dx,dz,dt);}
   return false;
  }
 
@@ -6490,7 +6502,7 @@ function walk(c,t,dt){
   return Math.hypot(p.x-t.x,p.z-t.z)<.4;
  }
  const w=route[c.navIndex],dx=w.x-p.x,dz=w.z-p.z,dist=Math.hypot(dx,dz);
- const step=Math.min(c.speed*dt,dist);
+ const step=customerStep(c,dt,dist);
  if(!step)return false;
  const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
  if(customerBlocked(nx,nz,.25)){
@@ -6499,7 +6511,7 @@ function walk(c,t,dt){
   return false;
  }
  p.x=nx;p.z=nz;c.stuckTime=0;
- faceNpc(c.group,dx,dz,dt*.65);
+ faceWalkingCustomer(c,dx,dz,dt);
  c.walkTime+=step*5.5;c.walkingRecently=.24;
  return false;
 }
@@ -7945,4 +7957,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.39 !");
+animate();toast("Business Empire Simulator V0.15.40 !");
