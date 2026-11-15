@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.63 — gestes de manutention au quai et en réserve
+// Business Empire Simulator V0.15.64 — gestes manutentionnaire principal et express synchronisé
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5103,6 +5103,11 @@ function startTruckArrival(){
  }
 }
 function updateDeliveryTruck(dt){
+ // Le camion part AVANT l'échéance de la commande, de sorte que
+ // l'arrivée au quai corresponde bien aux 5 s / 30 s annoncées.
+ if(deliveryTruckPhase==="absent"&&state.supplierOrders.some(o=>o.due-Date.now()<=6000)){
+  startTruckArrival();
+ }
  if(deliveryTruckPhase==="absent"){deliveryTruck.visible=false;return;}
  deliveryTruck.visible=true;
  if(deliveryTruckPhase==="arriving"){
@@ -5116,7 +5121,8 @@ function updateDeliveryTruck(dt){
   truckDoorLeft.rotation.y=-1.65*deliveryTruckProgress;
   truckDoorRight.rotation.y=1.65*deliveryTruckProgress;
   if(deliveryTruckProgress>=1)deliveryTruckPhase="parked";
- }else if(deliveryTruckPhase==="parked"&&!state.deliveryDock.length){
+ }else if(deliveryTruckPhase==="parked"&&!state.deliveryDock.length&&
+  !state.supplierOrders.some(o=>o.due-Date.now()<=6500)){
   deliveryTruckPhase="leaving";deliveryTruckProgress=0;
  }else if(deliveryTruckPhase==="leaving"){
   deliveryTruckProgress=Math.min(1,deliveryTruckProgress+dt/6);
@@ -5262,7 +5268,9 @@ let workerRoute=[],workerWaypoint=0,workerPhase="dock",workerCargo=null,workerWa
 let workerHandling="none",workerHandlingTime=0;
 function animateDockHandling(arms,group,carton,progress,baseY,baseZ){
  const lift=Math.sin(Math.PI*Math.max(0,Math.min(1,progress)));
- arms[0].rotation.x=arms[1].rotation.x=-.35-.60*lift;
+ // Les personnages regardent l'axe -Z : une rotation X positive
+ // avance les avant-bras, une rotation négative les envoie derrière.
+ arms[0].rotation.x=arms[1].rotation.x=.35+.60*lift;
  group.rotation.z=.045*lift;
  carton.position.y=baseY-.22*lift;
  carton.position.z=baseZ-.11*lift;
@@ -5623,8 +5631,8 @@ function updateWorker(dt){
     workerWalkClock+=dt*9;
     const stride=Math.sin(workerWalkClock)*.34;
     workerLeftLeg.rotation.x=stride;workerRightLeg.rotation.x=-stride;
-    workerLeftArm.rotation.x=workerCargo?-.55:-stride*.6;
-    workerRightArm.rotation.x=workerCargo?-.55:stride*.6;
+    workerLeftArm.rotation.x=workerCargo?.55:-stride*.6;
+    workerRightArm.rotation.x=workerCargo?.55:stride*.6;
    },stop,3.2);
    if(arrived)workerBreakJourney=null;
   }else stop();
@@ -5637,7 +5645,17 @@ function updateWorker(dt){
   if(workerHandling!=="none"){
    workerHandlingTime+=dt;
    animateDockHandling([workerLeftArm,workerRightArm],workerGroup,workerCarton,Math.min(1,workerHandlingTime/.7),1.05,-.45);
-   if(workerWait<=0){workerHandling="none";workerHandlingTime=0;stop();}
+   if(workerWait<=0){
+    if(workerHandling==="drop"&&workerCargo){
+     const p=catalog.find(p=>p.id===workerCargo.id);
+     if(p){
+      const boxes=storeDockBatch(p,workerCargo.qty);
+      if(boxes)toast("Manutentionnaire · "+boxes+" carton(s) de "+p.name+" rangés");
+     }
+     workerCargo=null;workerCarton.visible=false;sync();refreshDeliveryDock();
+    }
+    workerHandling="none";workerHandlingTime=0;stop();
+   }
   }
   return;
  }
@@ -5665,20 +5683,17 @@ function updateWorker(dt){
    workerWalkClock+=Math.min(step,dist)*5.3;
    const stride=Math.sin(workerWalkClock)*.34;
    workerLeftLeg.rotation.x=stride;workerRightLeg.rotation.x=-stride;
-   workerLeftArm.rotation.x=workerCargo?-.55:-stride*.6;
-   workerRightArm.rotation.x=workerCargo?-.55:stride*.6;
+   workerLeftArm.rotation.x=workerCargo?.55:-stride*.6;
+   workerRightArm.rotation.x=workerCargo?.55:stride*.6;
   }else stop();
  }
  workerCarton.visible=!!workerCargo;
  if(workerWaypoint<workerRoute.length)return;
  workerRoute=[];workerWait=.7;
- if(workerPhase==="storage"&&workerCargo){workerHandling="drop";workerHandlingTime=0;
-  const p=catalog.find(p=>p.id===workerCargo.id);
-  if(p){
-   const boxes=storeDockBatch(p,workerCargo.qty);
-   if(boxes)toast("Manutentionnaire · "+boxes+" carton(s) de "+p.name+" rangés");
-  }
-  workerCargo=null;workerCarton.visible=false;sync();refreshDeliveryDock();
+ if(workerPhase==="storage"&&workerCargo){
+  // Le colis reste dans les mains pendant la dépose et est rangé
+  // à l'issue du geste, sans modifier les quantités transférées.
+  workerHandling="drop";workerHandlingTime=0;
  }
 }
 function refreshDeliveryDock(){
@@ -8402,4 +8417,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.63 !");
+animate();toast("Business Empire Simulator V0.15.64 !");
