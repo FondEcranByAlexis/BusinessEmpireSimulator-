@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.58 — cycle de rangement fiable et orientation
+// Business Empire Simulator V0.15.59 — correction de l'arrêt en réserve
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6727,7 +6727,7 @@ const teamUnits=Object.entries(STAFF_PLANS).flatMap(([role,plan])=>plan.levels.m
   role==="shelf"?[12.3+(index%3)*.58,4.8+Math.floor(index/3)*.7]:
   [index%2?1.3:-1.3,7.4-index*.65];
  return {role,id:role+(index+1),name:plan.label+" "+(index+1),level,wage:plan.wage,
-  ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:role==="security"?index*3.5:index*.44,patrol:role==="security"?index*2:index,cargo:null,target:null,placingTimer:0,placingStarted:false};
+  ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:role==="security"?index*3.5:index*.44,patrol:role==="security"?index*2:index,cargo:null,target:null,placingTimer:0,placingStarted:false,jobRetry:new Map(),jobClock:0};
 }));
 const SHELF_TEAMS={cold:"Frais et surgelés",dry:"Produits secs et informatique"};
 const shelfRoster=teamUnits.filter(unit=>unit.role==="shelf");
@@ -6871,11 +6871,27 @@ function walkTeamRoute(unit,dt,speed){
  unit.arms[1].rotation.x=unit.cargo?.70:swing*.65;
 }
 function teamRouteTo(unit,point){
- unit.route=staffRoute(unit.group,point);
- return unit.route.length>0;
+ const distance=Math.hypot(unit.group.position.x-point[0],unit.group.position.z-point[1]);
+ // Être déjà devant la réserve ou le rayon correspond à un trajet réussi.
+ // Auparavant, [] signifiait toujours échec et annulait la prise du carton.
+ if(distance<.55&&!blocked(point[0],point[1],.22)){
+  unit.route=[];return true;
+ }
+ const route=staffRoute(unit.group,point);
+ if(!route.length)return false;
+ unit.route=route;return true;
 }
 function teamRouteToShelf(unit,product){
- for(const point of stockerShelfAccessPoints(product))
+ const points=stockerShelfAccessPoints(product);
+ // Étendre les accès uniquement si les positions initiales sont injoignables.
+ const z=product.z??1;
+ for(const radius of [2.75,3.25]){
+  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[.7,.7],[-.7,.7],[.7,-.7],[-.7,-.7]]){
+   const x=product.x+dx*radius,pz=z+dz*radius;
+   if(!blocked(x,pz,.22))points.push([x,pz]);
+  }
+ }
+ for(const point of points)
   if(teamRouteTo(unit,point))return true;
  return false;
 }
@@ -6927,14 +6943,19 @@ function updateTeamJob(unit){
   const product=unit.target;unit.target=null;
   const quantity=Math.min(SHELF_CARRY_LIMIT*BOX_UNITS,productStoredUnits(product),shelfCapacity(product)-state.inventory[product.id].shelf);
   if(quantity<=0)return;
-  // Vérifier d'abord l'accès physique au rayon, avant de sortir le stock.
-  if(!teamRouteToShelf(unit,product))return;
+  // Ne retirer aucun article si le rayon reste physiquement inaccessible.
+  if(!teamRouteToShelf(unit,product)){
+   unit.jobRetry.set(product.id,unit.jobClock+18);
+   return;
+  }
   removeReserveUnits(state.inventory[product.id],quantity);
   unit.cargo={product,quantity};unit.placingStarted=false;unit.placingTimer=0;save();return;
  }
  const team=shelfTeam(unit);
  const product=unlockedProducts().filter(p=>(storageKind(p)==="cold"?"cold":"dry")===team&&
-  state.inventory[p.id].shelf<shelfCapacity(p)&&productStoredUnits(p)>0&&stockerCargo!==p.id&&!shelfJobTaken(p))
+  state.inventory[p.id].shelf<shelfCapacity(p)&&productStoredUnits(p)>0&&
+  (unit.jobRetry.get(p.id)||0)<=unit.jobClock&&
+  stockerCargo!==p.id&&!shelfJobTaken(p))
   .sort((a,b)=>state.inventory[a.id].shelf-state.inventory[b.id].shelf)[0];
  if(product&&teamRouteTo(unit,storageWorkPoint(product)))unit.target=product;
 }
@@ -6943,6 +6964,7 @@ function expandedTeamShift(unit){
 }
 function updateExpandedTeam(dt){
  for(const unit of teamUnits){
+  unit.jobClock+=dt;
   const active=!!state.management.team?.[unit.id]&&playerLevel()>=unit.level&&employeeWorking(expandedTeamShift(unit));
   unit.group.visible=active;unit.carton.visible=!!unit.cargo;
   if(!active||unit===assignedGuard)continue;
@@ -8211,4 +8233,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.58 !");
+animate();toast("Business Empire Simulator V0.15.59 !");
