@@ -5873,16 +5873,28 @@ window.addEventListener("blur",()=>{
 });
 // Collisions des façades de FBA City. Portes centrales libres, murs solides.
 function cityWallBlocked(x,z,r){
- if(z<CITY_BOUNDS.minZ||z>CITY_BOUNDS.maxZ||x<CITY_BOUNDS.minX||x>CITY_BOUNDS.maxX)return false;
- const b=cityBuildingAt(x,z);
- if(!b)return false;
- const dx=Math.abs(x-b.x),dz=Math.abs(z-b.z);
- const nearSide=dx>b.w/2-.55-r;
- const nearBack=z>b.z&&dz>b.d/2-.55-r;
- const nearFront=z<b.z&&dz>b.d/2-.55-r;
- // Baie de 2,60 m au centre de la façade avant.
- if(nearFront&&dx<1.30-r)return nearSide||nearBack||fbaCity.entranceClosedAt(x,z);
- return nearSide||nearBack||nearFront;
+ if(z<CITY_BOUNDS.minZ-r||z>CITY_BOUNDS.maxZ+r||
+    x<CITY_BOUNDS.minX-r||x>CITY_BOUNDS.maxX+r)return false;
+ // Tester aussi les façades depuis l'extérieur : cityBuildingAt() renvoie
+ // null hors de l'immeuble et laissait auparavant la caméra pénétrer les murs.
+ const col=Math.floor((x-CITY_BOUNDS.minX)/100);
+ const row=Math.floor((z-CITY_BOUNDS.minZ)/100);
+ for(let dc=-1;dc<=1;dc++)for(let dr=-1;dr<=1;dr++){
+  for(const b of cityBuildingsForBlock(col+dc,row+dr)){
+   const dx=Math.abs(x-b.x),dz=Math.abs(z-b.z);
+   const halfX=b.w/2,halfZ=b.d/2;
+   if(dx>halfX+r+.20||dz>halfZ+r+.20)continue;
+   const side=dx>=halfX-.18-r;
+   const back=z>b.z&&dz>=halfZ-.18-r;
+   const front=z<b.z&&dz>=halfZ-.18-r;
+   if(!side&&!back&&!front)continue;
+   // Porte centrale libre uniquement lorsqu'elle a été ouverte avec E.
+   const inDoor=front&&!side&&dx<1.30-r;
+   if(inDoor&&!fbaCity.entranceClosedAt(x,z))continue;
+   return true;
+  }
+ }
+ return false;
 }
 function blocked(x,z,r=.4){
  // Entrée clientèle au sud (z positif), quai logistique à l'arrière (z négatif).
