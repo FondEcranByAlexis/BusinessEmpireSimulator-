@@ -5069,7 +5069,7 @@ const dockMark=cube(25.65,.105,-23.0,4.8,.018,.09,0xfacc15);
 // Camion de livraison : transformation visuelle indépendante de l'inventaire.
 const deliveryTruck=new THREE.Group();scene.add(deliveryTruck);
 const TRUCK_PARK_Z=-29,TRUCK_START_Z=-47;
-let deliveryTruckPhase="absent",deliveryTruckProgress=0;
+let deliveryTruckPhase="absent",deliveryTruckProgress=0,deliveryTruckArrivalSeconds=6;
 const truckMaterial=(color,metalness=.05)=>new THREE.MeshStandardMaterial({color,roughness:.68,metalness});
 function truckPart(parent,x,y,z,w,h,d,color){
  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),truckMaterial(color));
@@ -5098,6 +5098,8 @@ deliveryTruck.visible=false;
 function startTruckArrival(){
  if(deliveryTruckPhase==="absent"||deliveryTruckPhase==="leaving"){
   deliveryTruckPhase="arriving";deliveryTruckProgress=0;
+  const due=Math.min(...state.supplierOrders.map(o=>o.due-Date.now()));
+  deliveryTruckArrivalSeconds=Number.isFinite(due)?Math.max(.75,Math.min(6,due/1000)):6;
   deliveryTruck.position.z=TRUCK_START_Z;
   truckDoorLeft.rotation.y=truckDoorRight.rotation.y=0;
  }
@@ -5105,13 +5107,13 @@ function startTruckArrival(){
 function updateDeliveryTruck(dt){
  // Le camion part AVANT l'échéance de la commande, de sorte que
  // l'arrivée au quai corresponde bien aux 5 s / 30 s annoncées.
- if(deliveryTruckPhase==="absent"&&state.supplierOrders.some(o=>o.due-Date.now()<=6000)){
+ if((deliveryTruckPhase==="absent"||deliveryTruckPhase==="leaving")&&state.supplierOrders.some(o=>o.due-Date.now()<=6000)){
   startTruckArrival();
  }
  if(deliveryTruckPhase==="absent"){deliveryTruck.visible=false;return;}
  deliveryTruck.visible=true;
  if(deliveryTruckPhase==="arriving"){
-  deliveryTruckProgress=Math.min(1,deliveryTruckProgress+dt/6);
+  deliveryTruckProgress=Math.min(1,deliveryTruckProgress+dt/deliveryTruckArrivalSeconds);
   const t=deliveryTruckProgress;
   const ease=t*t*(3-2*t);
   deliveryTruck.position.z=TRUCK_START_Z+(TRUCK_PARK_Z-TRUCK_START_Z)*ease;
