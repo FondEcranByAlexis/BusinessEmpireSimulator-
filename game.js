@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.66 — raccordement et accès des réserves
+// Business Empire Simulator V0.15.67 — jonction physique au couloir logistique
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3271,7 +3271,7 @@ for(const def of rebuiltStorageDefinitions){
 // Galerie couverte : liaison physique continue à partir du couloir de
 // livraison existant (x 24..29.7), jusqu'aux portes des trois réserves.
 const reconstructedLink=new THREE.Group();rebuiltStorageShell.add(reconstructedLink);
-const rebuiltGallery={minX:27.5,maxX:78,minZ:-13.1,maxZ:-6.75};
+const rebuiltGallery={minX:26.65,maxX:78,minZ:-13.1,maxZ:-6.75};
 const galleryCenterX=(rebuiltGallery.minX+rebuiltGallery.maxX)/2;
 const galleryWidth=rebuiltGallery.maxX-rebuiltGallery.minX;
 const galleryDepth=rebuiltGallery.maxZ-rebuiltGallery.minZ;
@@ -3279,8 +3279,9 @@ const galleryCenterZ=(rebuiltGallery.minZ+rebuiltGallery.maxZ)/2;
 rebuiltPart(reconstructedLink,galleryCenterX,-.015,galleryCenterZ,galleryWidth,.08,galleryDepth,rebuiltStorageMaterial.floor);
 rebuiltPart(reconstructedLink,galleryCenterX,5.1,galleryCenterZ,galleryWidth,.16,galleryDepth,rebuiltStorageMaterial.wall);
 rebuiltPart(reconstructedLink,galleryCenterX,2.5,rebuiltGallery.minZ,galleryWidth,5,.2,rebuiltStorageMaterial.wall,true);
-// Le raccord au bâtiment existant ne reçoit aucun mur ni collision.
-// Sa limite gauche chevauche le couloir extérieur x 24..29.7.
+// La galerie pénètre dans le couloir jusqu'à x=26.65 pour obtenir
+// un véritable raccord, en passant par la nouvelle baie x=27.2.
+ // Le seuil et l'ouverture restent sans obstacle de collision.
 for(const x of [28.8,37.1,54.1,71.1])
  rebuiltPart(reconstructedLink,x,4.87,-10.0,2.5,.045,.55,zonePanel("logistics"));
 // L'inventaire et les accès aux anciennes réserves restent opérationnels
@@ -5012,9 +5013,14 @@ cube(24.1,4.2,-11.3,.25,1.6,2.6,0xe2e8f0); // linteau stockage
 // Porte de la salle de pause inchangée (z=-6, ouverture -7.3..-4.7).
 cube(24.1,2.5,-1.6,.25,5,6.2,0xe2e8f0,true);
 cube(24.1,4.2,-6,.25,1.6,2.6,0xe2e8f0);
-// V0.15.11 : annulation de l'ouverture erronée du mur EST (repère rouge).
-// Mur continu x=27.2, sans porte, huisserie, seuil ni panneau.
-cube(27.2,2.5,-8.3,.25,5,31.4,0xe2e8f0,true);
+// V0.15.67 : liaison entre le couloir existant et les nouvelles réserves.
+// Ouvrir uniquement une baie de 3,2 m dans le mur est à X=27,2.
+// Le reste de ce mur garde ses collisions et son apparence.
+cube(27.2,2.5,-18.1,.25,5,11.8,0xe2e8f0,true); // z -24 à -12.2
+cube(27.2,2.5,-.8,.25,5,16.4,0xe2e8f0,true); // z -9 à 7.4
+cube(27.2,4.2,-10.6,.25,1.6,3.2,0xe2e8f0); // linteau sans collision
+for(const z of [-12.2,-9.0])
+ cube(27.2,1.66,z,.12,3.3,.12,0x64748b);
 // Nouvelle entrée de stockage dans le mur OUEST (repère vert).
 // La porte demeure fermée jusqu'à la reconstruction des réserves annexes.
 for(const z of [-12.6,-10.0])cube(24.24,1.65,z,.095,3.3,.10,0x64748b);
@@ -8517,4 +8523,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.66 !");
+animate();toast("Business Empire Simulator V0.15.67 !");
