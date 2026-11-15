@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.81 — réactions aux prix et ruptures mieux visibles
+// Business Empire Simulator V0.15.82 — déclenchement vérifiable des réactions aux prix
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1202,6 +1202,13 @@ function showPrices(){
   const a=state.inventory[p.id];paragraph(p.name+" : "+a.price+" €");
   button(panel,"− 1 €",()=>{a.price=Math.max(1,a.price-1);updatePriceLabel(p);save();showPrices();});
   button(panel,"+ 1 €",()=>{a.price++;updatePriceLabel(p);save();showPrices();});
+  // V0.15.82 : créer une situation de test réellement trop chère.
+  // Le prix est modifié explicitement par le testeur, jamais automatiquement.
+  if(DEV_MODE&&a.shelf>0)button(panel,"TEST · Prix excessif (+60 % du prix normal)",()=>{
+   a.price=Math.max(a.price,Math.ceil(p.price*1.6));
+   updatePriceLabel(p);save();showPrices();
+   toast(p.name+" : "+euro(a.price)+" · observe les prochains clients de ce rayon");
+  });
  });
 }
 $("restock").textContent="Commander";
@@ -6770,7 +6777,11 @@ function makeCustomer(){
  // V0.15.76 — liste de courses et visite progressive des rayons voisins.
  const available=unlockedProducts();
  const stocked=available.filter(p=>(state.inventory[p.id]?.shelf||0)>0);
- const firstPool=stocked.length&&Math.random()<.60?stocked:available;
+ // En mode test seulement, visiter plus souvent les produits réellement
+ // surtaxés et disponibles. La décision d'achat reste inchangée.
+ const overpriced=DEV_MODE?stocked.filter(p=>state.inventory[p.id].price>p.price*1.5):[];
+ const firstPool=overpriced.length&&Math.random()<.8?overpriced:
+  stocked.length&&Math.random()<.60?stocked:available;
  const first=firstPool[Math.floor(Math.random()*firstPool.length)];
  const count=1+Math.floor(Math.random()*4);
  const nearby=first?available.filter(p=>p!==first&&Math.hypot(p.x-first.x,p.z-first.z)<15):[];
@@ -8685,4 +8696,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.81 !");
+animate();toast("Business Empire Simulator V0.15.82 !");
