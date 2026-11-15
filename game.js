@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.77 — capacité électronique cohérente en mode test
+// Business Empire Simulator V0.15.78 — extension électronique réellement activée en mode test
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -567,6 +567,12 @@ if(DEV_MODE&&state.construction){
  state.upgrades[state.construction.target]=true;
  state.construction=null;
 }
+// Les niveaux forcés doivent activer les vrais équipements électroniques de test.
+// Ne touche jamais la sauvegarde normale, qui est distincte.
+if(DEV_MODE&&Number.isFinite(state.devLevel)&&state.devLevel>=6){
+ state.upgrades.store1=true;
+ state.upgrades.store2=true;
+}
 // Les niveaux déjà acquis ne déclenchent aucune notification rétroactive.
 if(!Number.isInteger(state.lastNotifiedLevel))state.lastNotifiedLevel=playerLevel();
 state.progressionVersion=3;
@@ -962,9 +968,10 @@ function stockCapacityStatus(kind,includeCart=true){
  const limit=storageLimit(kind),stored=storageBoxes(kind),incoming=pendingTotal(kind),cart=includeCart?cartCount(kind):0;
  const used=stored+incoming+cart,free=Math.max(0,limit-used);
  const unavailable=limit<=0;
-  const full=!unavailable&&free===0,nearFull=!unavailable&&!full&&free<=Math.max(2,Math.ceil(limit*.15));
+ const full=!unavailable&&free===0,nearFull=!unavailable&&!full&&free<=Math.max(2,Math.ceil(limit*.15));
+ const reservedByDeliveries=!unavailable&&full&&stored<limit&&incoming+cart>0;
  return {kind,limit,stored,incoming,cart,used,free,
-  status:unavailable?"NON DÉBLOQUÉ":full?"STOCK COMPLET":nearFull?"PRESQUE PLEIN":"DISPONIBLE",
+  status:unavailable?"NON DÉBLOQUÉ":reservedByDeliveries?"PLACES RÉSERVÉES":full?"STOCK COMPLET":nearFull?"PRESQUE PLEIN":"DISPONIBLE",
   color:unavailable?"#94a3b8":full?"#ef4444":nearFull?"#f59e0b":"#22c55e"};
 }
 function renderStockCapacity(parent,includeCart=true){
@@ -992,7 +999,9 @@ function renderStockCapacity(parent,includeCart=true){
   Object.assign(details.style,{fontSize:"12px",margin:"8px 0 0",color:"#cbd5e1"});container.appendChild(details);
   if(data.limit>0&&data.free===0){
    const warning=document.createElement("p");
-   warning.textContent=storageName(kind)+" pleine : impossible d'y ajouter de nouveaux cartons. Les autres zones restent accessibles.";
+   warning.textContent=data.stored<data.limit&&data.incoming+data.cart>0?
+    storageName(kind)+" : "+(data.incoming+data.cart)+" place(s) réservée(s) aux commandes, transports ou panier fournisseur. Libère ces réservations avant une nouvelle commande.":
+    storageName(kind)+" pleine : impossible d'y ajouter de nouveaux cartons. Les autres zones restent accessibles.";
    Object.assign(warning.style,{fontSize:"12px",fontWeight:"bold",color:"#fca5a5",margin:"8px 0 0"});
    container.appendChild(warning);
   }
@@ -1284,13 +1293,21 @@ function showDevTools(){
  paragraph("Vol : ZQSD/WASD pour avancer · Espace pour monter · Maj gauche pour descendre · souris pour regarder · V pour activer/désactiver.");
  openPanel("FBA GAMES — MODE TEST");
  paragraph("Sauvegarde de test indépendante. Ces commandes ne modifient pas ta partie normale.");
+ const electronicCapacity=stockCapacityStatus("electronics",false);
+ paragraph("DIAGNOSTIC ÉLECTRONIQUE · Stockés : "+electronicCapacity.stored+
+  " · En commandes/transit : "+electronicCapacity.incoming+
+  " · Capacité : "+electronicCapacity.limit+
+  " · Libres : "+electronicCapacity.free+
+  " · Extension : "+(state.upgrades.store2?"active":"non débloquée"));
  paragraph("Niveau de test : "+playerLevel()+" | Argent : "+euro(state.money));
  paragraph(Number.isFinite(state.devLevel)?"Niveau forcé pour le test":"Progression PS · PL · PM");
  const selector=inputNumber("Choisis un niveau entre 1 et "+MAX_LEVEL,playerLevel(),1,MAX_LEVEL);
  button(panel,"Appliquer le niveau",()=>{
   const level=Number(selector.value);
   if(!Number.isInteger(level)||level<1||level>MAX_LEVEL){toast("Saisis un niveau de 1 à "+MAX_LEVEL);return;}
-  state.devLevel=level;state.lastNotifiedLevel=level;sync();showDevTools();toast("Niveau de test : "+level);
+  state.devLevel=level;state.lastNotifiedLevel=level;
+  if(level>=6){state.upgrades.store1=true;state.upgrades.store2=true;}
+  sync();showDevTools();toast("Niveau de test : "+level);
  });
  if(Number.isFinite(state.devLevel))button(panel,"Reprendre la progression par les points",()=>{
   delete state.devLevel;
@@ -8634,4 +8651,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.77 !");
+animate();toast("Business Empire Simulator V0.15.78 !");
