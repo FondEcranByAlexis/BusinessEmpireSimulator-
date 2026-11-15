@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.44 — liaison continue parking et FBA City
+// Business Empire Simulator V0.15.45 — réassort progressif des rayons
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5219,7 +5219,7 @@ function stockerNeeds(){
 }
 function stockerTaskLabel(){
  if(employeeBreakLabel(stockerBreakJourney))return employeeBreakLabel(stockerBreakJourney);
- if(stockerCargo){const p=catalog.find(p=>p.id===stockerCargo);return (stockerPhase==="placing"?"Mise en rayon":"Réassort")+(p?" · "+p.name:"");}
+ if(stockerCargo){const p=catalog.find(p=>p.id===stockerCargo);return (stockerPhase==="placing"?"Mise en rayon":"Réassort")+(p?" · "+p.name:"")+(stockerPhase==="placing"?" · "+stockerUnits+" unité(s) à placer":"");}
  if(stockerPhase==="idle-return")return "Retour vers la réserve";
  const waiting=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&(state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)).length;
  return waiting?waiting+" rayon(s) à réapprovisionner":"Surveillance des stocks";
@@ -5302,10 +5302,11 @@ function updateStocker(dt){
  if(stockerTimer>0){
   stockerTimer-=dt;
   if(stockerPhase==="placing"){
-   // Le rayon se situe devant l'employé (axe -Z) : tendre les mains vers l'avant.
-   stockerArmA.rotation.x=stockerArmB.rotation.x=.75;
+   // Chaque geste correspond à un petit lot réellement rangé sur le rayon.
+   const reach=.25+.65*Math.sin(Math.PI*Math.max(0,Math.min(1,1-stockerTimer/.4)));
+   stockerArmA.rotation.x=reach;stockerArmB.rotation.x=.25+reach*.65;
    const p=catalog.find(p=>p.id===stockerCargo);
-   faceNpc(stockerGroup,p.x-stockerGroup.position.x,p.z-stockerGroup.position.z,dt);
+   if(p)faceNpc(stockerGroup,p.x-stockerGroup.position.x,p.z-stockerGroup.position.z,dt);
   }else stop();
   return;
  }
@@ -5326,11 +5327,23 @@ function updateStocker(dt){
      }
     }
    }else if(stockerPhase==="shelf"){
-    stockerPhase="placing";stockerTimer=.85;
+    stockerPhase="placing";stockerTimer=.4;
    }else if(stockerPhase==="placing"){
-    const p=catalog.find(x=>x.id===stockerCargo),a=state.inventory[p.id];
-    const qty=Math.max(0,Math.min(stockerUnits,shelfCapacity(p)-a.shelf));
-    a.shelf+=qty;a.reserve+=stockerUnits-qty;
+    const p=catalog.find(x=>x.id===stockerCargo);
+    if(p){
+     const a=state.inventory[p.id];
+     // Un lot à la fois : affichage physique synchronisé avec le stock.
+     const qty=Math.max(0,Math.min(2,stockerUnits,shelfCapacity(p)-a.shelf));
+     a.shelf+=qty;
+     stockerUnits-=qty;
+     if(qty)sync();
+     if(stockerUnits>0&&a.shelf<shelfCapacity(p)&&qty>0){
+      stockerTimer=.4;
+      return;
+     }
+     // Si le rayon s'est rempli pendant le trajet, restituer le surplus.
+     if(stockerUnits>0)a.reserve+=stockerUnits;
+    }
     stockerCargo=null;stockerUnits=0;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;sync();
    }else stockerPhase="idle";
    return;
@@ -7993,4 +8006,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.44 !");
+animate();toast("Business Empire Simulator V0.15.45 !");
