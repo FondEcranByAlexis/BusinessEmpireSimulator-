@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.84 — conversations clients, joueur et employés
+// Business Empire Simulator V0.15.85 — clients sollicitant spontanément le joueur
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6708,6 +6708,33 @@ function movePlayer(dt){
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
 // Pause temporaire d'échange : aucune commande d'employé n'est effacée.
 const staffCustomerChat={stocker:0,worker:0};
+// V0.15.85 : une seule demande spontanée active, avec expiration automatique.
+let activeCustomerHelp=null,customerHelpCooldown=6;
+function updateCustomerHelp(c,dt){
+ if(c.helpRequest>0){
+  c.helpRequest=Math.max(0,c.helpRequest-dt);
+  if(!c.helpRequest){
+   if(activeCustomerHelp===c)activeCustomerHelp=null;
+   c.helpProduct=null;
+  }
+  return true;
+ }
+ if(activeCustomerHelp||customerHelpCooldown>0||c.helpAsked||c.playerConversation||
+    c.staffPause>0||c.phase!=="shopping"||c.paid||seatedAtCheckout||
+    panel.style.display!=="none"||checkoutUI.style.display!=="none"||
+    camera.position.z>10||Math.abs(camera.position.x)>19)return false;
+ const d=Math.hypot(camera.position.x-c.group.position.x,camera.position.z-c.group.position.z);
+ if(d>4.5||d<1.0||Math.random()>dt*.24)return false;
+ const next=c.route.slice(c.waypoint).find(w=>w.shop);
+ const product=next&&catalog.find(p=>p.id===next.shop);
+ if(!product)return false;
+ c.helpAsked=true;c.helpProduct=product.id;c.helpRequest=13;
+ activeCustomerHelp=c;customerHelpCooldown=30;
+ const message="Excusez-moi, pourriez-vous m’aider à trouver "+product.name+" ?";
+ toast("Client : "+message+" · Approche-toi et touche « Répondre au client »");
+ customerVoice(c,"helpPlayer",[message],9);
+ return true;
+}
 function nearestTalkingCustomer(){
  if(seatedAtCheckout||panel.style.display!=="none"||checkoutUI.style.display!=="none")return null;
  let nearest=null,distance=2.65;
@@ -6716,12 +6743,18 @@ function nearestTalkingCustomer(){
   const d=Math.hypot(camera.position.x-c.group.position.x,camera.position.z-c.group.position.z);
   if(d<distance){distance=d;nearest=c;}
  }
+ // La personne qui appelle à l'aide passe avant une conversation ordinaire.
+ if(activeCustomerHelp?.helpRequest>0&&!activeCustomerHelp.paid){
+  const c=activeCustomerHelp,d=Math.hypot(camera.position.x-c.group.position.x,c.group.position.z-camera.position.z);
+  if(d<3.3)return c;
+ }
  return nearest;
 }
 function showCustomerConversation(){
  const c=nearestTalkingCustomer();
  if(!c){toast("Approche-toi d’un client disponible");return;}
  c.playerConversation=true;
+ if(c.helpRequest>0){c.helpRequest=0;if(activeCustomerHelp===c)activeCustomerHelp=null;}
  showCustomerConversationChoices(c);
 }
 function showCustomerConversationChoices(c){
@@ -6729,8 +6762,10 @@ function showCustomerConversationChoices(c){
  c.playerConversation=true;
  openPanel("DISCUSSION — CLIENT");
  paragraph("Parle au client en sélectionnant une question. Il répond avec la voix française du jeu.");
- const product=c.productId&&catalog.find(p=>p.id===c.productId)||
+ const product=c.helpProduct&&catalog.find(p=>p.id===c.helpProduct)||
+  c.productId&&catalog.find(p=>p.id===c.productId)||
   c.route.slice(c.waypoint).map(p=>catalog.find(item=>item.id===p.shop)).find(Boolean);
+ if(c.helpProduct&&product)paragraph("Demande du client : Où se trouve "+product.name+" ?");
  const answer=message=>{
   openPanel("CLIENT — RÉPONSE");
   paragraph("Client : "+message);speakDialogue(message,"customer");
@@ -6739,7 +6774,11 @@ function showCustomerConversationChoices(c){
  };
  button(panel,"Bonjour, besoin d’aide ?",()=>answer(product?"Bonjour ! Je cherche "+product.name+".":"Bonjour ! Je regarde les articles, merci."));
  button(panel,"Vous cherchez un produit ?",()=>answer(product?"Oui, je cherche "+product.name+".":"Pas de produit précis, merci."));
- if(product)button(panel,"Indiquer le rayon",()=>answer("Merci ! Je vais regarder du côté de "+product.name+"."));
+ if(product)button(panel,"Indiquer le rayon",()=>answer(
+  (state.inventory[product.id]?.shelf||0)>0?
+   "Merci beaucoup ! Je vais chercher "+product.name+" dans ce rayon.":
+   "Ah d’accord, il n’y en a plus en rayon. Merci de m’avoir prévenu."
+ ));
  button(panel,"Tout se passe bien ?",()=>answer(c.missingProducts?"Je n’ai pas trouvé tout ce que je voulais.":"Oui, tout va bien, merci !"));
  button(panel,"Bonne journée !",()=>answer("Merci, bonne journée à vous aussi !"));
  button(panel,"Terminer",()=>{c.playerConversation=false;panel.style.display="none";});
@@ -6874,7 +6913,7 @@ function makeCustomer(){
 }
 function updateCustomerVisual(c,dt){
  c.visualClock+=dt;
- if(c.playerConversation||c.staffPause>0){
+ if(c.playerConversation||c.staffPause>0||c.helpRequest>0){
   c.l.rotation.x=c.r.rotation.x=0;
   c.armLeft.rotation.x=-.05;c.armRight.rotation.x=.08;
   c.head.rotation.y=.14*Math.sin(c.visualClock*2);
@@ -7148,6 +7187,7 @@ function walk(c,t,dt){
  return false;
 }
 function removeCustomer(c){
+ if(activeCustomerHelp===c)activeCustomerHelp=null;
  scene.remove(c.group);
  const resources=new Set();
  c.group.traverse(o=>{
@@ -8169,10 +8209,12 @@ function sendToExit(c){
  c.route=[{x:0,z:8.5},EXIT_GATE,{x:0,z:12.5}];
 }
 function updateCustomers(dt){
+ customerHelpCooldown=Math.max(0,customerHelpCooldown-dt);
  for(const c of [...customers]){
   if(c.playerConversation&&panel.style.display==="none")c.playerConversation=false;
   if(c.playerConversation){updateCustomerVisual(c,dt);continue;}
   if(c.staffPause>0){c.staffPause=Math.max(0,c.staffPause-dt);updateCustomerVisual(c,dt);continue;}
+  if(updateCustomerHelp(c,dt)){updateCustomerVisual(c,dt);continue;}
   updateCustomerVisual(c,dt);
   if(c.phase==="waitingRegister"){
    assignOpenRegister(c);
@@ -8644,7 +8686,9 @@ function animate(){
  updateHandtruck();
  if(!paused&&ageOverlay.style.display==="none")updateDeliveryTruck(dt);
  handtruckButton.style.display=canUseHandtruck()?"block":"none";
- talkCustomerButton.style.display=nearestTalkingCustomer()?"block":"none";
+ const nearbyCustomer=nearestTalkingCustomer();
+ talkCustomerButton.textContent=nearbyCustomer?.helpRequest>0?"Répondre au client":"Parler au client";
+ talkCustomerButton.style.display=nearbyCustomer?"block":"none";
  checkoutRushButton.style.display=checkoutRush&&panel.style.display==="none"&&checkoutUI.style.display==="none"?"block":"none";
  surveillance.setDeskVisible(securityOpen());
  updateGalleryRendering();
@@ -8816,4 +8860,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.84 !");
+animate();toast("Business Empire Simulator V0.15.85 !");
