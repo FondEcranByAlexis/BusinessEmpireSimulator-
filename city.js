@@ -181,7 +181,7 @@ export function installCity({THREE,scene}){
   // Deux voitures par îlot : même allure et espacement d'un demi-tour de
   // circuit. Elles ne peuvent donc pas se dépasser ou se superposer.
   const speed=5+hash(Math.round(blockX),Math.round(blockZ))*2.5;
-  const circuitLength=4*(95.7-4.3);
+  const circuitLength=4*((95.7-4.3-2*3.2)+Math.PI*3.2/2);
   const phase=hash(Math.round(blockX),Math.round(blockZ),31)*circuitLength+
    carIndex*circuitLength/2;
   return {group,axis,speed,phase,originX:x,originZ:z,blockX,blockZ,lights:[]};
@@ -271,15 +271,33 @@ export function installCity({THREE,scene}){
     light.lamps.forEach((m,i)=>m.visible=i===which);
    }
    for(const c of item.traffic){
-    // Circuit fermé autour d'un îlot : virage à chaque coin, sans
-    // marche arrière ni téléportation en fin de parcours.
-    const min=4.3,max=95.7,length=max-min,lap=4*length;
-    const distance=((c.distance??c.phase)+trafficDt*c.speed)%lap;
-    let lx,lz,heading;
-    if(distance<length){lx=min+distance;lz=min;heading=-Math.PI/2;}
-    else if(distance<2*length){lx=max;lz=min+distance-length;heading=Math.PI;}
-    else if(distance<3*length){lx=max-(distance-2*length);lz=max;heading=Math.PI/2;}
-    else{lx=min;lz=max-(distance-3*length);heading=0;}
+    // Voie à droite, trajectoire arrondie et cap tangent à la route.
+    const min=4.3,max=95.7,radius=3.2;
+    const straight=max-min-2*radius,turn=Math.PI*radius/2;
+    const lap=4*(straight+turn);
+    const nextDistance=((c.distance??c.phase)+trafficDt*c.speed)%lap;
+    let distance=nextDistance,lx=min+radius,lz=min,dx=1,dz=0;
+    for(let side=0;side<4;side++){
+     if(distance<straight){
+      const v=distance;
+      if(side===0){lx=min+radius+v;lz=min;dx=1;dz=0;}
+      else if(side===1){lx=max;lz=min+radius+v;dx=0;dz=1;}
+      else if(side===2){lx=max-radius-v;lz=max;dx=-1;dz=0;}
+      else{lx=min;lz=max-radius-v;dx=0;dz=-1;}
+      break;
+     }
+     distance-=straight;
+     if(distance<turn){
+      const a=distance/radius;
+      if(side===0){lx=max-radius+radius*Math.sin(a);lz=min+radius-radius*Math.cos(a);dx=Math.cos(a);dz=Math.sin(a);}
+      else if(side===1){lx=max-radius+radius*Math.cos(a);lz=max-radius+radius*Math.sin(a);dx=-Math.sin(a);dz=Math.cos(a);}
+      else if(side===2){lx=min+radius-radius*Math.sin(a);lz=max-radius+radius*Math.cos(a);dx=-Math.cos(a);dz=-Math.sin(a);}
+      else{lx=min+radius-radius*Math.cos(a);lz=min+radius-radius*Math.sin(a);dx=Math.sin(a);dz=-Math.cos(a);}
+      break;
+     }
+     distance-=turn;
+    }
+    const heading=Math.atan2(-dx,-dz);
     const nextX=c.blockX+lx,nextZ=c.blockZ+lz;
     // Les voitures ne doivent pas traverser le joueur immobile.
     // Elles gardent leur position précédente tant que la zone est occupée.
@@ -289,7 +307,7 @@ export function installCity({THREE,scene}){
     const safetyRadius=2.55;
     const nearPlayer=Math.hypot(nextX-px,nextZ-pz)<safetyRadius;
     if(!nearPlayer){
-     c.distance=distance;
+     c.distance=nextDistance;
      c.group.position.x=nextX;
      c.group.position.z=nextZ;
      c.group.rotation.y=heading;
