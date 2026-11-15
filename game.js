@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.64 — gestes manutentionnaire principal et express synchronisé
+// Business Empire Simulator V0.15.65 — reconstruction des trois espaces de stockage
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3197,6 +3197,86 @@ logisticsWall(29.25,4.2,.25,9.6);
 // Porte de séparation ouverte vers le quai (passage libre pour le joueur).
 const logisticsDoor=cube(28.05,1.45,-3.35,2.4,2.9,.12,0x7c96aa);
 logisticsDoor.rotation.y=Math.PI/2;
+// V0.15.65 — Nouvelle plateforme logistique : construction indépendante
+// des anciennes extensions désactivées. Les emplacements d'inventaire restent
+// inchangés jusqu'à la migration des stocks et des trajets (étape suivante).
+const rebuiltStorageRooms=[],rebuiltStorageShelves=[];
+const rebuiltStorageShell=new THREE.Group();scene.add(rebuiltStorageShell);
+const rebuiltStorageMaterial={
+ floor:standardMaterial({color:0x9ca3af,roughness:.9}),
+ wall:standardMaterial({color:0xe2e8f0}),
+ metal:standardMaterial({color:0x64748b,metalness:.38,roughness:.55}),
+};
+function rebuiltPart(parent,x,y,z,w,h,d,material,solid=false){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+ m.position.set(x,y,z);parent.add(m);
+ if(solid){
+  const hit={minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2};
+  colliders.push(hit);rebuiltStorageRooms.push(hit);
+ }
+ return m;
+}
+const rebuiltStorageDefinitions=[
+ {kind:"dry",x:37.1,front:-7,color:0xd4b485,title:"RÉSERVE SÈCHE"},
+ {kind:"cold",x:54.1,front:-7,color:0x9ccfdf,title:"CHAMBRE FROIDE"},
+ {kind:"electronics",x:71.1,front:-7,color:0xb5a7db,title:"RÉSERVE ÉLECTRONIQUE"}
+];
+// Réserver une étagère 3 niveaux par référence, sans mélanger les produits.
+// Les portes et les allées restent dégagées. Les quantités en sauvegarde ne
+// sont pas modifiées par cette reconstruction purement géométrique.
+const rebuiltStorageLayouts={};
+for(const def of rebuiltStorageDefinitions){
+ const products=catalog.filter(p=>storageKind(p)===def.kind);
+ const length=Math.max(18,Math.ceil(products.length/4)*2.05+6);
+ const centerZ=def.front+length/2;
+ const width=13.6;
+ const body=new THREE.Group();rebuiltStorageShell.add(body);
+ rebuiltStorageLayouts[def.kind]={...def,products,body,length,references:products.length};
+ const floorMat=standardMaterial({color:def.color,roughness:.92});
+ rebuiltPart(body,def.x,.025,centerZ,width,.09,length,floorMat);
+ rebuiltPart(body,def.x,5.1,centerZ,width,.16,length,rebuiltStorageMaterial.wall);
+ // Les deux murs latéraux encadrent les rayonnages ; la façade est laissée
+ // ouverte sur l'allée de distribution commune.
+ for(const side of [-1,1]){
+  const outerX=def.x+side*width/2;
+  rebuiltPart(body,outerX,2.5,centerZ,.22,5,length,rebuiltStorageMaterial.wall,true);
+ }
+ rebuiltPart(body,def.x,2.5,def.front+length,.22+width,5,.22,rebuiltStorageMaterial.wall,true);
+ rebuiltPart(body,def.x,4.2,def.front,.2+width,1.6,.22,rebuiltStorageMaterial.wall);
+ // Large porte d'entrée (4 m), sans collision, en façade.
+ for(const side of [-1,1])
+  rebuiltPart(body,def.x+side*4.4,1.65,def.front,4.75,3.3,.22,rebuiltStorageMaterial.wall,true);
+ const sign=document.createElement("canvas");sign.width=640;sign.height=128;
+ const ctx=sign.getContext("2d");ctx.fillStyle="#17263c";ctx.fillRect(0,0,640,128);
+ ctx.fillStyle="#ffffff";ctx.font="bold 38px Arial";ctx.textAlign="center";
+ ctx.fillText(def.title,320,78);
+ const signMesh=new THREE.Mesh(new THREE.PlaneGeometry(3.4,.68),
+  new THREE.MeshBasicMaterial({map:gameTexture(sign),side:THREE.DoubleSide}));
+ signMesh.position.set(def.x,4.12,def.front-.16);body.add(signMesh);
+ for(let i=0;i<products.length;i++){
+  const p=products[i],lane=i%4,depth=Math.floor(i/4);
+  const x=def.x+[-4.8,-2.15,2.15,4.8][lane],z=def.front+3.6+depth*2.05;
+  const rack=new THREE.Group();rack.position.set(x,0,z);body.add(rack);
+  for(const y of [.65,1.6,2.55])
+   rebuiltPart(rack,0,y,0,1.65,.075,1.45,rebuiltStorageMaterial.metal);
+  for(const dx of [-.76,.76])for(const dz of [-.67,.67])
+   rebuiltPart(rack,dx,1.6,dz,.055,3.2,.055,rebuiltStorageMaterial.metal);
+  // Chaque rack affiche le produit auquel il est réservé.
+  const title=shelfSign(p.name);title.position.set(0,3.35,0);rack.add(title);
+  rebuiltStorageShelves.push({rack,p,kind:def.kind});
+  const hit={minX:x-.84,maxX:x+.84,minZ:z-.75,maxZ:z+.75};
+  colliders.push(hit);rebuiltStorageRooms.push(hit);
+ }
+}
+// Allée horizontale entre le couloir de livraison existant et les trois
+// entrées : pas de mur ou collision sur la voie principale.
+const reconstructedLink=new THREE.Group();rebuiltStorageShell.add(reconstructedLink);
+rebuiltPart(reconstructedLink,47.9,-.015,-10.3,55,.08,4.2,rebuiltStorageMaterial.floor);
+for(const x of [34,51,68])
+ rebuiltPart(reconstructedLink,x,4.92,-10.3,2.5,.045,.55,zonePanel("logistics"));
+// L'inventaire et les accès aux anciennes réserves restent opérationnels
+// pendant la transition ; les nouvelles pièces ne deviennent la seule
+// destination des manutentionnaires qu'après validation des accès.
 // Réserves étendues retirées temporairement du monde 3D.
 // Le stock et les améliorations restent dans la sauvegarde pour reconstruction.
 const STORAGE_REBUILD_PENDING=true;
@@ -8419,4 +8499,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.64 !");
+animate();toast("Business Empire Simulator V0.15.65 !");
