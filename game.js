@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.51 — rondes des équipes rayons
+// Business Empire Simulator V0.15.52 — démarrage de Camille et missions accessibles
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5223,9 +5223,13 @@ scene.add(stockerGroup);
 stockerGroup.position.set(13,0,5);
 let stockerTarget=null,stockerPhase="idle",stockerCargo=null,stockerTimer=0,stockerWalk=0,stockerTalking=false;
 let stockerIdleClock=0,stockerPatrolIndex=0,stockerPatrolRetry=0;
+// Ne pas réessayer en boucle une mission dont le trajet est inaccessible.
+const stockerUnreachableUntil=new Map();
+let stockerClock=0;
 function stockerNeeds(){
  const options=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
-  (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)&&!shelfJobTaken(p));
+  (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)&&
+  (stockerUnreachableUntil.get(p.id)||0)<=stockerClock&&!shelfJobTaken(p));
  if(playerLevel()>=19)options.sort((a,b)=>state.inventory[a.id].shelf-state.inventory[b.id].shelf);
  return options[0];
 }
@@ -5320,6 +5324,7 @@ function updateStocker(dt){
  const shift=stockerShift();
  const assigned=state.stockerHired&&state.stockerEnabled&&state.stockerSentHomeDay!==state.day;
  const onDuty=assigned&&employeeWorking(shift),onBreak=assigned&&employeeOnLunch(shift);
+ stockerClock+=dt;
  if(!assigned)stockerBreakJourney=null;
  if(onBreak&&!stockerBreakJourney)stockerBreakJourney=beginStaffBreak(stockerGroup,STOCKER_BREAK_SEAT);
  stockerGroup.visible=!!(assigned&&(onDuty||onBreak||stockerBreakJourney));
@@ -5412,7 +5417,13 @@ function updateStocker(dt){
    const p=stockerNeeds();
    if(p){
     stockerCargo=p.id;stockerPhase="reserve";
-    if(!stockerRouteTo(storageWorkPoint(p))){stockerCargo=null;stockerPhase="idle";stockerTimer=2;}
+    if(!stockerRouteTo(storageWorkPoint(p))){
+     // Échec de navigation : éviter de retenter le même article toutes les 2 s.
+     // Aucun stock n'est prélevé à ce stade.
+     stockerUnreachableUntil.set(p.id,stockerClock+25);
+     stockerCargo=null;stockerPhase="idle";
+     if(!stockerPatrol())stockerTimer=.8;
+    }
    }
    else{
     // Après le dernier carton, inspecter plusieurs rayons au lieu de
@@ -8103,4 +8114,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.51 !");
+animate();toast("Business Empire Simulator V0.15.52 !");
