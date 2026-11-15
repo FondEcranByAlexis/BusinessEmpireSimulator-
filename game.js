@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.42 — virages progressifs des clients
+// Business Empire Simulator V0.15.43 — raccord chaussée FBA City
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5953,6 +5953,10 @@ function blocked(x,z,r=.4){
  const wideParking=x>CITY_BOUNDS.minX+r&&x<-9.2-r&&
   z>10.38+r&&z<90-r;
  const parkingConnection=x>-11.2&&x<-7.8&&z>11.0&&z<78;
+ // Raccord côté est : la chaussée de FBA City commence à Z=75,
+ // tandis que l'ancien périmètre piéton s'arrêtait à X=9.8.
+ // Couloir praticable jusqu'à la chaussée, sans toucher aux bâtiments.
+ const eastRoadConnection=x>7.0+r&&x<30-r&&z>69+r&&z<79-r;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
  const cityWalk=x>CITY_BOUNDS.minX+r&&x<CITY_BOUNDS.maxX-r&&z>CITY_BOUNDS.minZ-r&&z<CITY_BOUNDS.maxZ-r;
@@ -5984,12 +5988,13 @@ function blocked(x,z,r=.4){
  const link=autoLinkOpen()&&x>-35.85+r&&x<-30+r&&z>GALLERY_LINK_Z-1.35+r&&z<SHOWROOM_LINK_Z+1.35-r;
  const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
- if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
+ if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||eastRoadConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  if(cityWallBlocked(x,z,r))return true;
- // Jonction parking / voie de FBA City : corridor dégagé à X9 Z74.
- // Écarter exclusivement les anciens colliders de bordure dans cette
- // petite zone goudronnée ; les bâtiments et véhicules restent contrôlés.
- if(x>=7.8+r&&x<=11.2-r&&z>=70+r&&z<=79-r)return false;
+ // Jonction photographiée : continuité entre le sol clair et la route.
+ // L'ancien filtre de X9 ne couvrait pas toute la chaussée sombre.
+ // Ignorer les colliders orphelins uniquement sur ce raccord extérieur.
+ // Les façades ont déjà été contrôlées ; les voitures le sont dans movePlayer.
+ if(eastRoadConnection)return false;
  // Les collisions des immeubles sont traitées ci-dessus. Il n'existe
  // plus de bande de contournement codée en dur autour de X-50 : tous
  // les extérieurs ouest doivent obéir à la même règle de circulation.
@@ -7987,4 +7992,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.42 !");
+animate();toast("Business Empire Simulator V0.15.43 !");
