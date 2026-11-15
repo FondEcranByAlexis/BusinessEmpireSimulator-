@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.36 — revêtement du parking étendu
+// Business Empire Simulator V0.15.37 — animations clients enrichies
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6262,7 +6262,7 @@ function makeCustomer(){
  customers.push({
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
   speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,priceTolerance:1.12+Math.random()*.33,
-  visualClock:Math.random()*6,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
+  visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
   stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:citySpawnX,lastNavZ:citySpawnZ
  });
 }
@@ -6279,26 +6279,36 @@ function updateCustomerVisual(c,dt){
  }
  c.basketGroup.visible=!c.paid&&c.phase!=="leaving";
  c.bagGroup.visible=(c.phase==="leaving"||c.phase==="securityCheck")&&c.paid;
- c.head.rotation.y=Math.sin(c.visualClock*1.2)*.15;
+ // Micro-mouvements distincts pour éviter que tous les clients s'animent de façon identique.
+ c.head.rotation.y=Math.sin(c.visualClock*(.8+c.personality*.6)+c.glanceOffset)*.13;
  if(c.phase==="securityCheck"){
   c.l.rotation.x=c.r.rotation.x=0;
  }else if(c.phase==="choosing"){
   const product=catalog.find(p=>p.id===c.productId);
   if(product)faceNpc(c.group,product.x-c.group.position.x,product.z-c.group.position.z,dt);
   c.l.rotation.x*=Math.exp(-12*dt);c.r.rotation.x*=Math.exp(-12*dt);
-  // Le client observe le rayon et avance le bras pour prendre un produit.
-  c.armLeft.rotation.x=-.7+Math.sin(c.visualClock*6)*.18;
-  c.armRight.rotation.x=-.1;c.head.rotation.y=.20+Math.sin(c.visualClock*2)*.12;
-  c.group.position.y=.004*Math.sin(c.visualClock*3);
+  // Observation du rayon, puis geste de préhension progressif et individualisé.
+  const selectionDuration=c.selectionDuration||2;
+  const progress=Math.max(0,Math.min(1,1-c.timer/selectionDuration));
+  const reach=Math.sin(Math.PI*progress);
+  c.armLeft.rotation.x=-.12-.78*reach*c.reachStyle;
+  c.armRight.rotation.x=-.08-.10*reach;
+  c.head.rotation.y=.16+Math.sin(c.visualClock*1.6+c.glanceOffset)*.17;
+  c.group.position.y=.004*Math.sin(c.visualClock*2.7);
  }else if(c.phase==="checkout"||c.phase==="auxCheckout"){
   const register=c.auxRegister;
   faceNpc(c.group,(register?.x??6.5)-c.group.position.x,(register?.z??6.5)-c.group.position.z,dt);
   c.l.rotation.x=0;c.r.rotation.x=0;
   c.armLeft.rotation.x=-.35+Math.sin(c.visualClock*2.8)*.10;
   c.armRight.rotation.x=-.12;c.group.position.y=0;
- }else if(c.phase==="queue"||c.phase==="auxQueue"){
-  c.armLeft.rotation.x=.08*Math.sin(c.visualClock*2.1);
-  c.armRight.rotation.x=-.12;c.group.position.y=.009*Math.sin(c.visualClock*1.6);
+ }else if(c.phase==="queue"||c.phase==="auxQueue"||c.phase==="waitingRegister"){
+  // Attente vivante : transferts de poids et regards ponctuels vers la file.
+  c.l.rotation.x=.025*Math.sin(c.visualClock*.85+c.glanceOffset);
+  c.r.rotation.x=-c.l.rotation.x;
+  c.armLeft.rotation.x=.08*Math.sin(c.visualClock*(1.5+c.personality));
+  c.armRight.rotation.x=-.12;
+  c.head.rotation.y=Math.sin(c.visualClock*.65+c.glanceOffset)*.27;
+  c.group.position.y=.006*Math.sin(c.visualClock*1.4);
  }else{
   // Animation de marche synchronisée avec la distance réellement parcourue.
   const stride=Math.sin(c.walkTime);
@@ -7347,7 +7357,12 @@ function updateCustomers(dt){
    c.shoppingStall=moved?0:(c.shoppingStall||0)+dt;
    if(arrived||c.shoppingStall>6){
     c.shoppingStall=0;c.waypoint++;c.navTarget=null;c.navRoute=null;
-    if(arrived&&t.shop){c.phase="choosing";c.timer=.85+Math.random()*1.6;c.productId=t.shop;}
+    if(arrived&&t.shop){
+     c.phase="choosing";
+     c.timer=1.25+Math.random()*1.55;
+     c.selectionDuration=c.timer;
+     c.productId=t.shop;
+    }
     else{
      if(t.shop)customerComplaint(c,"search","Je ne trouve pas le rayon "+catalog.find(p=>p.id===t.shop).name+".");
      if(c.waypoint>=c.route.length)sendToQueue(c);
@@ -7873,4 +7888,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.36 !");
+animate();toast("Business Empire Simulator V0.15.37 !");
