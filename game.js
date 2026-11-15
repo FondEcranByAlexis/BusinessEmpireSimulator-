@@ -5308,8 +5308,11 @@ function stockerRouteTo(point){
 function stockerRouteToShelf(p){
  const options=[stockerShelfPosition(p)];
  if(p.kind!=="wall"&&p.kind!=="electronics"&&p.kind!=="department"){
-  options.push([p.x,p.z+1.65],[p.x,p.z-1.65]);
-  options.push([p.x+1.65,p.z],[p.x-1.65,p.z]);
+  const rowZ=p.z??1;
+  options.push([p.x,rowZ+1.65],[p.x,rowZ-1.65]);
+  options.push([p.x+1.65,rowZ],[p.x-1.65,rowZ]);
+  // Certains produits existent sur deux rangées ; essayer l'autre face.
+  if(p.z===undefined)options.push([p.x,-4+1.65],[p.x,-4-1.65]);
  }
  for(const point of options){
   if(blocked(point[0],point[1],.22))continue;
