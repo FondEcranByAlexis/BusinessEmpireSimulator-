@@ -3384,7 +3384,9 @@ function buildStoreExterior(){
  // Extension du parking en direction de la ville, exclusivement côté ouest des réserves.
  part(-30,-.09,55,40,.16,48,asphalt);
  // Accotement prolongé pour matérialiser la marge piétonne à X-50.
- part(-52.05,-.09,73.5,4.2,.16,13,asphalt);
+ // Raccord praticable élargi vers l'ouest autour de X-54/Z73.
+ // Le revêtement couvre maintenant les deux côtés de la jonction.
+ part(-54,-.09,78,10,.16,24,asphalt);
  for(const z of [36,48,60,72]){
   for(let x=-48;x<=-12;x+=3)part(x,.013,z,.07,.016,4.4,paint);
   part(-30,.013,z+2.3,39,.016,.07,paint);
@@ -5917,7 +5919,9 @@ function blocked(x,z,r=.4){
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
  // Prolonger le passage à l'ouest : plus de collision invisible en
  // X-50 entre Z71 et Z75, sur le raccord parking / ville.
- const wideParking=x>-54+r&&x<-9.2-r&&z>10.38+r&&z<82-r;
+ // Ne plus arrêter la marche au bord X-54 : zone prolongée
+ // jusqu'à X-59 pour permettre le passage à X-54 sans collision.
+ const wideParking=x>-59+r&&x<-9.2-r&&z>10.38+r&&z<90-r;
  const parkingConnection=x>-11.2&&x<-7.8&&z>11.0&&z<78;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
@@ -5957,7 +5961,7 @@ function blocked(x,z,r=.4){
  // empêcher le passage entre X-50/Z71 et X-50/Z75.
  // Les bâtiments sont déjà contrôlés ci-dessus et les voitures restent
  // contrôlées séparément dans movePlayer.
- if(x>=-52&&x<=-48&&z>=69&&z<=81)return false;
+ if(x>=-58.5&&x<=-47.5&&z>=67&&z<=88)return false;
  // Les véhicules sont traités pour le joueur dans movePlayer, afin de
  // permettre de reculer lorsqu'une voiture est déjà trop proche.
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
