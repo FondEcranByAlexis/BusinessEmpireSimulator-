@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.48 — préparation avant ouverture et orientation du personnel
+// Business Empire Simulator V0.15.49 — orientation et tournée des rayons
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5222,7 +5222,7 @@ stockerHandProduct.visible=false;
 scene.add(stockerGroup);
 stockerGroup.position.set(13,0,5);
 let stockerTarget=null,stockerPhase="idle",stockerCargo=null,stockerTimer=0,stockerWalk=0,stockerTalking=false;
-let stockerIdleClock=0;
+let stockerIdleClock=0,stockerPatrolIndex=0;
 function stockerNeeds(){
  const options=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
   (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)&&!shelfJobTaken(p));
@@ -5233,6 +5233,7 @@ function stockerTaskLabel(){
  if(employeeBreakLabel(stockerBreakJourney))return employeeBreakLabel(stockerBreakJourney);
  if(stockerCargo){const p=catalog.find(p=>p.id===stockerCargo);return (stockerPhase==="placing"?"Mise en rayon":"Réassort")+(p?" · "+p.name:"")+(stockerPhase==="placing"?" · "+stockerUnits+" unité(s) à placer":"");}
  if(stockerPhase==="idle-return")return "Retour vers la réserve";
+ if(stockerPhase==="patrol")return "Contrôle des rayons";
  const waiting=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&(state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)).length;
  return waiting?waiting+" rayon(s) à réapprovisionner":"Surveillance des stocks";
 }
@@ -5289,6 +5290,24 @@ function stockerRouteTo(point){
  stockerTarget=stockerRoute.shift()??null;
  return !!stockerTarget;
 }
+// Contrôle visuel des gondoles quand les stocks ne permettent plus de réassort.
+// Choisir un emplacement d'allée réellement accessible, puis s'y déplacer.
+function stockerPatrol(){
+ const shelves=catalog.filter(p=>productAvailable(p)&&p.x>-9.4&&p.x<9.4&&p.z>-9.4&&p.z<9.4);
+ if(!shelves.length)return false;
+ for(let k=0;k<Math.min(shelves.length,24);k++){
+  const i=(stockerPatrolIndex+k*7)%shelves.length;
+  const target=stockerShelfPosition(shelves[i]);
+  if(Math.hypot(target[0]-stockerGroup.position.x,target[1]-stockerGroup.position.z)<1.25)continue;
+  if(blocked(target[0],target[1],.22))continue;
+  if(stockerRouteTo(target)){
+   stockerPatrolIndex=(i+1)%shelves.length;
+   stockerPhase="patrol";
+   return true;
+  }
+ }
+ return false;
+}
 function updateStocker(dt){
  const shift=stockerShift();
  const assigned=state.stockerHired&&state.stockerEnabled&&state.stockerSentHomeDay!==state.day;
@@ -5340,7 +5359,7 @@ function updateStocker(dt){
  }
  if(!stockerTarget){
   if(stockerRoute.length){stockerTarget=stockerRoute.shift();}
-  else if(stockerPhase==="reserve"||stockerPhase==="shelf"||stockerPhase==="placing"||stockerPhase==="idle-return"){
+  else if(stockerPhase==="reserve"||stockerPhase==="shelf"||stockerPhase==="placing"||stockerPhase==="idle-return"||stockerPhase==="patrol"){
    if(stockerPhase==="reserve"){
     const p=catalog.find(p=>p.id===stockerCargo),a=state.inventory[p.id];
     stockerUnits=Math.max(0,Math.min(SHELF_CARRY_LIMIT*BOX_UNITS,productStoredUnits(p),shelfCapacity(p)-a.shelf));
@@ -5373,6 +5392,8 @@ function updateStocker(dt){
      if(stockerUnits>0)a.reserve+=stockerUnits;
     }
     stockerCargo=null;stockerUnits=0;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;stop();sync();
+   }else if(stockerPhase==="patrol"){
+    stockerPhase="idle";stockerTimer=1.2;stop();
    }else stockerPhase="idle";
    return;
   }else{
@@ -5381,19 +5402,19 @@ function updateStocker(dt){
     stockerCargo=p.id;stockerPhase="reserve";
     if(!stockerRouteTo(storageWorkPoint(p))){stockerCargo=null;stockerPhase="idle";stockerTimer=2;}
    }
-   else if(Math.hypot(stockerGroup.position.x-13,stockerGroup.position.z-5)>.3){stockerPhase="idle-return";if(!stockerRouteTo([13,5]))stockerTimer=2;}
    else{
-    // Aucun stock disponible : surveiller les rayons au lieu de rester dos
-    // à la surface de vente. Ne pas ajouter d'articles fictifs.
-    stockerPhase="idle";
+    // Après le dernier carton, inspecter plusieurs rayons au lieu de
+    // rester figé sur place ou de retourner dos aux gondoles.
     stockerIdleClock+=dt;
+    if(stockerPatrol())return;
     const shelves=catalog.filter(p=>productAvailable(p)&&p.x<9.5&&p.x>-9.5&&p.z<9&&p.z>-10);
-    const watched=shelves.length?shelves[Math.floor(stockerIdleClock/5)%shelves.length]:null;
+    const watched=shelves.length?shelves[Math.floor(stockerIdleClock/4)%shelves.length]:null;
     const tx=watched?watched.x:0,tz=watched?watched.z:3;
     faceNpc(stockerGroup,tx-stockerGroup.position.x,tz-stockerGroup.position.z,dt);
     stockerArmA.rotation.x=.08+.10*Math.sin(stockerIdleClock*1.15);
     stockerArmB.rotation.x=.06+.08*Math.sin(stockerIdleClock*.85);
     stockerLegA.rotation.x=stockerLegB.rotation.x=0;
+    stockerPhase="idle";
     return;
    }
   }
@@ -8052,4 +8073,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.48 !");
+animate();toast("Business Empire Simulator V0.15.49 !");
