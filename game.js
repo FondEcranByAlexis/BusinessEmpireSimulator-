@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.38 — réalisme clients et paiement visible
+// Business Empire Simulator V0.15.39 — gestes clients et panneau de paiement
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -2142,6 +2142,7 @@ function checkoutText(value,large=false){
 }
 let terminalKeyHandler=null;
 function closeCheckoutUI(){
+ checkoutUI.style.left="50%";checkoutUI.style.right="auto";checkoutUI.style.transform="translate(-50%,-50%)";
  terminalKeyHandler=null;
  checkoutUI.style.display="none";
 }
@@ -2249,6 +2250,7 @@ function sayCheckoutLine(customer,stage,message){
  return true;
 }
 function showCheckout(){
+ checkoutUI.style.left="50%";checkoutUI.style.right="auto";checkoutUI.style.transform="translate(-50%,-50%)";
  if(!cashier){closeCheckoutUI();clearCheckoutVisual();return;}
  if(!registerOpen()){toast("Caisse fermée · assieds-toi pour ouvrir le poste");return;}
  if(!seatedAtCheckout&&!near(6.5,6.5,3.5)){toast("Approche-toi de la caisse");return;}
@@ -2280,8 +2282,15 @@ function completeCheckoutPayment(c,count,staffed=false){
  const farewell=!staffed&&sayCheckoutLine(c,"farewell","Merci, bonne journée !");
  toast("Paiement accepté : +"+euro(c.total)+(farewell?" · Client : Merci, bonne journée !":""));
 }
+function movePaymentUIRight(){
+ // Décaler seulement les étapes de paiement pour laisser voir le client.
+ checkoutUI.style.left="auto";
+ checkoutUI.style.right="max(12px, env(safe-area-inset-right))";
+ checkoutUI.style.transform="translateY(-50%)";
+}
 function showPayment(c,count){
  if(c!==cashier)return;
+ movePaymentUIRight();
  c.paymentPresented=true;
  terminalKeyHandler=null;
  releaseMouseLook();
@@ -2299,6 +2308,7 @@ function showPayment(c,count){
 }
 function showCardPayment(c,count){
  if(c!==cashier)return;
+ movePaymentUIRight();
  let entered="",amountConfirmed=false;
  const expected=Math.round(c.total*100);
  function draw(){
@@ -2378,6 +2388,7 @@ function showCardPayment(c,count){
 }
 function showCashPayment(c,count){
  if(c!==cashier)return;
+ movePaymentUIRight();
  terminalKeyHandler=null;
  // Le client remet un montant arrondi à un billet supérieur ou égal au total.
  const cents=Math.round(c.total*100);
@@ -6288,7 +6299,7 @@ function makeCustomer(){
  customers.push({
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
   speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,paymentCard,paymentBills,paymentPresented:false,priceTolerance:1.12+Math.random()*.33,
-  visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
+  visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,walkAnimationBlend:0,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
   stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:citySpawnX,lastNavZ:citySpawnZ
  });
 }
@@ -6319,8 +6330,9 @@ function updateCustomerVisual(c,dt){
   const selectionDuration=c.selectionDuration||2;
   const progress=Math.max(0,Math.min(1,1-c.timer/selectionDuration));
   const reach=Math.sin(Math.PI*progress);
-  c.armLeft.rotation.x=-.12-.78*reach*c.reachStyle;
-  c.armRight.rotation.x=-.08-.10*reach;
+  // Les bras sont orientés vers l'avant (-Z) : rotation X positive.
+  c.armLeft.rotation.x=.10+.95*reach*c.reachStyle;
+  c.armRight.rotation.x=.02+.12*reach;
   c.head.rotation.y=.16+Math.sin(c.visualClock*1.6+c.glanceOffset)*.17;
   c.group.position.y=.004*Math.sin(c.visualClock*2.7);
  }else if(c.phase==="checkout"||c.phase==="auxCheckout"){
@@ -6335,22 +6347,35 @@ function updateCustomerVisual(c,dt){
   c.r.rotation.x=-c.l.rotation.x;
   c.armLeft.rotation.x=.06*Math.sin(c.visualClock*(1.3+c.personality));
   c.armRight.rotation.x=-.10+.04*Math.sin(c.visualClock*.9+c.glanceOffset);
-  // Le corps suit doucement le changement d'appui, avec des regards irréguliers.
-  c.group.rotation.z=.012*Math.sin(c.visualClock*.75+c.glanceOffset);
-  c.head.rotation.y=Math.sin(c.visualClock*.55+c.glanceOffset)*.32;
-  c.group.position.y=.004*Math.sin(c.visualClock*1.2);
+  // Pauses asymétriques, regard vers l'avant puis sur le côté, respiration légère.
+  const idleCycle=c.visualClock*(.37+c.personality*.16)+c.glanceOffset;
+  const glance=Math.sin(idleCycle)*Math.pow(Math.abs(Math.sin(idleCycle)),2);
+  c.group.rotation.z=.018*Math.sin(idleCycle*.73);
+  c.group.rotation.x=.012*Math.sin(idleCycle*.53);
+  c.head.rotation.y=glance*.42;
+  c.head.rotation.x=.055*Math.sin(idleCycle*.81);
+  c.group.position.y=.003*Math.sin(idleCycle*1.3);
  }else{
-  // Cadence et amplitude personnalisées, sans effet de marche mécanique.
-  const stride=Math.sin(c.walkTime*(.88+c.personality*.19)+c.glanceOffset*.18);
-  const sway=Math.sin(c.walkTime*.5+c.glanceOffset);
-  c.l.rotation.x=stride*(.34+c.personality*.09);
-  c.r.rotation.x=-stride*(.34+c.personality*.09);
-  c.armLeft.rotation.x=-stride*.23-.04;
-  c.armRight.rotation.x=c.basketGroup.visible?.32:stride*.23;
-  c.group.rotation.z=.012*sway;
-  c.group.position.y=Math.abs(stride)*.011;
+  // Mélange progressif de la marche et du repos pour supprimer les mouvements saccadés.
+  const moving=c.walkingRecently>0;
+  c.walkAnimationBlend+=(Number(moving)-c.walkAnimationBlend)*(1-Math.exp(-5*dt));
+  c.walkingRecently=Math.max(0,(c.walkingRecently||0)-dt);
+  const phase=c.walkTime*(.87+c.personality*.22)+c.glanceOffset*.18;
+  const stride=Math.sin(phase),halfStride=Math.sin(phase+.37);
+  const intensity=c.walkAnimationBlend;
+  c.l.rotation.x=stride*(.31+c.personality*.11)*intensity;
+  c.r.rotation.x=-Math.sin(phase+.13)*(.31+c.personality*.11)*intensity;
+  c.armLeft.rotation.x=(-halfStride*.20-.035)*intensity;
+  c.armRight.rotation.x=c.basketGroup.visible?.30:(stride*.19*intensity);
+  c.group.rotation.z=.013*Math.sin(phase*.48)*intensity;
+  c.group.rotation.x=.009*Math.sin(phase*.51)*intensity;
+  c.head.rotation.x=.025*Math.sin(phase*.44)*intensity;
+  c.group.position.y=Math.abs(stride)*.009*intensity;
  }
- if(c.phase!=="queue"&&c.phase!=="auxQueue"&&c.phase!=="waitingRegister"&&c.phase!=="shopping")c.group.rotation.z*=Math.exp(-6*dt);
+ if(c.phase!=="queue"&&c.phase!=="auxQueue"&&c.phase!=="waitingRegister"){
+  c.group.rotation.z*=Math.exp(-3*dt);
+  if(c.phase!=="shopping")c.group.rotation.x*=Math.exp(-3*dt);
+ }
 }
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
 // Le joueur conserve son accès à l'ordinateur et au poste de travail.
@@ -6439,7 +6464,7 @@ function walk(c,t,dt){
   }
   const step=Math.min(c.speed*dt,dist);
   const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
-  if(!blocked(nx,nz,.24)){p.x=nx;p.z=nz;c.walkTime+=step*5.5;faceNpc(c.group,dx,dz,dt*.65);}
+  if(!blocked(nx,nz,.24)){p.x=nx;p.z=nz;c.walkTime+=step*5.5;c.walkingRecently=.24;faceNpc(c.group,dx,dz,dt*.65);}
   return false;
  }
 
@@ -6475,7 +6500,7 @@ function walk(c,t,dt){
  }
  p.x=nx;p.z=nz;c.stuckTime=0;
  faceNpc(c.group,dx,dz,dt*.65);
- c.walkTime+=step*5.5;
+ c.walkTime+=step*5.5;c.walkingRecently=.24;
  return false;
 }
 function removeCustomer(c){
@@ -7920,4 +7945,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.38 !");
+animate();toast("Business Empire Simulator V0.15.39 !");
