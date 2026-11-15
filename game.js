@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.68 — orientation des enseignes des réserves
+// Business Empire Simulator V0.15.69 — itinéraires employés vers les nouvelles réserves
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3266,7 +3266,12 @@ for(const def of rebuiltStorageDefinitions){
    rebuiltPart(rack,dx,1.6,dz,.055,3.2,.055,rebuiltStorageMaterial.metal);
   // Chaque rack affiche le produit auquel il est réservé.
   const title=shelfSign(p.name);title.position.set(0,3.35,0);rack.add(title);
-  rebuiltStorageShelves.push({rack,p,kind:def.kind});
+  // Point de prise placé dans l'allée, à côté du rack, jamais dedans.
+  // Les deux racks centraux s'utilisent depuis l'allée centrale ;
+  // les racks extérieurs depuis leur allée latérale.
+  const offsets=[-3.45,-.95,.95,3.45];
+  const access=[def.x+offsets[lane],z];
+  rebuiltStorageShelves.push({rack,p,kind:def.kind,access});
   const hit={minX:x-.84,maxX:x+.84,minZ:z-.75,maxZ:z+.75};
   colliders.push(hit);rebuiltStorageRooms.push(hit);
  }
@@ -5310,6 +5315,11 @@ const workerCarton=mallPart(workerGroup,0,1.05,-.45,.6,.45,.5,standardMaterial({
 scene.add(workerGroup);
 const WORKER_DOCK=[25.65,-23.8];
 function storageWorkPoint(p){
+ // V0.15.69 : chacun des rayons possède désormais son rack associé
+ // dans l'une des trois réserves reconstruites.
+ const assigned=rebuiltStorageShelves.find(item=>item.p.id===p.id);
+ if(assigned)return assigned.access;
+ // Repli défensif pour les anciennes sauvegardes / produits hors catalogue.
  const kind=storageKind(p);
  return kind==="electronics"?[17.95,35]:kind==="cold"?[19.35,15.4]:[13,5.5];
 }
@@ -8526,4 +8536,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.68 !");
+animate();toast("Business Empire Simulator V0.15.69 !");
