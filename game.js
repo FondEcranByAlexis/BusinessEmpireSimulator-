@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.80 — réactions des clients aux prix élevés et aux ruptures
+// Business Empire Simulator V0.15.81 — réactions aux prix et ruptures mieux visibles
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6770,7 +6770,7 @@ function makeCustomer(){
  // V0.15.76 — liste de courses et visite progressive des rayons voisins.
  const available=unlockedProducts();
  const stocked=available.filter(p=>(state.inventory[p.id]?.shelf||0)>0);
- const firstPool=stocked.length&&Math.random()<.85?stocked:available;
+ const firstPool=stocked.length&&Math.random()<.60?stocked:available;
  const first=firstPool[Math.floor(Math.random()*firstPool.length)];
  const count=1+Math.floor(Math.random()*4);
  const nearby=first?available.filter(p=>p!==first&&Math.hypot(p.x-first.x,p.z-first.z)<15):[];
@@ -6868,10 +6868,10 @@ function updateCustomerVisual(c,dt){
   // Réaction purement visuelle aux prix excessifs ou aux rayons vides.
   const t=Math.max(0,c.reactionTimer||0),intensity=Math.min(1,t/.3);
   c.l.rotation.x=c.r.rotation.x=0;
-  c.armLeft.rotation.x=c.reactionKind==="price"?.25*intensity:-.12*intensity;
-  c.armRight.rotation.x=c.reactionKind==="price"?.38*intensity:.22*intensity;
+  c.armLeft.rotation.x=c.reactionKind==="price"?.48*intensity:-.34*intensity;
+  c.armRight.rotation.x=c.reactionKind==="price"?.65*intensity:.45*intensity;
   c.armLeft.rotation.z=c.reactionKind==="price"?.12*intensity:0;
-  c.head.rotation.y=(c.reactionKind==="price"?.30:.18)*Math.sin(c.visualClock*6)*intensity;
+  c.head.rotation.y=(c.reactionKind==="price"?.42:.35)*Math.sin(c.visualClock*4.5)*intensity;
   c.head.rotation.x=c.reactionKind==="price"?-.10*intensity:.16*intensity;
   c.group.position.y=0;
  }else if(c.phase==="checkout"||c.phase==="auxCheckout"){
@@ -8156,14 +8156,14 @@ function updateCustomers(dt){
      }
      if(quantity>0&&a.price>product.price*c.priceTolerance){
       customerComplaint(c,"price",product.name+" à "+euro(a.price)+" ? C’est trop cher.",-2);
-      c.reactionKind="price";c.reactionTimer=1.25+c.personality*.55;
+      c.reactionKind="price";c.reactionTimer=2.2+c.personality*.55;
      }else if(quantity>0){
       a.shelf-=quantity;c.basket[c.productId]=(c.basket[c.productId]||0)+quantity;
       c.prices[c.productId]=a.price;c.total+=quantity*a.price;sync();
      }else{
       c.missingProducts++;
       customerComplaint(c,"stock","Je ne trouve plus de "+product.name.toLowerCase()+".",-2);
-      c.reactionKind="stock";c.reactionTimer=1.1+c.personality*.65;
+      c.reactionKind="stock";c.reactionTimer=2.1+c.personality*.65;
      }
     }
     c.phase=c.reactionTimer>0?"reacting":"shopping";
@@ -8685,4 +8685,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.80 !");
+animate();toast("Business Empire Simulator V0.15.81 !");
