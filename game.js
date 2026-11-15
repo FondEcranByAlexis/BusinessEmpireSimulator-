@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.40 — déplacements et circulation
+// Business Empire Simulator V0.15.41 — trajectoires clients et passage parking
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5986,6 +5986,10 @@ function blocked(x,z,r=.4){
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
  if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  if(cityWallBlocked(x,z,r))return true;
+ // Jonction parking / voie de FBA City : corridor dégagé à X9 Z74.
+ // Écarter exclusivement les anciens colliders de bordure dans cette
+ // petite zone goudronnée ; les bâtiments et véhicules restent contrôlés.
+ if(x>=7.8+r&&x<=11.2-r&&z>=70+r&&z<=79-r)return false;
  // Les collisions des immeubles sont traitées ci-dessus. Il n'existe
  // plus de bande de contournement codée en dur autour de X-50 : tous
  // les extérieurs ouest doivent obéir à la même règle de circulation.
@@ -6493,15 +6497,27 @@ function walk(c,t,dt){
  }
  while(c.navIndex<route.length&&Math.hypot(route[c.navIndex].x-p.x,route[c.navIndex].z-p.z)<.18){
   const next=route[c.navIndex+1];
-  // Garde le point au coin d'un meuble tant que la diagonale n'est pas libre.
   if(next&&!customerCanWalk(p,next))break;
   c.navIndex++;
+ }
+ // Lissage des trajets A* : supprimer les angles droits inutiles.
+ // Ne sauter un virage que si toute la diagonale reste libre de collisions.
+ // Conserver une marge renforcée près des meubles et des étagères.
+ if(c.navIndex<route.length){
+  const end=Math.min(route.length-1,c.navIndex+12);
+  for(let j=end;j>c.navIndex;j--){
+   if(customerCanWalk(p,route[j],.32,.07)){c.navIndex=j;break;}
+  }
  }
  if(c.navIndex>=route.length){
   c.navTarget=null;c.navRoute=null;
   return Math.hypot(p.x-t.x,p.z-t.z)<.4;
  }
  const w=route[c.navIndex],dx=w.x-p.x,dz=w.z-p.z,dist=Math.hypot(dx,dz);
+ // Anticiper le cap et ralentir avant le dernier mètre du virage.
+ const next=route[c.navIndex+1];
+ if(next&&Math.hypot(next.x-w.x,next.z-w.z)>.01&&dist<.9)
+  c.motionSpeed=Math.min(c.motionSpeed,c.speed*(.68+.32*dist/.9));
  const step=customerStep(c,dt,dist);
  if(!step)return false;
  const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
@@ -7957,4 +7973,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.40 !");
+animate();toast("Business Empire Simulator V0.15.41 !");
