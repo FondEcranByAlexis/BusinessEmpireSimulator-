@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.67 — jonction physique au couloir logistique
+// Business Empire Simulator V0.15.68 — orientation des enseignes des réserves
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3252,6 +3252,9 @@ for(const def of rebuiltStorageDefinitions){
  ctx.fillText(def.title,320,78);
  const signMesh=new THREE.Mesh(new THREE.PlaneGeometry(3.4,.68),
   new THREE.MeshBasicMaterial({map:gameTexture(sign),side:THREE.DoubleSide}));
+ // Vue depuis la galerie (z négatif) : orienter la face imprimée
+ // vers le joueur plutôt que montrer son verso en miroir.
+ signMesh.rotation.y=Math.PI;
  signMesh.position.set(def.x,4.12,def.front-.16);body.add(signMesh);
  for(let i=0;i<products.length;i++){
   const p=products[i],lane=i%4,depth=Math.floor(i/4);
@@ -8523,4 +8526,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.67 !");
+animate();toast("Business Empire Simulator V0.15.68 !");
