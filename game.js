@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.53 — attribution du réassort et accès aux rayons
+// Business Empire Simulator V0.15.54 — accès réels aux rayons pour réassort
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5303,21 +5303,32 @@ function stockerRouteTo(point){
  stockerTarget=stockerRoute.shift()??null;
  return !!stockerTarget;
 }
-// Tester les deux faces des gondoles et leurs accès d'allée.
-// Les missions de réassort restent prioritaires sur les rondes.
+// Chercher une place libre AU CONTACT d'un vrai rayon, sans traverser
+// le meuble. Plusieurs rangées existent pour les articles de base.
+function stockerShelfAccessPoints(p){
+ const centers=p.z===undefined?[-4,1]:[p.z];
+ const points=[stockerShelfPosition(p)];
+ const angle=(p.rotation||0)*Math.PI/2;
+ for(const z of centers){
+  const distance=p.kind==="congelateur"?2.2:p.kind==="froid"?1.45:1.65;
+  if(p.kind==="wall"||p.kind==="electronics"||p.kind==="department"){
+   for(const offset of [1.3,1.8,2.25])
+    points.push([p.x+Math.sin(angle)*offset,z+Math.cos(angle)*offset]);
+  }else{
+   for(const offset of [distance,2.05,2.5]){
+    points.push([p.x+offset,z],[p.x-offset,z],
+     [p.x,z+offset],[p.x,z-offset]);
+   }
+  }
+ }
+ return points.filter(([x,z],i)=>
+  Number.isFinite(x)&&Number.isFinite(z)&&
+  !blocked(x,z,.22)&&
+  points.findIndex(q=>Math.hypot(q[0]-x,q[1]-z)<.2)===i);
+}
 function stockerRouteToShelf(p){
- const options=[stockerShelfPosition(p)];
- if(p.kind!=="wall"&&p.kind!=="electronics"&&p.kind!=="department"){
-  const rowZ=p.z??1;
-  options.push([p.x,rowZ+1.65],[p.x,rowZ-1.65]);
-  options.push([p.x+1.65,rowZ],[p.x-1.65,rowZ]);
-  // Certains produits existent sur deux rangées ; essayer l'autre face.
-  if(p.z===undefined)options.push([p.x,-4+1.65],[p.x,-4-1.65]);
- }
- for(const point of options){
-  if(blocked(point[0],point[1],.22))continue;
+ for(const point of stockerShelfAccessPoints(p))
   if(stockerRouteTo(point))return true;
- }
  return false;
 }
 // Contrôle visuel des gondoles quand les stocks ne permettent plus de réassort.
@@ -6854,6 +6865,11 @@ function teamRouteTo(unit,point){
  unit.route=staffRoute(unit.group,point);
  return unit.route.length>0;
 }
+function teamRouteToShelf(unit,product){
+ for(const point of stockerShelfAccessPoints(product))
+  if(teamRouteTo(unit,point))return true;
+ return false;
+}
 function updateTeamJob(unit){
  if(unit.role==="security"){
   // Chaque garde possède une zone de ronde distincte : ils ne passent plus
@@ -6902,7 +6918,7 @@ function updateTeamJob(unit){
  if(unit.target){
   const product=unit.target;unit.target=null;
   const quantity=Math.min(SHELF_CARRY_LIMIT*BOX_UNITS,productStoredUnits(product),shelfCapacity(product)-state.inventory[product.id].shelf);
-  if(quantity<=0||!teamRouteTo(unit,stockerShelfPosition(product)))return;
+  if(quantity<=0||!teamRouteToShelf(unit,product))return;
   removeReserveUnits(state.inventory[product.id],quantity);
   unit.cargo={product,quantity};save();return;
  }
@@ -8139,4 +8155,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.53 !");
+animate();toast("Business Empire Simulator V0.15.54 !");
