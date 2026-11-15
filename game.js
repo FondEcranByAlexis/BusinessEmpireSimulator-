@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.60 — accès réserve vers rayons
+// Business Empire Simulator V0.15.61 — gestes renforcés des équipes de rayon
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6717,7 +6717,7 @@ function teamAvatar(role,x,z,woman=false){
  group.scale.setScalar(woman?.94:1);
  const carton=mallPart(group,0,1,-.32,.51,.32,.30,standardMaterial({color:0xa77543}));
  // Produit réellement visible dans la main pendant chaque geste de rangement.
- const handItem=mallPart(arms[0],0,-.55,-.12,.16,.20,.15,standardMaterial({color:0xfacc15}));
+ const handItem=mallPart(arms[0],0,-.60,-.09,.23,.28,.20,standardMaterial({color:0xfacc15}));
  handItem.visible=false;
  group.position.set(x,0,z);group.visible=false;scene.add(group);
  return {group,legs,arms,carton,handItem,stride:0};
@@ -7002,7 +7002,7 @@ function updateExpandedTeam(dt){
     // Phase explicite : l'employé ARRIVE, SE TOURNE, SAISIT,
     // DÉPOSE un petit lot, puis reprend un geste ou une mission.
     const p=unit.cargo.product,a=state.inventory[p.id];
-    const duration=1.35;
+    const duration=2.15;
     if(!unit.placingStarted){
      unit.placingStarted=true;
      unit.placingTimer=duration;
@@ -7012,14 +7012,16 @@ function updateExpandedTeam(dt){
     unit.placingTimer=Math.max(0,unit.placingTimer-dt);
     const progress=1-unit.placingTimer/duration;
     const ease=t=>t*t*(3-2*t);
-    const extend=progress<.20?0:progress<.60?ease((progress-.20)/.40):
-     progress<.84?1:1-ease((progress-.84)/.16);
+    // Geste visible : saisir, tendre le bras, maintenir, puis revenir.
+    const extend=progress<.17?0:progress<.48?ease((progress-.17)/.31):
+     progress<.75?1:1-ease((progress-.75)/.25);
     const tier=Math.floor(a.shelf/10)%3;
-    unit.arms[0].rotation.x=-.12+extend*(1.2+tier*.1);
-    unit.arms[1].rotation.x=.55;
-    unit.group.rotation.z=.055*extend;
-    unit.carton.position.set(.24,1.0,-.27);
-    unit.handItem.visible=progress>=.10&&progress<.76;
+    unit.arms[0].rotation.x=-.15+extend*(1.55+tier*.12);
+    unit.arms[0].rotation.z=-.10*extend;
+    unit.arms[1].rotation.x=.48;
+    unit.group.rotation.z=.075*extend;
+    unit.carton.position.set(.27,1.0,-.2);
+    unit.handItem.visible=progress>=.12&&progress<.75;
     // Rester face au meuble au lieu de reprendre l'angle de marche.
     faceShelfImmediately(unit.group,p);
     if(unit.placingTimer<=0){
@@ -7033,6 +7035,7 @@ function updateExpandedTeam(dt){
      sync();
      unit.placingStarted=false;
      unit.handItem.visible=false;
+     unit.arms[0].rotation.z=0;
      if(unit.cargo.quantity<=0){
       unit.cargo=null;
       unit.carton.position.set(0,1,-.32);
@@ -7044,6 +7047,7 @@ function updateExpandedTeam(dt){
     continue;
    }
    unit.handItem.visible=false;
+   unit.arms[0].rotation.z=0;
    unit.carton.position.set(0,1,-.32);
    unit.group.rotation.z=0;
    unit.arms[0].rotation.x=unit.arms[1].rotation.x=0;
@@ -8256,4 +8260,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.60 !");
+animate();toast("Business Empire Simulator V0.15.61 !");
