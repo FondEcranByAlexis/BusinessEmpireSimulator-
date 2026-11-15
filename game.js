@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.74 — correction des textures des compteurs de stock
+// Business Empire Simulator V0.15.75 — retrait des anciennes réserves et déplacement des figurines
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -2790,6 +2790,7 @@ for(const hit of colliders.slice(removedColdColliderStart))hit.disabled=true;
 const coldRoom2={west:15.3,east:23.5,south:10.85,north:20,entryZ:15.4,entryWidth:2.8};
 const coldRoom2CenterX=(coldRoom2.west+coldRoom2.east)/2;
 const coldRoom2CenterZ=(coldRoom2.south+coldRoom2.north)/2;
+const oldColdRoomMeshStart=scene.children.length,oldColdRoomColliderStart=colliders.length;
 const coldRoom2Floor=cube(coldRoom2CenterX,-.14,coldRoom2CenterZ,8.2,.28,9.15,0xb0d7e7);
 cube(coldRoom2CenterX,5.08,coldRoom2CenterZ,8.2,.17,9.15,0xe0f2fe);
 const westLowerEnd=coldRoom2.entryZ-coldRoom2.entryWidth/2;
@@ -2836,6 +2837,8 @@ for(const z of [12.4,18.2]){
 cube(23.13,4.1,11.43,.7,.65,.24,0x64748b); // Groupe froid
 const coldRoom2SwitchPlate=cube(coldRoom2.west-.20,1.35,13.25,.06,.27,.23,0xf8fafc);
 const coldRoom2Switch=cube(coldRoom2.west-.25,1.35,13.25,.065,.13,.12,0x22c55e);
+const obsoleteColdMeshes=scene.children.slice(oldColdRoomMeshStart);
+const obsoleteColdColliders=colliders.slice(oldColdRoomColliderStart);
 
 cube(12.65,2.5,1.5,5.3,5,.3,0xe2e8f0,true);
 // Passage libre entre ancienne réserve et agrandissement (ancien mur du fond supprimé).
@@ -2931,7 +2934,9 @@ function addStorageRack(kind,x,z,levels,length,angle=0,access={}){
  }
  storageRacks[kind].push(rack);
 }
+const obsoleteStorageRackMeshes=[],obsoleteStorageRackColliders=[];
 function storageRack(x,z,face,upgrade=null,kind="dry"){
+ const oldMeshStart=scene.children.length,oldColliderStart=colliders.length;
  const put=(px,py,pz,w,h,d,col)=>{
   const m=cube(px,py,pz,w,h,d,col);
   if(upgrade==="store2")reserve2Meshes.push(m);
@@ -2953,6 +2958,8 @@ function storageRack(x,z,face,upgrade=null,kind="dry"){
   if(upgrade==="store1")storageExtensionColliders.push(hit);
  }
  colliders.push(hit);
+ obsoleteStorageRackMeshes.push(...scene.children.slice(oldMeshStart));
+ obsoleteStorageRackColliders.push(...colliders.slice(oldColliderStart));
 }
 // Mur gauche : interruption sur 2,45 m au niveau de l'interrupteur.
 for(const z of [3.1,9.35,11.4,13.45,15.5,17.55,19.6,21.65])
@@ -4686,9 +4693,8 @@ function refreshBoxes(){
  for(const batch of storageBatches.values())batch.visible=false;
  for(const kind of STORAGE_KINDS){
   const bays=storageBayCount(kind);
-  const racks=storageRacks[kind].filter(rack=>(!rack.requiresUpgrade||state.upgrades[rack.requiresUpgrade])&&
-   (rack.bay===undefined||rack.bay<bays)&&
-   (!STORAGE_REBUILD_PENDING||rack.newStorageRoom||kind==="cold"||(kind==="dry"&&!rack.requiresUpgrade&&rack.bay===undefined)));
+  const racks=storageRacks[kind].filter(rack=>rack.rebuiltProductId&&
+   (!rack.requiresUpgrade||state.upgrades[rack.requiresUpgrade]));
   // Chaque rack est réservé à une référence, y compris pour son stock en vrac.
   // On évite ainsi de mélanger l'eau, le sucre, les pâtes, etc. sur le même meuble.
   const createPool=selected=>selected.map(rack=>({
@@ -4957,9 +4963,8 @@ function rebuiltStorageKindAtPlayer(){
 function currentStorageKind(){
  const rebuilt=rebuiltStorageKindAtPlayer();
  if(rebuilt)return rebuilt;
- if(atElectronicsReserve())return "electronics";
- if(atColdRoom())return "cold";
- return atReserve()?"dry":null;
+ // Dépôts uniquement dans les trois nouvelles réserves.
+ return null;
 }
 function atStorageFor(p){return currentStorageKind()===storageKind(p);}
 function putBack(){
@@ -5138,7 +5143,9 @@ for(const [x,z,a] of [[10.8,-9.7,.8],[23.45,-10.2,-.8],
  [10.8,-21.8,2.4],[23.45,-21.8,-2.4],[17.8,-16,1.57],
  [10.8,-3.5,2.35]])roomCamera(x,z,a);
 // Racks 3 niveaux associés aux vrais emplacements du stock.
+const obsoleteAnnexRackMeshes=[],obsoleteAnnexRackColliders=[];
 function newRoomRack(kind,x,z){
+ const oldMeshStart=scene.children.length,oldColliderStart=colliders.length;
  for(const y of [.62,1.62,2.62]){
   cube(x,y,z,.83,.075,1.65,0x94a3b8);
   cube(x,y+.065,z+.80,.83,.065,.035,0x64748b);
@@ -5148,6 +5155,8 @@ function newRoomRack(kind,x,z){
  cube(x,3.35,z,.83,.07,1.65,0x64748b);
  colliders.push({minX:x-.45,maxX:x+.45,minZ:z-.84,maxZ:z+.84});
  addStorageRack(kind,x,z,[.62,1.62,2.62],1.55,Math.PI/2,{newStorageRoom:true});
+ obsoleteAnnexRackMeshes.push(...scene.children.slice(oldMeshStart));
+ obsoleteAnnexRackColliders.push(...colliders.slice(oldColliderStart));
 }
 // Laisser libre l'allée d'entrée derrière la porte (z=-11.3).
 for(const z of [-14,-16.5,-19,-21])
@@ -5161,6 +5170,12 @@ const dryRoomSign=brandPanel("RÉSERVE SÈCHE","PRODUITS SECS",2.1,.58);
 dryRoomSign.position.set(22.2,4.1,-22.3);scene.add(dryRoomSign);
 const electronicsRoomSign=brandPanel("ÉLECTRONIQUE","STOCKAGE",2.1,.58);
 electronicsRoomSign.position.set(15.5,4.1,-22.3);scene.add(electronicsRoomSign);
+// V0.15.75 : retirer les rayonnages obsolètes et l’ancienne chambre froide.
+// Préserver les murs structurels, le quai et le couloir logistique.
+for(const mesh of [...obsoleteStorageRackMeshes,...obsoleteColdMeshes,...obsoleteAnnexRackMeshes,dryRoomSign,electronicsRoomSign,storageAccessSign]){
+ mesh.visible=false;scene.remove(mesh);
+}
+for(const hit of [...obsoleteStorageRackColliders,...obsoleteColdColliders,...obsoleteAnnexRackColliders])hit.disabled=true;
 cube(25.65,5.1,-8.3,3.1,.2,31.4,0xf1f5f9);
 // Annexe du personnel à l'ouest du couloir logistique, hors des axes des livraisons.
 cube(20.95,-.15,-6,6.3,.3,6,0xa8b5c6);
@@ -8474,14 +8489,15 @@ const goldenParts=[
 ];
 // Répartition géographique V2 : les 100 objets ne sont plus concentrés
 // dans un même secteur. Aucune figurine n'exige un niveau ou une extension.
-const GOLDEN_LAYOUT_VERSION=3;
+const GOLDEN_LAYOUT_VERSION=4;
+const RELOCATED_GOLDEN_STORAGE=[[37.1,-5.1,"reserve",0],[54.1,-5.1,"reserve",0],
+ [71.1,-5.1,"stockage",0],[46,-10,"stockage",0],[63,-10,"stockage",0]];
 const GOLDEN_MIN_SPACING=35; // Les figures en ville sont beaucoup plus espacées.
 function goldenCandidates(){
  const pools={magasin:[],reserve:[],stockage:[],parking:[],batiments:[],ville:[]};
  // Position des figures dans les zones existantes, sans extension payante.
  for(const [x,z] of [[-7,-6],[5,-6],[-5,6],[5,6]])pools.magasin.push([x,z,"magasin",0]);
- for(const [x,z] of [[12.7,3.1],[12.7,17.7]])pools.reserve.push([x,z,"reserve",0]);
- for(const [x,z] of [[21.5,-11.5],[12.5,-16],[15.1,-5.5]])pools.stockage.push([x,z,"stockage",0]);
+ for(const point of RELOCATED_GOLDEN_STORAGE)pools[point[2]].push([...point]);
  for(const [x,z] of [[-42,18],[-42,47],[-19,60],[-16,22],[-35,79],[-47,77]])
   pools.parking.push([x,z,"parking",0]);
  // Bâtiments résidentiels dispersés sur toute la ville.
@@ -8504,10 +8520,20 @@ function goldenCandidates(){
 }
 function goldenPositions(){
  const old=state.goldenCollection.positions;
- if(state.goldenCollection.layoutVersion===GOLDEN_LAYOUT_VERSION&&
-  Array.isArray(old)&&old.length===GOLDEN_TOTAL&&
-  old.every(p=>Array.isArray(p)&&p.length===4&&p.slice(0,2).every(Number.isFinite)))
-  return old;
+ if(Array.isArray(old)&&old.length===GOLDEN_TOTAL&&
+  old.every(p=>Array.isArray(p)&&p.length===4&&p.slice(0,2).every(Number.isFinite))){
+  if(state.goldenCollection.layoutVersion===GOLDEN_LAYOUT_VERSION)return old;
+  // Migration sans modifier les IDs des figurines déjà trouvées.
+  let moved=0;
+  const migrated=old.map(point=>[...point]);
+  for(let i=0;i<migrated.length;i++){
+   if(migrated[i][2]!=="reserve"&&migrated[i][2]!=="stockage")continue;
+   if(moved<RELOCATED_GOLDEN_STORAGE.length)migrated[i]=[...RELOCATED_GOLDEN_STORAGE[moved++]];
+  }
+  state.goldenCollection.positions=migrated;
+  state.goldenCollection.layoutVersion=GOLDEN_LAYOUT_VERSION;
+  return migrated;
+ }
  const pools=goldenCandidates(),points=[];
  const add=c=>{
   const [x,z,zone,floor]=c;
@@ -8579,4 +8605,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.74 !");
+animate();toast("Business Empire Simulator V0.15.75 !");
