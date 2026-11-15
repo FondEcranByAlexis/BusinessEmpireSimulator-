@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.46 — animation de rangement du réassort
+// Business Empire Simulator V0.15.47 — prise de poste mise en rayon à 07:30
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -432,7 +432,7 @@ function showUpgrades(tab=activeUpgradeTab){
 function initial(){
  const inventory={};
  catalog.forEach(p=>inventory[p.id]={shelf:(p.kind==="extension"||p.kind==="electronics"||p.kind==="department"||p.level>=11)?0:10,reserve:p.starter?20:0,boxes:0,price:p.price});
- return {money:5000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],stockerLeaveDays:[],construction:null,stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,satisfaction:80,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
+ return {money:5000,day:1,sundayMode:'closed',trolleyCargo:[],workerEnabled:false,workerHired:false,workerWageDue:0,workerPaidTotal:0,workerDaysWorked:0,workerPayrollHistory:[],workerSchedule:[null,[8,17],[8,17],[8,17],[8,17],[8,17],[8,17]],workerLeaveDays:[],stockerName:"Camille",stockerHired:false,stockerEnabled:false,stockerSchedule:[null,[7.5,17],[7.5,17],[7.5,17],[7.5,17],[7.5,17],[7.5,17]],stockerLeaveDays:[],construction:null,stockerSentHomeDay:0,stockerWageDue:0,stockerPaidTotal:0,stockerDaysWorked:0,sales:0,satisfaction:80,inventory,finance:{revenue:0,supplies:0,charges:0,transactions:0},upgrades:{},hour:7};
 }
 function load(){
  const s=initial();
@@ -474,7 +474,13 @@ function load(){
    if(typeof current.stockerName==="string")s.stockerName=current.stockerName.slice(0,24);
    for(const k of ["stockerHired","stockerEnabled"])if(typeof current[k]==="boolean")s[k]=current[k];
    for(const k of ["stockerSentHomeDay","stockerWageDue","stockerPaidTotal","stockerDaysWorked"])if(Number.isFinite(current[k])&&current[k]>=0)s[k]=current[k];
-   if(Array.isArray(current.stockerSchedule)&&current.stockerSchedule.length===7)s.stockerSchedule=current.stockerSchedule.map(v=>Array.isArray(v)&&v.length===2&&Number.isInteger(v[0])&&Number.isInteger(v[1])&&v[0]>=8&&v[1]<=20&&v[1]>v[0]?v:null);
+   if(Array.isArray(current.stockerSchedule)&&current.stockerSchedule.length===7)
+    s.stockerSchedule=current.stockerSchedule.map(v=>
+     Array.isArray(v)&&v.length===2&&Number.isFinite(v[0])&&Number.isFinite(v[1])&&
+     v[0]>=7.5&&v[1]<=20&&v[1]>v[0]?
+      // Les anciens horaires standard 08:00-17:00 démarrent à 07:30.
+      // Les autres horaires personnalisés et les jours de repos restent identiques.
+      [v[0]===8&&v[1]===17?7.5:v[0],v[1]]:null);
    if(Array.isArray(current.stockerLeaveDays))s.stockerLeaveDays=current.stockerLeaveDays.filter(Number.isInteger).slice(-60);
    if(Number.isInteger(current.workerSentHomeDay))s.workerSentHomeDay=current.workerSentHomeDay;
    if(typeof current.workerEnabled==="boolean")s.workerEnabled=current.workerEnabled;
@@ -2075,8 +2081,10 @@ function showStockerPlanning(){
   button(panel,name+" — modifier",()=>{
    openPanel("HORAIRES — "+name);
    const start=document.createElement("select"),end=document.createElement("select");
-   for(let h=8;h<=20;h++)for(const el of [start,end]){const opt=document.createElement("option");opt.value=h;opt.textContent=formatHour(h);el.appendChild(opt);}
-   start.value=shift?shift[0]:8;end.value=shift?shift[1]:17;
+   for(const h of [7.5,8,9,10,11,12,13,14,15,16,17,18,19,20])for(const el of [start,end]){
+    const opt=document.createElement("option");opt.value=h;opt.textContent=formatHour(h);el.appendChild(opt);
+   }
+   start.value=shift?shift[0]:7.5;end.value=shift?shift[1]:17;
    paragraph("Début");panel.appendChild(start);paragraph("Fin");panel.appendChild(end);
    button(panel,"Enregistrer",()=>{if(+end.value<=+start.value){toast("Horaires invalides");return;}state.stockerSchedule[i]=[+start.value,+end.value];save();showStockerPlanning();});
    button(panel,"Jour de repos",()=>{state.stockerSchedule[i]=null;save();showStockerPlanning();});
@@ -8025,4 +8033,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.46 !");
+animate();toast("Business Empire Simulator V0.15.47 !");
