@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.76 — parcours clients et examen des rayons plus naturels
+// Business Empire Simulator V0.15.77 — capacité électronique cohérente en mode test
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -278,7 +278,13 @@ const STORAGE_KINDS=Object.keys(STORAGE_NAMES);
 function storageKind(p){return p.storage??(p.kind==="electronics"?"electronics":coldStorageProduct(p)?"cold":"dry");}
 function storageName(kind){return STORAGE_NAMES[kind];}
 function storageLimit(kind){
- if(kind==="electronics")return state.upgrades.store2?60+activeCapacity("electronics"):0;
+ if(kind==="electronics"){
+  // V0.15.77 : le niveau forcé en mode test n'achète pas l'extension store2.
+  // Autoriser sa capacité de base lors du test de niveaux éligibles, sans
+  // modifier le déblocage ou les dépenses d'une partie normale.
+  const testUnlocked=DEV_MODE&&Number.isFinite(state.devLevel)&&playerLevel()>=6;
+  return state.upgrades.store2||testUnlocked?60+activeCapacity("electronics"):0;
+ }
  return kind==="cold"?coldLimit():reserveLimit();
 }
 function storageBoxes(kind){
@@ -955,10 +961,11 @@ function cartCapacity(kind){return Math.max(0,storageLimit(kind)-storageBoxes(ki
 function stockCapacityStatus(kind,includeCart=true){
  const limit=storageLimit(kind),stored=storageBoxes(kind),incoming=pendingTotal(kind),cart=includeCart?cartCount(kind):0;
  const used=stored+incoming+cart,free=Math.max(0,limit-used);
- const full=free===0,nearFull=!full&&free<=Math.max(2,Math.ceil(limit*.15));
+ const unavailable=limit<=0;
+  const full=!unavailable&&free===0,nearFull=!unavailable&&!full&&free<=Math.max(2,Math.ceil(limit*.15));
  return {kind,limit,stored,incoming,cart,used,free,
-  status:full?"STOCK COMPLET":nearFull?"PRESQUE PLEIN":"DISPONIBLE",
-  color:full?"#ef4444":nearFull?"#f59e0b":"#22c55e"};
+  status:unavailable?"NON DÉBLOQUÉ":full?"STOCK COMPLET":nearFull?"PRESQUE PLEIN":"DISPONIBLE",
+  color:unavailable?"#94a3b8":full?"#ef4444":nearFull?"#f59e0b":"#22c55e"};
 }
 function renderStockCapacity(parent,includeCart=true){
  const result={};
@@ -983,7 +990,7 @@ function renderStockCapacity(parent,includeCart=true){
   const details=document.createElement("p");
   details.textContent="Stocké : "+data.stored+" · À livrer / en transport : "+data.incoming+(includeCart?" · Panier : "+data.cart:"");
   Object.assign(details.style,{fontSize:"12px",margin:"8px 0 0",color:"#cbd5e1"});container.appendChild(details);
-  if(data.free===0){
+  if(data.limit>0&&data.free===0){
    const warning=document.createElement("p");
    warning.textContent=storageName(kind)+" pleine : impossible d'y ajouter de nouveaux cartons. Les autres zones restent accessibles.";
    Object.assign(warning.style,{fontSize:"12px",fontWeight:"bold",color:"#fca5a5",margin:"8px 0 0"});
@@ -8627,4 +8634,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.76 !");
+animate();toast("Business Empire Simulator V0.15.77 !");
