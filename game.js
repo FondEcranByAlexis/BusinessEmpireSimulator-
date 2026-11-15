@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.41 — trajectoires clients et passage parking
+// Business Empire Simulator V0.15.42 — virages progressifs des clients
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6500,24 +6500,38 @@ function walk(c,t,dt){
   if(next&&!customerCanWalk(p,next))break;
   c.navIndex++;
  }
- // Lissage des trajets A* : supprimer les angles droits inutiles.
- // Ne sauter un virage que si toute la diagonale reste libre de collisions.
- // Conserver une marge renforcée près des meubles et des étagères.
+ // Visée locale : éviter les sauts de 12 cases qui provoquaient
+ // une nouvelle direction brusque à l'approche des angles.
+ // Le point visé est choisi à courte distance et seulement en vue dégagée.
  if(c.navIndex<route.length){
-  const end=Math.min(route.length-1,c.navIndex+12);
-  for(let j=end;j>c.navIndex;j--){
-   if(customerCanWalk(p,route[j],.32,.07)){c.navIndex=j;break;}
+  let best=c.navIndex;
+  const lookAhead=1.45;
+  for(let j=c.navIndex+1;j<route.length&&j<=c.navIndex+7;j++){
+   const candidate=route[j];
+   if(Math.hypot(candidate.x-p.x,candidate.z-p.z)>lookAhead)break;
+   if(!customerCanWalk(p,candidate,.32,.06))break;
+   best=j;
   }
+  c.navIndex=best;
  }
  if(c.navIndex>=route.length){
   c.navTarget=null;c.navRoute=null;
   return Math.hypot(p.x-t.x,p.z-t.z)<.4;
  }
- const w=route[c.navIndex],dx=w.x-p.x,dz=w.z-p.z,dist=Math.hypot(dx,dz);
- // Anticiper le cap et ralentir avant le dernier mètre du virage.
+ const w=route[c.navIndex];
+ let dx=w.x-p.x,dz=w.z-p.z,dist=Math.hypot(dx,dz);
+ // Amorcer une courbe avant chaque angle : interpole vers le point suivant,
+ // mais conserve uniquement les trajectoires dont la collision est dégagée.
  const next=route[c.navIndex+1];
- if(next&&Math.hypot(next.x-w.x,next.z-w.z)>.01&&dist<.9)
-  c.motionSpeed=Math.min(c.motionSpeed,c.speed*(.68+.32*dist/.9));
+ if(next&&dist<.85){
+  const blend=(.85-dist)/.85;
+  const candidate={x:w.x+(next.x-w.x)*blend*.58,z:w.z+(next.z-w.z)*blend*.58};
+  if(customerCanWalk(p,candidate,.3,.05)){
+   const bx=candidate.x-p.x,bz=candidate.z-p.z;
+   if(Math.hypot(bx,bz)>.08){dx=bx;dz=bz;dist=Math.hypot(dx,dz);}
+  }
+  c.motionSpeed=Math.min(c.motionSpeed,c.speed*(.74+.26*Math.min(1,dist/.85)));
+ }
  const step=customerStep(c,dt,dist);
  if(!step)return false;
  const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
@@ -7973,4 +7987,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.41 !");
+animate();toast("Business Empire Simulator V0.15.42 !");
