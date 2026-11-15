@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.72 — dépôts manuels reconnus dans les trois nouvelles réserves
+// Business Empire Simulator V0.15.73 — quantités lisibles sur les racks des réserves
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3266,12 +3266,17 @@ for(const def of rebuiltStorageDefinitions){
    rebuiltPart(rack,dx,1.6,dz,.055,3.2,.055,rebuiltStorageMaterial.metal);
   // Chaque rack affiche le produit auquel il est réservé.
   const title=shelfSign(p.name);title.position.set(0,3.35,0);rack.add(title);
+  // V0.15.73 : compteur de stock propre à chaque référence, sans modifier l'inventaire.
+  const stockCanvas=document.createElement("canvas");stockCanvas.width=512;stockCanvas.height=128;
+  const stockTexture=gameTexture(stockCanvas);
+  const stockSign=new THREE.Sprite(new THREE.SpriteMaterial({map:stockTexture,transparent:true,depthTest:true,depthWrite:false}));
+  stockSign.scale.set(2.35,.56,1);stockSign.position.set(0,3.82,0);rack.add(stockSign);
   // Point de prise placé dans l'allée, à côté du rack, jamais dedans.
   // Les deux racks centraux s'utilisent depuis l'allée centrale ;
   // les racks extérieurs depuis leur allée latérale.
   const offsets=[-3.45,-.95,.95,3.45];
   const access=[def.x+offsets[lane],z];
-  rebuiltStorageShelves.push({rack,p,kind:def.kind,access});
+  rebuiltStorageShelves.push({rack,p,kind:def.kind,access,stockCanvas,stockTexture,lastStockLabel:null});
   // Racks dédiés : les cartons sauvegardés sont affichés dans les nouvelles réserves.
   addStorageRack(def.kind,x,z,[.65,1.6,2.55],1.35,0,{newStorageRoom:true,rebuiltProductId:p.id});
   const hit={minX:x-.84,maxX:x+.84,minZ:z-.75,maxZ:z+.75};
@@ -4660,6 +4665,22 @@ function originalStoreProduct(p){
   p.x>=-10&&p.x<=10&&p.z>=-10&&p.z<=10);
 }
 function refreshBoxes(){
+ // Les étiquettes reflètent les quantités réelles, sans recréer les textures à chaque image.
+ for(const shelf of rebuiltStorageShelves){
+  const inventory=state.inventory[shelf.p.id];
+  const cartons=Math.max(0,inventory?.boxes||0);
+  const units=Math.max(0,inventory?.reserve||0);
+  const label=cartons+" CARTON"+(cartons!==1?"S":"")+"  ·  "+units+" EN VRAC";
+  if(label===shelf.lastStockLabel)continue;
+  shelf.lastStockLabel=label;
+  const ctx=shelf.stockCanvas.getContext("2d");
+  ctx.clearRect(0,0,512,128);
+  ctx.fillStyle="#123047";ctx.fillRect(0,0,512,128);
+  ctx.strokeStyle="#38bdf8";ctx.lineWidth=5;ctx.strokeRect(3,3,506,122);
+  ctx.fillStyle="#ffffff";ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.font="bold 33px Arial";ctx.fillText(label,256,65,478);
+  shelf.stockTexture.needsUpdate=true;
+ }
  for(const batch of storageBatches.values())batch.visible=false;
  for(const kind of STORAGE_KINDS){
   const bays=storageBayCount(kind);
@@ -8556,4 +8577,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.72 !");
+animate();toast("Business Empire Simulator V0.15.73 !");
