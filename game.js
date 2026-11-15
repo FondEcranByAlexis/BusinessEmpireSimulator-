@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.59 — correction de l'arrêt en réserve
+// Business Empire Simulator V0.15.60 — accès réserve vers rayons
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6881,9 +6881,10 @@ function teamRouteTo(unit,point){
  if(!route.length)return false;
  unit.route=route;return true;
 }
+// Préparer le parcours jusqu'à une étagère depuis la réserve en utilisant,
+// si nécessaire, le passage magasin/réserve déjà emprunté par les employés.
 function teamRouteToShelf(unit,product){
  const points=stockerShelfAccessPoints(product);
- // Étendre les accès uniquement si les positions initiales sont injoignables.
  const z=product.z??1;
  for(const radius of [2.75,3.25]){
   for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[.7,.7],[-.7,.7],[.7,-.7],[-.7,-.7]]){
@@ -6891,8 +6892,26 @@ function teamRouteToShelf(unit,product){
    if(!blocked(x,pz,.22))points.push([x,pz]);
   }
  }
- for(const point of points)
+ // Un trajet unique peut échouer à la jonction de la porte malgré deux
+ // tronçons libres. Dans ce cas, passer par l'allée devant la réserve.
+ const origin={x:unit.group.position.x,z:unit.group.position.z};
+ for(const point of points){
   if(teamRouteTo(unit,point))return true;
+ }
+ const gates=[[10.05,5.5],[8.55,5.5]];
+ for(const gate of gates){
+  if(blocked(gate[0],gate[1],.22))return false;
+ }
+ const a=staffBreakPath(origin,{x:gates[0][0],z:gates[0][1]});
+ if(!a.length)return false;
+ const b=staffBreakPath({x:gates[0][0],z:gates[0][1]},{x:gates[1][0],z:gates[1][1]});
+ if(!b.length)return false;
+ for(const point of points){
+  const route=staffBreakPath({x:gates[1][0],z:gates[1][1]},{x:point[0],z:point[1]});
+  if(!route.length)continue;
+  unit.route=[...a.slice(1),...b.slice(1),...route.slice(1)];
+  return unit.route.length>0;
+ }
  return false;
 }
 function updateTeamJob(unit){
@@ -6943,13 +6962,14 @@ function updateTeamJob(unit){
   const product=unit.target;unit.target=null;
   const quantity=Math.min(SHELF_CARRY_LIMIT*BOX_UNITS,productStoredUnits(product),shelfCapacity(product)-state.inventory[product.id].shelf);
   if(quantity<=0)return;
-  // Ne retirer aucun article si le rayon reste physiquement inaccessible.
+  // Prendre le carton seulement si le trajet complet vers le rayon existe.
   if(!teamRouteToShelf(unit,product)){
    unit.jobRetry.set(product.id,unit.jobClock+18);
-   return;
+   unit.delay=.5;return;
   }
   removeReserveUnits(state.inventory[product.id],quantity);
-  unit.cargo={product,quantity};unit.placingStarted=false;unit.placingTimer=0;save();return;
+  unit.cargo={product,quantity};unit.placingStarted=false;unit.placingTimer=0;
+  unit.handItem.visible=false;save();return;
  }
  const team=shelfTeam(unit);
  const product=unlockedProducts().filter(p=>(storageKind(p)==="cold"?"cold":"dry")===team&&
@@ -6957,7 +6977,10 @@ function updateTeamJob(unit){
   (unit.jobRetry.get(p.id)||0)<=unit.jobClock&&
   stockerCargo!==p.id&&!shelfJobTaken(p))
   .sort((a,b)=>state.inventory[a.id].shelf-state.inventory[b.id].shelf)[0];
- if(product&&teamRouteTo(unit,storageWorkPoint(product)))unit.target=product;
+ if(product){
+  if(teamRouteTo(unit,storageWorkPoint(product)))unit.target=product;
+  else unit.jobRetry.set(product.id,unit.jobClock+18);
+ }
 }
 function expandedTeamShift(unit){
  return unit.role==="security"?[8,20]:unit.role==="dock"?workerShift():stockerShift();
@@ -8233,4 +8256,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.59 !");
+animate();toast("Business Empire Simulator V0.15.60 !");
