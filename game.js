@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.37 — animations clients enrichies
+// Business Empire Simulator V0.15.38 — réalisme clients et paiement visible
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -2267,6 +2267,7 @@ function showCheckout(){
 }
 function completeCheckoutPayment(c,count,staffed=false){
  if(c!==cashier)return;
+ c.paymentPresented=false;
  state.money+=c.total;state.sales+=count;
  finance.revenue+=c.total;finance.transactions++;
  trackSale(c.basket,c.prices);
@@ -2281,6 +2282,7 @@ function completeCheckoutPayment(c,count,staffed=false){
 }
 function showPayment(c,count){
  if(c!==cashier)return;
+ c.paymentPresented=true;
  terminalKeyHandler=null;
  releaseMouseLook();
  checkoutUI.replaceChildren();checkoutUI.style.display="block";
@@ -2409,6 +2411,7 @@ function showCashPayment(c,count){
 }
 function finishCheckout(c,staffed=false){
  if(c!==cashier)return;
+ c.paymentPresented=false;
  closeCheckoutUI();clearCheckoutVisual();cashier=null;
  sendToExit(c);
  if(!staffed)panel.style.display="none";
@@ -5227,6 +5230,23 @@ function showStockerInteraction(){
  button(panel,"Tu peux rentrer chez toi",()=>{state.stockerSentHomeDay=state.day;save();answer("À demain !");});
  button(panel,"Terminer",()=>{stockerTalking=false;panel.style.display="none";});
 }
+// Position de présentation du produit pour les clients : privilégier la face du rayon.
+function customerShelfPosition(p){
+ const candidates=[];
+ if(p.kind==="wall"||p.kind==="electronics"||p.kind==="department"){
+  const angle=(p.rotation||0)*Math.PI/2;
+  candidates.push([p.x+Math.sin(angle)*1.35,p.z+Math.cos(angle)*1.35]);
+ }else{
+  // Les gondoles sont prises par leur face avant, non par leur tranche latérale.
+  candidates.push([p.x,p.z+1.65],[p.x,p.z-1.65]);
+ }
+ const old=stockerShelfPosition(p);
+ candidates.push(old);
+ for(const [x,z] of candidates){
+  if(!customerBlocked(x,z,.28)&&customerCanWalk({x,z},{x,z},.28))return [x,z];
+ }
+ return old;
+}
 function stockerShelfPosition(p){
  // La position du produit désigne le centre du meuble : rester côté allée.
  // Rayons centraux : accès depuis l'allée latérale, pas à travers la gondole.
@@ -6236,6 +6256,12 @@ function makeCustomer(){
   part(.27,.035,.035,handleMat,0,.42,z,bagGroup);
  }
  bagGroup.visible=false;
+ // Objets de paiement visibles à la main au moment de régler.
+ const paymentProp=new THREE.Group();
+ const paymentCard=part(.19,.012,.12,standardMaterial({color:0x2563eb,roughness:.45}),0,-.55,-.13,paymentProp);
+ const paymentBills=part(.20,.014,.105,standardMaterial({color:0x86a873,roughness:.9}),0,-.55,-.13,paymentProp);
+ paymentCard.visible=false;paymentBills.visible=false;
+ armLeft.add(paymentProp);
  const available=unlockedProducts().sort(()=>Math.random()-.5);
  const first=available[0];
  const count=1+Math.floor(Math.random()*4);
@@ -6250,7 +6276,7 @@ function makeCustomer(){
    {x:AUTO_LINK_X,z:GALLERY_LINK_Z},{x:-17.8,z:GALLERY_LINK_Z},{x:0,z:MALL_PLAZA_Z});
  }
  for(const p of choices){
-  const [x,z]=stockerShelfPosition(p);
+  const [x,z]=customerShelfPosition(p);
   route.push({x,z,shop:p.id});
  }
  const distance=route.reduce((length,point,i)=>{
@@ -6261,7 +6287,7 @@ function makeCustomer(){
  group.position.set(citySpawnX,0,citySpawnZ);scene.add(group);
  customers.push({
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
-  speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,priceTolerance:1.12+Math.random()*.33,
+  speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,paymentCard,paymentBills,paymentPresented:false,priceTolerance:1.12+Math.random()*.33,
   visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
   stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:citySpawnX,lastNavZ:citySpawnZ
  });
@@ -6279,6 +6305,8 @@ function updateCustomerVisual(c,dt){
  }
  c.basketGroup.visible=!c.paid&&c.phase!=="leaving";
  c.bagGroup.visible=(c.phase==="leaving"||c.phase==="securityCheck")&&c.paid;
+ c.paymentCard.visible=!!c.paymentPresented&&c.paymentMethod==="card"&&!c.paid;
+ c.paymentBills.visible=!!c.paymentPresented&&c.paymentMethod==="cash"&&!c.paid;
  // Micro-mouvements distincts pour éviter que tous les clients s'animent de façon identique.
  c.head.rotation.y=Math.sin(c.visualClock*(.8+c.personality*.6)+c.glanceOffset)*.13;
  if(c.phase==="securityCheck"){
@@ -6299,26 +6327,30 @@ function updateCustomerVisual(c,dt){
   const register=c.auxRegister;
   faceNpc(c.group,(register?.x??6.5)-c.group.position.x,(register?.z??6.5)-c.group.position.z,dt);
   c.l.rotation.x=0;c.r.rotation.x=0;
-  c.armLeft.rotation.x=-.35+Math.sin(c.visualClock*2.8)*.10;
+  c.armLeft.rotation.x=c.paymentPresented?.95:(-.25+Math.sin(c.visualClock*2)*.07);
   c.armRight.rotation.x=-.12;c.group.position.y=0;
  }else if(c.phase==="queue"||c.phase==="auxQueue"||c.phase==="waitingRegister"){
   // Attente vivante : transferts de poids et regards ponctuels vers la file.
   c.l.rotation.x=.025*Math.sin(c.visualClock*.85+c.glanceOffset);
   c.r.rotation.x=-c.l.rotation.x;
-  c.armLeft.rotation.x=.08*Math.sin(c.visualClock*(1.5+c.personality));
-  c.armRight.rotation.x=-.12;
-  c.head.rotation.y=Math.sin(c.visualClock*.65+c.glanceOffset)*.27;
-  c.group.position.y=.006*Math.sin(c.visualClock*1.4);
+  c.armLeft.rotation.x=.06*Math.sin(c.visualClock*(1.3+c.personality));
+  c.armRight.rotation.x=-.10+.04*Math.sin(c.visualClock*.9+c.glanceOffset);
+  // Le corps suit doucement le changement d'appui, avec des regards irréguliers.
+  c.group.rotation.z=.012*Math.sin(c.visualClock*.75+c.glanceOffset);
+  c.head.rotation.y=Math.sin(c.visualClock*.55+c.glanceOffset)*.32;
+  c.group.position.y=.004*Math.sin(c.visualClock*1.2);
  }else{
-  // Animation de marche synchronisée avec la distance réellement parcourue.
-  const stride=Math.sin(c.walkTime);
-  c.l.rotation.x=stride*.52;
-  c.r.rotation.x=-stride*.52;
-  c.armLeft.rotation.x=-stride*.32;
-  // Bras droit fixe pour tenir la poignée du panier sans traverser sa paroi.
-  c.armRight.rotation.x=c.basketGroup.visible?.38:stride*.32;
-  c.group.position.y=Math.abs(stride)*.018;
+  // Cadence et amplitude personnalisées, sans effet de marche mécanique.
+  const stride=Math.sin(c.walkTime*(.88+c.personality*.19)+c.glanceOffset*.18);
+  const sway=Math.sin(c.walkTime*.5+c.glanceOffset);
+  c.l.rotation.x=stride*(.34+c.personality*.09);
+  c.r.rotation.x=-stride*(.34+c.personality*.09);
+  c.armLeft.rotation.x=-stride*.23-.04;
+  c.armRight.rotation.x=c.basketGroup.visible?.32:stride*.23;
+  c.group.rotation.z=.012*sway;
+  c.group.position.y=Math.abs(stride)*.011;
  }
+ if(c.phase!=="queue"&&c.phase!=="auxQueue"&&c.phase!=="waitingRegister"&&c.phase!=="shopping")c.group.rotation.z*=Math.exp(-6*dt);
 }
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
 // Le joueur conserve son accès à l'ordinateur et au poste de travail.
@@ -6407,7 +6439,7 @@ function walk(c,t,dt){
   }
   const step=Math.min(c.speed*dt,dist);
   const nx=p.x+dx/dist*step,nz=p.z+dz/dist*step;
-  if(!blocked(nx,nz,.24)){p.x=nx;p.z=nz;c.walkTime+=step*5.5;faceNpc(c.group,dx,dz,dt);}
+  if(!blocked(nx,nz,.24)){p.x=nx;p.z=nz;c.walkTime+=step*5.5;faceNpc(c.group,dx,dz,dt*.65);}
   return false;
  }
 
@@ -6442,8 +6474,8 @@ function walk(c,t,dt){
   return false;
  }
  p.x=nx;p.z=nz;c.stuckTime=0;
- faceNpc(c.group,dx,dz,dt);
- c.walkTime+=step*5.5;c.l.rotation.x=Math.sin(c.walkTime)*.4;c.r.rotation.x=-Math.sin(c.walkTime)*.4;
+ faceNpc(c.group,dx,dz,dt*.65);
+ c.walkTime+=step*5.5;
  return false;
 }
 function removeCustomer(c){
@@ -7888,4 +7920,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.37 !");
+animate();toast("Business Empire Simulator V0.15.38 !");
