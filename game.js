@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.47 — prise de poste mise en rayon à 07:30
+// Business Empire Simulator V0.15.48 — préparation avant ouverture et orientation du personnel
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5222,6 +5222,7 @@ stockerHandProduct.visible=false;
 scene.add(stockerGroup);
 stockerGroup.position.set(13,0,5);
 let stockerTarget=null,stockerPhase="idle",stockerCargo=null,stockerTimer=0,stockerWalk=0,stockerTalking=false;
+let stockerIdleClock=0;
 function stockerNeeds(){
  const options=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
   (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)&&!shelfJobTaken(p));
@@ -5381,7 +5382,20 @@ function updateStocker(dt){
     if(!stockerRouteTo(storageWorkPoint(p))){stockerCargo=null;stockerPhase="idle";stockerTimer=2;}
    }
    else if(Math.hypot(stockerGroup.position.x-13,stockerGroup.position.z-5)>.3){stockerPhase="idle-return";if(!stockerRouteTo([13,5]))stockerTimer=2;}
-   else{stockerPhase="idle";return;}
+   else{
+    // Aucun stock disponible : surveiller les rayons au lieu de rester dos
+    // à la surface de vente. Ne pas ajouter d'articles fictifs.
+    stockerPhase="idle";
+    stockerIdleClock+=dt;
+    const shelves=catalog.filter(p=>productAvailable(p)&&p.x<9.5&&p.x>-9.5&&p.z<9&&p.z>-10);
+    const watched=shelves.length?shelves[Math.floor(stockerIdleClock/5)%shelves.length]:null;
+    const tx=watched?watched.x:0,tz=watched?watched.z:3;
+    faceNpc(stockerGroup,tx-stockerGroup.position.x,tz-stockerGroup.position.z,dt);
+    stockerArmA.rotation.x=.08+.10*Math.sin(stockerIdleClock*1.15);
+    stockerArmB.rotation.x=.06+.08*Math.sin(stockerIdleClock*.85);
+    stockerLegA.rotation.x=stockerLegB.rotation.x=0;
+    return;
+   }
   }
  }
  if(!stockerTarget)return;
@@ -6256,7 +6270,7 @@ function movePlayer(dt){
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
 const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
-const PREOPEN_HOUR=7,PREOPEN_SECONDS=45; // Préparation jusqu'à l'heure de départ choisie
+const PREOPEN_HOUR=7,PREOPEN_SECONDS=75; // Préparation : 15 s avant 07:30 puis 60 s de mise en rayon
 const CONSTRUCTION_READY_HOUR=7.5;
 let preopenTimer=0,constructionMorningTimer=0,constructionMorningRunning=false;
 const activeConstructionDay=()=>!!state.construction&&!state.upgrades[state.construction.target||"store1"];
@@ -7664,7 +7678,12 @@ function business(dt){
    const stop=morningHoldHour();
    if(state.hour<stop){
     preopenTimer=Math.min(PREOPEN_SECONDS,preopenTimer+dt);
-    state.hour=Math.min(stop,PREOPEN_HOUR+(preopenTimer/PREOPEN_SECONDS)*(OPEN_HOUR-PREOPEN_HOUR));
+    // Réserver une vraie plage de jeu à l'équipe de mise en rayon :
+    // 07:00-07:30 en 15 secondes, puis 07:30-08:00 en 60 secondes.
+    const morningHour=preopenTimer<=15?
+     PREOPEN_HOUR+preopenTimer/15*.5:
+     7.5+(preopenTimer-15)/(PREOPEN_SECONDS-15)*.5;
+    state.hour=Math.min(stop,morningHour);
     if(state.hour>=stop)toast(activeConstructionDay()?
      "07:30 — démarre la journée des ouvriers quand tu es prêt":
      "08:00 — horloge en pause, ouvre le magasin pour commencer");
@@ -8033,4 +8052,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.47 !");
+animate();toast("Business Empire Simulator V0.15.48 !");
