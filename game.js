@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.56 — gestes visibles des employés devant les rayons
+// Business Empire Simulator V0.15.57 — gestes de rangement avec article visible et dépôt progressif
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6709,8 +6709,11 @@ function teamAvatar(role,x,z,woman=false){
   style:woman?[2,1,0,1][variant]:[0,3,2,0][variant]});
  group.scale.setScalar(woman?.94:1);
  const carton=mallPart(group,0,1,-.32,.51,.32,.30,standardMaterial({color:0xa77543}));
+ // Produit réellement visible dans la main pendant chaque geste de rangement.
+ const handItem=mallPart(arms[0],0,-.55,-.12,.16,.20,.15,standardMaterial({color:0xfacc15}));
+ handItem.visible=false;
  group.position.set(x,0,z);group.visible=false;scene.add(group);
- return {group,legs,arms,carton,stride:0};
+ return {group,legs,arms,carton,handItem,stride:0};
 }
 const teamUnits=Object.entries(STAFF_PLANS).flatMap(([role,plan])=>plan.levels.map((level,index)=>{
  const start=role==="dock"?[25.65+(index%3)*.48,-23.8-index*.38]:
@@ -6839,6 +6842,7 @@ function returnTeamCargo(unit){
  if(!unit.cargo)return;
  const {product,quantity}=unit.cargo;
  unit.placingTimer=0;
+ unit.handItem.visible=false;
  if(unit.role==="dock"){
   for(let i=0;i<Math.floor(quantity/BOX_UNITS);i++)state.deliveryDock.push({id:product.id,qty:BOX_UNITS});
   state.inventory[product.id].reserve+=quantity%BOX_UNITS;
@@ -6900,7 +6904,7 @@ function updateTeamJob(unit){
    const placed=Math.max(0,Math.min(quantity,shelfCapacity(product)-a.shelf));
    a.shelf+=placed;a.reserve+=quantity-placed;
   }
-  unit.cargo=null;unit.placingTimer=0;sync();refreshDeliveryDock();return;
+  unit.cargo=null;unit.placingTimer=0;unit.handItem.visible=false;sync();refreshDeliveryDock();return;
  }
  if(unit.role==="dock"){
   const position=unit.group.position;
@@ -6944,27 +6948,45 @@ function updateExpandedTeam(dt){
   }else{
    for(const leg of unit.legs)leg.rotation.x=0;
    if(unit.role==="shelf"&&unit.cargo){
-    // À l'arrivée au rayon, montrer les gestes AVANT de déposer le stock.
-    // La cargaison et son inventaire restent inchangés pendant l'animation.
-    if(unit.placingTimer<=0)unit.placingTimer=1.6;
+    // Un geste = au maximum deux articles effectivement déposés.
+    // Le rayon n'est rempli qu'au moment où la main atteint l'étagère.
+    const p=unit.cargo.product,a=state.inventory[p.id];
+    const duration=1.05;
+    if(unit.placingTimer<=0)unit.placingTimer=duration;
     unit.placingTimer=Math.max(0,unit.placingTimer-dt);
-    const progress=1-unit.placingTimer/1.6;
-    const extend=progress<.18?0:progress<.7?
-     Math.sin((progress-.18)/.52*Math.PI/2):
-     Math.max(0,Math.cos((progress-.7)/.3*Math.PI/2));
-    const tier=(Math.floor((state.inventory[unit.cargo.product.id]?.shelf||0)/10)%3);
-    unit.arms[0].rotation.x=.22+extend*(.8+tier*.09);
-    unit.arms[1].rotation.x=.38-extend*.12;
-    unit.group.rotation.z=.045*extend;
-    const p=unit.cargo.product;
+    const progress=1-unit.placingTimer/duration;
+    const smooth=t=>t*t*(3-2*t);
+    const reach=progress<.24?0:progress<.72?
+     smooth((progress-.24)/.48):1-smooth((progress-.72)/.28);
+    const tier=Math.floor(a.shelf/10)%3;
+    unit.arms[0].rotation.x=-.08+reach*(1.15+tier*.13);
+    unit.arms[1].rotation.x=.48;
+    unit.group.rotation.z=.07*reach;
+    unit.carton.position.set(.25,1.02,-.24);
+    unit.handItem.material.color.setHex(p.color||0xfacc15);
+    unit.handItem.visible=progress>.12&&progress<.73;
     faceNpc(unit.group,p.x-unit.group.position.x,(p.z??1)-unit.group.position.z,dt);
     if(unit.placingTimer<=0){
-     unit.group.rotation.z=0;
-     updateTeamJob(unit); // Dépôt conservé après la séquence de gestes.
-     unit.delay=.45;
+     const placed=Math.max(0,Math.min(2,unit.cargo.quantity,shelfCapacity(p)-a.shelf));
+     a.shelf+=placed;
+     unit.cargo.quantity-=placed;
+     // Conserver toutes les marchandises : le surplus revient en réserve.
+     if(unit.cargo.quantity>0&&(placed===0||a.shelf>=shelfCapacity(p))){
+      a.reserve+=unit.cargo.quantity;
+      unit.cargo.quantity=0;
+     }
+     sync();
+     unit.placingTimer=0;unit.handItem.visible=false;
+     if(unit.cargo.quantity<=0){
+      unit.cargo=null;unit.carton.position.set(0,1,-.32);
+      unit.group.rotation.z=0;unit.arms[0].rotation.x=unit.arms[1].rotation.x=0;
+      unit.delay=.45;
+     }
     }
     continue;
    }
+   unit.handItem.visible=false;
+   unit.carton.position.set(0,1,-.32);
    unit.group.rotation.z=0;
    unit.arms[0].rotation.x=unit.arms[1].rotation.x=0;
    unit.delay-=dt;
@@ -8176,4 +8198,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.56 !");
+animate();toast("Business Empire Simulator V0.15.57 !");
