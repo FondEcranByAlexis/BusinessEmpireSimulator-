@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.52 — démarrage de Camille et missions accessibles
+// Business Empire Simulator V0.15.53 — attribution du réassort et accès aux rayons
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5227,10 +5227,17 @@ let stockerIdleClock=0,stockerPatrolIndex=0,stockerPatrolRetry=0;
 const stockerUnreachableUntil=new Map();
 let stockerClock=0;
 function stockerNeeds(){
+ // Donner la priorité aux rayons réellement vides, puis aux rayons partiels.
+ // Un article seulement ciblé par un autre employé n'est PAS encore prélevé :
+ // il doit rester disponible en cas d'échec de trajet de ce collègue.
  const options=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
-  (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)&&
-  (stockerUnreachableUntil.get(p.id)||0)<=stockerClock&&!shelfJobTaken(p));
- if(playerLevel()>=19)options.sort((a,b)=>state.inventory[a.id].shelf-state.inventory[b.id].shelf);
+  productStoredUnits(p)>0&&(stockerUnreachableUntil.get(p.id)||0)<=stockerClock);
+ options.sort((a,b)=>{
+  const aCargo=teamUnits.some(u=>u.role==="shelf"&&u.cargo?.product===a);
+  const bCargo=teamUnits.some(u=>u.role==="shelf"&&u.cargo?.product===b);
+  if(aCargo!==bCargo)return Number(aCargo)-Number(bCargo);
+  return state.inventory[a.id].shelf-state.inventory[b.id].shelf;
+ });
  return options[0];
 }
 function stockerTaskLabel(){
@@ -5295,6 +5302,20 @@ function stockerRouteTo(point){
  stockerRoute=path.map(({x,z})=>[x,z]);
  stockerTarget=stockerRoute.shift()??null;
  return !!stockerTarget;
+}
+// Tester les deux faces des gondoles et leurs accès d'allée.
+// Les missions de réassort restent prioritaires sur les rondes.
+function stockerRouteToShelf(p){
+ const options=[stockerShelfPosition(p)];
+ if(p.kind!=="wall"&&p.kind!=="electronics"&&p.kind!=="department"){
+  options.push([p.x,p.z+1.65],[p.x,p.z-1.65]);
+  options.push([p.x+1.65,p.z],[p.x-1.65,p.z]);
+ }
+ for(const point of options){
+  if(blocked(point[0],point[1],.22))continue;
+  if(stockerRouteTo(point))return true;
+ }
+ return false;
 }
 // Contrôle visuel des gondoles quand les stocks ne permettent plus de réassort.
 // Choisir un emplacement d'allée réellement accessible, puis s'y déplacer.
@@ -5382,8 +5403,9 @@ function updateStocker(dt){
     if(stockerCargo){
      const p=catalog.find(p=>p.id===stockerCargo);
      stockerPhase="shelf";
-     if(!stockerRouteTo(stockerShelfPosition(p))){
-      a.reserve+=stockerUnits;stockerCargo=null;stockerUnits=0;
+     if(!stockerRouteToShelf(p)){
+      a.reserve+=stockerUnits;stockerUnreachableUntil.set(p.id,stockerClock+12);
+      stockerCargo=null;stockerUnits=0;
       stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;sync();
      }
     }
@@ -8114,4 +8136,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.52 !");
+animate();toast("Business Empire Simulator V0.15.53 !");
