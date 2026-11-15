@@ -3383,6 +3383,8 @@ function buildStoreExterior(){
  part(-29.5,-.088,31.7,41,.16,2.2,asphalt);
  // Extension du parking en direction de la ville, exclusivement côté ouest des réserves.
  part(-30,-.09,55,40,.16,48,asphalt);
+ // Accotement prolongé pour matérialiser la marge piétonne à X-50.
+ part(-52.05,-.09,73.5,4.2,.16,13,asphalt);
  for(const z of [36,48,60,72]){
   for(let x=-48;x<=-12;x+=3)part(x,.013,z,.07,.016,4.4,paint);
   part(-30,.013,z+2.3,39,.016,.07,paint);
@@ -3397,8 +3399,8 @@ function buildStoreExterior(){
  const poleMat=standardMaterial({color:0x5b6778,metalness:.55,roughness:.4});
  const stopRed=standardMaterial({color:0xb91c1c,roughness:.65,side:THREE.DoubleSide});
  const stopWhite=standardMaterial({color:0xffffff,roughness:.7,side:THREE.DoubleSide});
- for(const x of [-48,-11,9])for(const z of [34,58,78]){
-  if(x===9&&z===78)continue;
+ for(const x of [-48,-11,9])for(const z of [34,58,82]){
+  if(x===9&&z===82)continue;
   part(x,2.55,z,.13,5.1,.13,poleMat);
   part(x+(x<0?.42:-.42),5.02,z,.96,.11,.20,poleMat);
   part(x+(x<0?.67:-.67),4.92,z,.62,.055,.28,parkingLights);
@@ -3433,11 +3435,9 @@ function buildStoreExterior(){
   face.rotation.y=angle;
   group.add(face);
  }
- // Position de référence demandée : ancien X-14 / Z32 -> X-11 / Z33.
- // Les autres STOP suivent le même retrait et la même orientation.
- for(const [x,z,angle] of [
-  [-11,33,Math.PI/4],[-11,79,Math.PI/4],[-48.5,33,Math.PI/4]
- ])stopSign(x,z,angle);
+ // Deux anciens STOP supprimés. Seul celui de l'extrémité reste :
+ // X-11 Z78 -> X-11 Z82, angle de 45 degrés conservé.
+ stopSign(-11,82,Math.PI/4);
  // La chaussée reste dégagée à la sortie du parking.
  // Ancienne pelouse supprimée : elle recouvrait une partie du parking élargi.
  part(0,-.04,12.22,PARKING_HALF_WIDTH*2,.10,3.94,concrete);
@@ -5903,7 +5903,9 @@ function blocked(x,z,r=.4){
  const dryElectronicsDoor=state.upgrades.store2&&x>33.9&&x<35.1&&z>-3.85&&z<-1.35;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
- const wideParking=x>-50+r&&x<-9.2-r&&z>10.38+r&&z<82-r;
+ // Prolonger le passage à l'ouest : plus de collision invisible en
+ // X-50 entre Z71 et Z75, sur le raccord parking / ville.
+ const wideParking=x>-54+r&&x<-9.2-r&&z>10.38+r&&z<82-r;
  const parkingConnection=x>-11.2&&x<-7.8&&z>11.0&&z<78;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
