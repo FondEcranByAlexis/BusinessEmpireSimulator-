@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.70 — correction visuelle du carton de Camille
+// Business Empire Simulator V0.15.71 — cartons affichés dans les trois nouvelles réserves
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3272,6 +3272,8 @@ for(const def of rebuiltStorageDefinitions){
   const offsets=[-3.45,-.95,.95,3.45];
   const access=[def.x+offsets[lane],z];
   rebuiltStorageShelves.push({rack,p,kind:def.kind,access});
+  // Racks dédiés : les cartons sauvegardés sont affichés dans les nouvelles réserves.
+  addStorageRack(def.kind,x,z,[.65,1.6,2.55],1.35,0,{newStorageRoom:true,rebuiltProductId:p.id});
   const hit={minX:x-.84,maxX:x+.84,minZ:z-.75,maxZ:z+.75};
   colliders.push(hit);rebuiltStorageRooms.push(hit);
  }
@@ -4671,12 +4673,14 @@ function refreshBoxes(){
    // qui sert maintenant de passage logistique.
    slots:[...rack.slots,...rack.overflow].filter(slot=>
     !retiredColdCartonPosition(slot.x,slot.z)),
-   owner:null,used:0
+   owner:rack.rebuiltProductId||null,used:0
   })).filter(rack=>rack.slots.length);
+  const dedicated=createPool(racks.filter(rack=>rack.rebuiltProductId));
+  const general=racks.filter(rack=>!rack.rebuiltProductId);
   const pools=kind==="dry"?{
-   original:createPool(racks.filter(rack=>!rack.newStorageRoom)),
-   extension:createPool(racks.filter(rack=>rack.newStorageRoom))
-  }:{original:createPool(racks),extension:[]};
+   dedicated,original:createPool(general.filter(rack=>!rack.newStorageRoom)),
+   extension:createPool(general.filter(rack=>rack.newStorageRoom))
+  }:{dedicated,original:createPool(general),extension:[]};
   function takeFrom(pool,id,count){
    const slots=[];
    // Compléter d'abord les racks déjà consacrés à ce produit.
@@ -4694,7 +4698,8 @@ function refreshBoxes(){
   function takeFor(product,count){
    const primary=kind==="dry"&&!originalStoreProduct(product)?"extension":"original";
    const secondary=primary==="original"?"extension":"original";
-   const slots=takeFrom(pools[primary],product.id,count);
+   const slots=takeFrom(pools.dedicated,product.id,count);
+   if(slots.length<count)slots.push(...takeFrom(pools[primary],product.id,count-slots.length));
    if(slots.length<count)slots.push(...takeFrom(pools[secondary],product.id,count-slots.length));
    return slots;
   }
@@ -8538,4 +8543,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.70 !");
+animate();toast("Business Empire Simulator V0.15.71 !");
