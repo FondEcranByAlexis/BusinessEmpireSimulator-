@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.82 — déclenchement vérifiable des réactions aux prix
+// Business Empire Simulator V0.15.83 — réactions vocales et attente en caisse
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6897,6 +6897,12 @@ function updateCustomerVisual(c,dt){
   c.r.rotation.x=-c.l.rotation.x;
   c.armLeft.rotation.x=.06*Math.sin(c.visualClock*(1.3+c.personality));
   c.armRight.rotation.x=-.10+.04*Math.sin(c.visualClock*.9+c.glanceOffset);
+  // Attente prolongée : observation des autres files et légère impatience.
+  const impatient=(c.phase==="queue"||c.phase==="auxQueue")&&c.queueElapsed>13;
+  if(impatient){
+   c.armLeft.rotation.x+=.16*Math.sin(c.visualClock*1.5+c.glanceOffset);
+   c.armRight.rotation.x+=.12;
+  }
   // Pauses asymétriques, regard vers l'avant puis sur le côté, respiration légère.
   const idleCycle=c.visualClock*(.37+c.personality*.16)+c.glanceOffset;
   const glance=Math.sin(idleCycle)*Math.pow(Math.abs(Math.sin(idleCycle)),2);
@@ -7687,7 +7693,7 @@ function speakDialogue(message,role,ambient=false){
  const synth=window.speechSynthesis,Utterance=window.SpeechSynthesisUtterance;
  if(!audioSettings.dialogue||!audioSettings.volume||!synth||!Utterance||document.hidden)return;
  const now=performance.now();
- if(ambient&&(synth.speaking||synth.pending||now-lastDialogue<6000))return;
+ if(ambient&&(synth.speaking||synth.pending||now-lastDialogue<6000))return false;
  if(!ambient)synth.cancel();
  const line=new Utterance(message);
  line.lang="fr-FR";line.volume=audioSettings.volume*(ambient?.48:.85);
@@ -7695,6 +7701,7 @@ function speakDialogue(message,role,ambient=false){
  if(voice)line.voice=voice;
  line.rate=role==="worker"?.95:1.03;line.pitch=role==="worker"?.84:role==="stocker"?1.13:1;
  lastDialogue=now;synth.speak(line);
+ return true;
 }
 function saveAudioSettings(){
  localStorage.setItem(AUDIO_SETTINGS_KEY,JSON.stringify(audioSettings));
@@ -7717,6 +7724,10 @@ function showAudioSettings(){
   audioSettings.dialogue=!audioSettings.dialogue;saveAudioSettings();showAudioSettings();
  });
  button(panel,"Tester le son du scanner",()=>playSound("scan"));
+ button(panel,"Tester la voix d’un client",()=>{
+  if(!audioSettings.dialogue||!audioSettings.volume){toast("Active les voix et augmente le volume dans Audio");return;}
+  if(!speakDialogue("Bonjour ! Bienvenue chez FBA Supermarket.","customer"))toast("Synthèse vocale indisponible sur ce navigateur");
+ });
  button(panel,"Retour aux paramètres",showSettings);
 }
 function soundExitAlarm(){
@@ -8126,6 +8137,7 @@ function updateCustomers(dt){
   if(inLine||c.phase==="checkout"||c.phase==="auxCheckout"){
    c.queueElapsed+=dt;
    if(!inLine)c.checkoutElapsed+=dt;
+   if(inLine&&c.queueElapsed>13)customerVoice(c,"queueWait",["J’espère que la file va avancer.","Il y a du monde à cette caisse !","C’est un peu long aujourd’hui."],8);
    if(!c.waitPenalty&&(inLine?c.queueElapsed>25:c.checkoutElapsed>40)){
     c.waitPenalty=true;customerComplaint(c,"wait",inLine?"C’est long, cette file n’avance pas !":"Ça fait un moment que j’attends pour payer.",-3);
    }
@@ -8168,6 +8180,7 @@ function updateCustomers(dt){
      if(quantity>0&&a.price>product.price*c.priceTolerance){
       customerComplaint(c,"price",product.name+" à "+euro(a.price)+" ? C’est trop cher.",-2);
       c.reactionKind="price";c.reactionTimer=2.2+c.personality*.55;
+      customerVoice(c,"price",["C’est beaucoup trop cher !","À ce prix-là, je préfère laisser.","Non merci, c’est hors de prix !"]);
      }else if(quantity>0){
       a.shelf-=quantity;c.basket[c.productId]=(c.basket[c.productId]||0)+quantity;
       c.prices[c.productId]=a.price;c.total+=quantity*a.price;sync();
@@ -8175,6 +8188,7 @@ function updateCustomers(dt){
       c.missingProducts++;
       customerComplaint(c,"stock","Je ne trouve plus de "+product.name.toLowerCase()+".",-2);
       c.reactionKind="stock";c.reactionTimer=2.1+c.personality*.65;
+      customerVoice(c,"stock",["Mince, il n’y en a plus !","Ah, le rayon est vide.","Dommage, je cherchais justement ça !"]);
      }
     }
     c.phase=c.reactionTimer>0?"reacting":"shopping";
@@ -8388,6 +8402,25 @@ Object.assign(feedbackBubble.style,{display:"none",position:"fixed",zIndex:"18",
 document.body.appendChild(feedbackBubble);
 let nearbyComplaint=null;
 const feedbackPosition=new THREE.Vector3();
+// Dialogues de proximité : la voix n'interrompt pas celles en cours et chaque
+// réplique n'est jouée qu'une fois par client, en cas de lecture effective.
+function customerVoice(c,key,lines,radius=9){
+ c.voiceLines??=new Set();
+ if(c.voiceLines.has(key)||!near(c.group.position.x,c.group.position.z,radius))return false;
+ const synth=window.speechSynthesis,Utterance=window.SpeechSynthesisUtterance;
+ if(!audioSettings.dialogue||!audioSettings.volume||!synth||!Utterance||document.hidden)return false;
+ const now=performance.now();
+ if(synth.speaking||synth.pending||now-lastDialogue<6000)return false;
+ const distance=Math.hypot(camera.position.x-c.group.position.x,camera.position.z-c.group.position.z);
+ const line=new Utterance(lines[Math.floor(Math.random()*lines.length)]);
+ line.lang="fr-FR";
+ const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith("fr")&&v.localService);
+ if(voice)line.voice=voice;
+ line.volume=audioSettings.volume*Math.max(.18,.85*(1-distance/radius));
+ line.rate=.96+c.personality*.15;line.pitch=.9+c.personality*.25;
+ lastDialogue=now;synth.speak(line);c.voiceLines.add(key);
+ return true;
+}
 function customerComplaint(c,reason,message,penalty=0){
  c.complaints??=new Set();
  if(c.complaints.has(reason))return;
@@ -8399,7 +8432,7 @@ function customerComplaint(c,reason,message,penalty=0){
  else save();
  if(near(c.group.position.x,c.group.position.z,13)){
   nearbyComplaint={c,time:3.6};feedbackBubble.textContent=message;
-  if(near(c.group.position.x,c.group.position.z,5))speakDialogue(message,"customer",true);
+  if(reason!=="price"&&reason!=="stock"&&near(c.group.position.x,c.group.position.z,5))speakDialogue(message,"customer",true);
  }
 }
 function showCustomerFeedback(){
@@ -8696,4 +8729,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.82 !");
+animate();toast("Business Empire Simulator V0.15.83 !");
