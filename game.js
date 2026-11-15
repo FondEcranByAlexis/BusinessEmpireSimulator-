@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.73 — quantités lisibles sur les racks des réserves
+// Business Empire Simulator V0.15.74 — correction des textures des compteurs de stock
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3270,7 +3270,7 @@ for(const def of rebuiltStorageDefinitions){
   const stockCanvas=document.createElement("canvas");stockCanvas.width=512;stockCanvas.height=128;
   const stockTexture=gameTexture(stockCanvas);
   const stockSign=new THREE.Sprite(new THREE.SpriteMaterial({map:stockTexture,transparent:true,depthTest:true,depthWrite:false}));
-  stockSign.scale.set(2.35,.56,1);stockSign.position.set(0,3.82,0);rack.add(stockSign);
+  stockSign.scale.set(2.65,.68,1);stockSign.position.set(0,3.83,0);rack.add(stockSign);
   // Point de prise placé dans l'allée, à côté du rack, jamais dedans.
   // Les deux racks centraux s'utilisent depuis l'allée centrale ;
   // les racks extérieurs depuis leur allée latérale.
@@ -4670,16 +4670,18 @@ function refreshBoxes(){
   const inventory=state.inventory[shelf.p.id];
   const cartons=Math.max(0,inventory?.boxes||0);
   const units=Math.max(0,inventory?.reserve||0);
-  const label=cartons+" CARTON"+(cartons!==1?"S":"")+"  ·  "+units+" EN VRAC";
+  const label=cartons+" CARTONS  |  "+units+" VRAC";
   if(label===shelf.lastStockLabel)continue;
   shelf.lastStockLabel=label;
   const ctx=shelf.stockCanvas.getContext("2d");
   ctx.clearRect(0,0,512,128);
-  ctx.fillStyle="#123047";ctx.fillRect(0,0,512,128);
+  ctx.fillStyle="#061827";ctx.fillRect(0,0,512,128);
   ctx.strokeStyle="#38bdf8";ctx.lineWidth=5;ctx.strokeRect(3,3,506,122);
   ctx.fillStyle="#ffffff";ctx.textAlign="center";ctx.textBaseline="middle";
-  ctx.font="bold 33px Arial";ctx.fillText(label,256,65,478);
-  shelf.stockTexture.needsUpdate=true;
+  ctx.font="bold 47px Arial";ctx.fillText(label,256,65,482);
+  // gameTexture renvoie une DataTexture : recopier les pixels du canvas,
+  // needsUpdate seul ne modifie pas son tampon et laissait le compteur vide.
+  uploadTexturePixels(shelf.stockTexture,shelf.stockCanvas);
  }
  for(const batch of storageBatches.values())batch.visible=false;
  for(const kind of STORAGE_KINDS){
@@ -8577,4 +8579,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.73 !");
+animate();toast("Business Empire Simulator V0.15.74 !");
