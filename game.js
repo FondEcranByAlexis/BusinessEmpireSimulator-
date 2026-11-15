@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.65 — reconstruction des trois espaces de stockage
+// Business Empire Simulator V0.15.66 — raccordement et accès des réserves
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3227,7 +3227,7 @@ const rebuiltStorageDefinitions=[
 const rebuiltStorageLayouts={};
 for(const def of rebuiltStorageDefinitions){
  const products=catalog.filter(p=>storageKind(p)===def.kind);
- const length=Math.max(18,Math.ceil(products.length/4)*2.05+6);
+ const length=Math.max(18,Math.ceil(products.length/4)*2.95+6);
  const centerZ=def.front+length/2;
  const width=13.6;
  const body=new THREE.Group();rebuiltStorageShell.add(body);
@@ -3255,7 +3255,7 @@ for(const def of rebuiltStorageDefinitions){
  signMesh.position.set(def.x,4.12,def.front-.16);body.add(signMesh);
  for(let i=0;i<products.length;i++){
   const p=products[i],lane=i%4,depth=Math.floor(i/4);
-  const x=def.x+[-4.8,-2.15,2.15,4.8][lane],z=def.front+3.6+depth*2.05;
+  const x=def.x+[-4.8,-2.15,2.15,4.8][lane],z=def.front+3.6+depth*2.95;
   const rack=new THREE.Group();rack.position.set(x,0,z);body.add(rack);
   for(const y of [.65,1.6,2.55])
    rebuiltPart(rack,0,y,0,1.65,.075,1.45,rebuiltStorageMaterial.metal);
@@ -3268,12 +3268,21 @@ for(const def of rebuiltStorageDefinitions){
   colliders.push(hit);rebuiltStorageRooms.push(hit);
  }
 }
-// Allée horizontale entre le couloir de livraison existant et les trois
-// entrées : pas de mur ou collision sur la voie principale.
+// Galerie couverte : liaison physique continue à partir du couloir de
+// livraison existant (x 24..29.7), jusqu'aux portes des trois réserves.
 const reconstructedLink=new THREE.Group();rebuiltStorageShell.add(reconstructedLink);
-rebuiltPart(reconstructedLink,47.9,-.015,-10.3,55,.08,4.2,rebuiltStorageMaterial.floor);
-for(const x of [34,51,68])
- rebuiltPart(reconstructedLink,x,4.92,-10.3,2.5,.045,.55,zonePanel("logistics"));
+const rebuiltGallery={minX:27.5,maxX:78,minZ:-13.1,maxZ:-6.75};
+const galleryCenterX=(rebuiltGallery.minX+rebuiltGallery.maxX)/2;
+const galleryWidth=rebuiltGallery.maxX-rebuiltGallery.minX;
+const galleryDepth=rebuiltGallery.maxZ-rebuiltGallery.minZ;
+const galleryCenterZ=(rebuiltGallery.minZ+rebuiltGallery.maxZ)/2;
+rebuiltPart(reconstructedLink,galleryCenterX,-.015,galleryCenterZ,galleryWidth,.08,galleryDepth,rebuiltStorageMaterial.floor);
+rebuiltPart(reconstructedLink,galleryCenterX,5.1,galleryCenterZ,galleryWidth,.16,galleryDepth,rebuiltStorageMaterial.wall);
+rebuiltPart(reconstructedLink,galleryCenterX,2.5,rebuiltGallery.minZ,galleryWidth,5,.2,rebuiltStorageMaterial.wall,true);
+// Le raccord au bâtiment existant ne reçoit aucun mur ni collision.
+// Sa limite gauche chevauche le couloir extérieur x 24..29.7.
+for(const x of [28.8,37.1,54.1,71.1])
+ rebuiltPart(reconstructedLink,x,4.87,-10.0,2.5,.045,.55,zonePanel("logistics"));
 // L'inventaire et les accès aux anciennes réserves restent opérationnels
 // pendant la transition ; les nouvelles pièces ne deviennent la seule
 // destination des manutentionnaires qu'après validation des accès.
@@ -6336,6 +6345,15 @@ function blocked(x,z,r=.4){
  // Passage continu entre le couloir et la réserve, sans bande bloquée à x=24.
  const newStorageDoor=x>23.0&&x<24.8&&z>-12.6+r&&z<-10.0-r;
  const logisticsAccess=!STORAGE_REBUILD_PENDING&&state.upgrades.store1&&x>24.3&&x<39&&z>-14.0&&z<8.0;
+ // Liaisons physiques de la V0.15.66 : galerie jointe au quai et
+ // réserves neuves accessibles sans neutraliser les collisions des racks.
+ const rebuiltGalleryAccess=x>rebuiltGallery.minX+r&&x<rebuiltGallery.maxX-r&&
+  z>rebuiltGallery.minZ+r&&z<rebuiltGallery.maxZ-r;
+ const rebuiltRoomAccess=rebuiltStorageDefinitions.some(def=>{
+  const room=rebuiltStorageLayouts[def.kind];
+  return x>def.x-6.8+r&&x<def.x+6.8-r&&
+   z>def.front-r&&z<def.front+room.length-r;
+ });
  const rearDock=x>23.2&&x<28.1&&z>-27.4&&z<=-23.0;
  const breakRoom=x>18.05+r&&x<23.85-r&&z>-8.9+r&&z<-3.1-r;
  const breakDoor=x>23.5&&x<24.65&&z>-7.25+r&&z<-4.75-r;
@@ -6350,7 +6368,7 @@ function blocked(x,z,r=.4){
  const link=autoLinkOpen()&&x>-35.85+r&&x<-30+r&&z>GALLERY_LINK_Z-1.35+r&&z<SHOWROOM_LINK_Z+1.35-r;
  const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
- if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||cityRoadConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
+ if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||rebuiltGalleryAccess||rebuiltRoomAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||cityRoadConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  if(cityWallBlocked(x,z,r))return true;
  // Sur la bande de liaison extérieure, ignorer uniquement les anciens
  // colliders du parking. Les murs des bâtiments ont déjà été contrôlés
@@ -8499,4 +8517,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.65 !");
+animate();toast("Business Empire Simulator V0.15.66 !");
