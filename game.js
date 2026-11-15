@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.83 — réactions vocales et attente en caisse
+// Business Empire Simulator V0.15.84 — conversations clients, joueur et employés
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1221,6 +1221,9 @@ let paused=false;
 const menuButton=button(actions,"☰ Menu",showMainMenu);
 menuButton.style.background="#334155";
 button(actions,"Interagir",interact).style.background="#15803d";
+const talkCustomerButton=button(actions,"Parler au client",showCustomerConversation);
+talkCustomerButton.style.background="#0369a1";
+talkCustomerButton.style.display="none";
 const handtruckButton=button(actions,"Utiliser le diable (T)",useHandtruck);
 handtruckButton.setAttribute("aria-keyshortcuts","T");
 handtruckButton.style.display="none";
@@ -5697,6 +5700,7 @@ function updateStocker(dt){
   return;
  }
  if(!onDuty){stop();return;}
+ if(staffCustomerChat.stocker>0){staffCustomerChat.stocker=Math.max(0,staffCustomerChat.stocker-dt);stop();return;}
  if(stockerTalking){stop();faceNpc(stockerGroup,camera.position.x-stockerGroup.position.x,camera.position.z-stockerGroup.position.z,dt);return;}
  stockerPatrolRetry=Math.max(0,stockerPatrolRetry-dt);
  if(stockerTimer>0){
@@ -5838,6 +5842,7 @@ function updateWorker(dt){
   return;
  }
  if(!onDuty){stop();return;}
+ if(staffCustomerChat.worker>0){staffCustomerChat.worker=Math.max(0,staffCustomerChat.worker-dt);stop();return;}
  if(workerTalking){stop();faceNpc(workerGroup,camera.position.x-workerGroup.position.x,camera.position.z-workerGroup.position.z,dt);return;}
  if(workerWait>0){
   workerWait-=dt;stop();
@@ -6701,6 +6706,44 @@ function movePlayer(dt){
 }
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
+// Pause temporaire d'échange : aucune commande d'employé n'est effacée.
+const staffCustomerChat={stocker:0,worker:0};
+function nearestTalkingCustomer(){
+ if(seatedAtCheckout||panel.style.display!=="none"||checkoutUI.style.display!=="none")return null;
+ let nearest=null,distance=2.65;
+ for(const c of customers){
+  if(!c.group.visible||c.paid||c.staffPause>0||c.phase==="leaving"||c.phase==="securityCheck")continue;
+  const d=Math.hypot(camera.position.x-c.group.position.x,camera.position.z-c.group.position.z);
+  if(d<distance){distance=d;nearest=c;}
+ }
+ return nearest;
+}
+function showCustomerConversation(){
+ const c=nearestTalkingCustomer();
+ if(!c){toast("Approche-toi d’un client disponible");return;}
+ c.playerConversation=true;
+ showCustomerConversationChoices(c);
+}
+function showCustomerConversationChoices(c){
+ if(!customers.includes(c)){c.playerConversation=false;panel.style.display="none";return;}
+ c.playerConversation=true;
+ openPanel("DISCUSSION — CLIENT");
+ paragraph("Parle au client en sélectionnant une question. Il répond avec la voix française du jeu.");
+ const product=c.productId&&catalog.find(p=>p.id===c.productId)||
+  c.route.slice(c.waypoint).map(p=>catalog.find(item=>item.id===p.shop)).find(Boolean);
+ const answer=message=>{
+  openPanel("CLIENT — RÉPONSE");
+  paragraph("Client : "+message);speakDialogue(message,"customer");
+  button(panel,"Continuer",()=>showCustomerConversationChoices(c));
+  button(panel,"Terminer",()=>{c.playerConversation=false;panel.style.display="none";});
+ };
+ button(panel,"Bonjour, besoin d’aide ?",()=>answer(product?"Bonjour ! Je cherche "+product.name+".":"Bonjour ! Je regarde les articles, merci."));
+ button(panel,"Vous cherchez un produit ?",()=>answer(product?"Oui, je cherche "+product.name+".":"Pas de produit précis, merci."));
+ if(product)button(panel,"Indiquer le rayon",()=>answer("Merci ! Je vais regarder du côté de "+product.name+"."));
+ button(panel,"Tout se passe bien ?",()=>answer(c.missingProducts?"Je n’ai pas trouvé tout ce que je voulais.":"Oui, tout va bien, merci !"));
+ button(panel,"Bonne journée !",()=>answer("Merci, bonne journée à vous aussi !"));
+ button(panel,"Terminer",()=>{c.playerConversation=false;panel.style.display="none";});
+}
 const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
 const PREOPEN_HOUR=7,PREOPEN_SECONDS=75; // Préparation : 15 s avant 07:30 puis 60 s de mise en rayon
 const CONSTRUCTION_READY_HOUR=7.5;
@@ -6831,6 +6874,13 @@ function makeCustomer(){
 }
 function updateCustomerVisual(c,dt){
  c.visualClock+=dt;
+ if(c.playerConversation||c.staffPause>0){
+  c.l.rotation.x=c.r.rotation.x=0;
+  c.armLeft.rotation.x=-.05;c.armRight.rotation.x=.08;
+  c.head.rotation.y=.14*Math.sin(c.visualClock*2);
+  c.group.position.y=0;
+  return;
+ }
  const ids=[];
  for(const [id,quantity] of Object.entries(c.basket)){
   for(let i=0;i<quantity&&ids.length<c.basketCargo.length;i++)ids.push(id);
@@ -8120,6 +8170,9 @@ function sendToExit(c){
 }
 function updateCustomers(dt){
  for(const c of [...customers]){
+  if(c.playerConversation&&panel.style.display==="none")c.playerConversation=false;
+  if(c.playerConversation){updateCustomerVisual(c,dt);continue;}
+  if(c.staffPause>0){c.staffPause=Math.max(0,c.staffPause-dt);updateCustomerVisual(c,dt);continue;}
   updateCustomerVisual(c,dt);
   if(c.phase==="waitingRegister"){
    assignOpenRegister(c);
@@ -8160,6 +8213,7 @@ function updateCustomers(dt){
      c.timer=1.1+c.personality*1.5+Math.random()*2.1;
      c.selectionDuration=c.timer;
      c.productId=t.shop;
+     maybeCustomerAsksEmployee(c);
     }
     else{
      if(t.shop)customerComplaint(c,"search","Je ne trouve pas le rayon "+catalog.find(p=>p.id===t.shop).name+".");
@@ -8407,6 +8461,35 @@ let nearbyComplaint=null;
 const feedbackPosition=new THREE.Vector3();
 // Dialogues de proximité : la voix n'interrompt pas celles en cours et chaque
 // réplique n'est jouée qu'une fois par client, en cas de lecture effective.
+function maybeCustomerAsksEmployee(c){
+ if(c.staffAsked||Math.random()>.45)return;
+ const available=[
+  {kind:"stocker",group:stockerGroup,ready:stockerGroup.visible&&!stockerTalking&&!stockerCargo&&stockerUnits===0},
+  {kind:"worker",group:workerGroup,ready:workerGroup.visible&&!workerTalking&&!workerCargo&&workerHandling==="none"}
+ ].filter(e=>e.ready&&!staffCustomerChat[e.kind]&&Math.hypot(
+  c.group.position.x-e.group.position.x,c.group.position.z-e.group.position.z)<3.1);
+ if(!available.length)return;
+ const staff=available[0],product=catalog.find(p=>p.id===c.productId);
+ if(!product)return;
+ c.staffAsked=true;
+ c.staffPause=3.2;staffCustomerChat[staff.kind]=3.2;
+ // Les missions et le trajet sont simplement suspendus pendant la conversation.
+ if(!near(c.group.position.x,c.group.position.z,9)||!audioSettings.dialogue||
+  !audioSettings.volume||!window.speechSynthesis||!window.SpeechSynthesisUtterance||document.hidden)return;
+ const synth=window.speechSynthesis,now=performance.now();
+ if(synth.speaking||synth.pending||now-lastDialogue<6000)return;
+ const line=(message,rate,pitch)=>{
+  const utterance=new window.SpeechSynthesisUtterance(message);utterance.lang="fr-FR";
+  const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith("fr")&&v.localService);
+  if(voice)utterance.voice=voice;
+  utterance.volume=audioSettings.volume*.55;utterance.rate=rate;utterance.pitch=pitch;
+  return utterance;
+ };
+ const stock=(state.inventory[product.id]?.shelf||0)>0;
+ lastDialogue=now;
+ synth.speak(line("Bonjour, où puis-je trouver "+product.name+" ?",1.02,1.09));
+ synth.speak(line(stock?"Bonjour ! C’est dans le rayon "+product.name+".":"Bonjour ! Désolé, ce produit est momentanément indisponible.",.94,staff.kind==="worker"?.86:1.05));
+}
 function customerVoice(c,key,lines,radius=9){
  c.voiceLines??=new Set();
  if(c.voiceLines.has(key)||!near(c.group.position.x,c.group.position.z,radius))return false;
@@ -8561,6 +8644,7 @@ function animate(){
  updateHandtruck();
  if(!paused&&ageOverlay.style.display==="none")updateDeliveryTruck(dt);
  handtruckButton.style.display=canUseHandtruck()?"block":"none";
+ talkCustomerButton.style.display=nearestTalkingCustomer()?"block":"none";
  checkoutRushButton.style.display=checkoutRush&&panel.style.display==="none"&&checkoutUI.style.display==="none"?"block":"none";
  surveillance.setDeskVisible(securityOpen());
  updateGalleryRendering();
@@ -8732,4 +8816,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.83 !");
+animate();toast("Business Empire Simulator V0.15.84 !");
