@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.55 — partage exclusif des missions de réassort
+// Business Empire Simulator V0.15.56 — gestes visibles des employés devant les rayons
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6717,7 +6717,7 @@ const teamUnits=Object.entries(STAFF_PLANS).flatMap(([role,plan])=>plan.levels.m
   role==="shelf"?[12.3+(index%3)*.58,4.8+Math.floor(index/3)*.7]:
   [index%2?1.3:-1.3,7.4-index*.65];
  return {role,id:role+(index+1),name:plan.label+" "+(index+1),level,wage:plan.wage,
-  ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:role==="security"?index*3.5:index*.44,patrol:role==="security"?index*2:index,cargo:null,target:null};
+  ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:role==="security"?index*3.5:index*.44,patrol:role==="security"?index*2:index,cargo:null,target:null,placingTimer:0};
 }));
 const SHELF_TEAMS={cold:"Frais et surgelés",dry:"Produits secs et informatique"};
 const shelfRoster=teamUnits.filter(unit=>unit.role==="shelf");
@@ -6838,6 +6838,7 @@ function showTeamManagement(role="shelf"){
 function returnTeamCargo(unit){
  if(!unit.cargo)return;
  const {product,quantity}=unit.cargo;
+ unit.placingTimer=0;
  if(unit.role==="dock"){
   for(let i=0;i<Math.floor(quantity/BOX_UNITS);i++)state.deliveryDock.push({id:product.id,qty:BOX_UNITS});
   state.inventory[product.id].reserve+=quantity%BOX_UNITS;
@@ -6899,7 +6900,7 @@ function updateTeamJob(unit){
    const placed=Math.max(0,Math.min(quantity,shelfCapacity(product)-a.shelf));
    a.shelf+=placed;a.reserve+=quantity-placed;
   }
-  unit.cargo=null;sync();refreshDeliveryDock();return;
+  unit.cargo=null;unit.placingTimer=0;sync();refreshDeliveryDock();return;
  }
  if(unit.role==="dock"){
   const position=unit.group.position;
@@ -6943,10 +6944,29 @@ function updateExpandedTeam(dt){
   }else{
    for(const leg of unit.legs)leg.rotation.x=0;
    if(unit.role==="shelf"&&unit.cargo){
-    unit.arms[0].rotation.x=unit.arms[1].rotation.x=.55;
-   }else{
-    unit.arms[0].rotation.x=unit.arms[1].rotation.x=0;
+    // À l'arrivée au rayon, montrer les gestes AVANT de déposer le stock.
+    // La cargaison et son inventaire restent inchangés pendant l'animation.
+    if(unit.placingTimer<=0)unit.placingTimer=1.6;
+    unit.placingTimer=Math.max(0,unit.placingTimer-dt);
+    const progress=1-unit.placingTimer/1.6;
+    const extend=progress<.18?0:progress<.7?
+     Math.sin((progress-.18)/.52*Math.PI/2):
+     Math.max(0,Math.cos((progress-.7)/.3*Math.PI/2));
+    const tier=(Math.floor((state.inventory[unit.cargo.product.id]?.shelf||0)/10)%3);
+    unit.arms[0].rotation.x=.22+extend*(.8+tier*.09);
+    unit.arms[1].rotation.x=.38-extend*.12;
+    unit.group.rotation.z=.045*extend;
+    const p=unit.cargo.product;
+    faceNpc(unit.group,p.x-unit.group.position.x,(p.z??1)-unit.group.position.z,dt);
+    if(unit.placingTimer<=0){
+     unit.group.rotation.z=0;
+     updateTeamJob(unit); // Dépôt conservé après la séquence de gestes.
+     unit.delay=.45;
+    }
+    continue;
    }
+   unit.group.rotation.z=0;
+   unit.arms[0].rotation.x=unit.arms[1].rotation.x=0;
    unit.delay-=dt;
    if(unit.delay<=0){
     // Les équipes de rayon reprennent rapidement une mission disponible ;
@@ -8156,4 +8176,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.55 !");
+animate();toast("Business Empire Simulator V0.15.56 !");
