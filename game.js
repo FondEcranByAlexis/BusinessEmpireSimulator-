@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.60 — accès réserve vers rayons
+// Business Empire Simulator V0.15.61 — commandes fournisseurs sur PC
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -925,6 +925,12 @@ function checkLevelUp(){
 }
 // Panier fournisseurs : paiement groupé, délai normal 30 s ou express 5 s.
 const supplierCart={};
+let supplierSearch="",supplierZone="all",supplierFilter="all";
+function setSupplierQuantity(p,requested){
+ const qty=Math.max(0,Math.min(999,Math.floor(Number(requested)||0)));
+ changeSupplierQuantity(p,qty-(supplierCart[p.id]||0));
+}
+
 function pendingBoxes(id){
  return state.supplierOrders.reduce((n,o)=>n+o.items.reduce((m,it)=>m+(it.id===id?it.qty:0),0),0)
   +state.deliveryDock.filter(it=>it.id===id).length+state.trolleyCargo.filter(it=>it.id===id).length
@@ -1095,45 +1101,76 @@ function checkoutSupplier(express){
 }
 function showOrders(){
  processSupplierOrders();
- openPanel("FOURNISSEURS — Mon panier");
- paragraph("Réassort simplifié : prépare un panier par lots ou utilise la proposition automatique. Celle-ci cible les ruptures et conserve environ 60 % de l'argent disponible.");
+ openPanel("FOURNISSEURS — PC de commandes");
+ paragraph("Trésorerie : "+euro(state.money)+" · Cartons sélectionnés : "+cartCount());
  button(panel,"Réapprovisionnement intelligent (stocks faibles)",addSmartSupplierItems);
  button(panel,"Remplir toutes les réserves (option coûteuse)",addAllSupplierItems);
  if(cartCount())button(panel,"Vider le panier",clearSupplierCart);
- paragraph("Les cartons déjà commandés, en livraison ou dans le panier sont comptés. La livraison arrive au quai de déchargement.");
- paragraph("SOUS-TOTAL : "+euro(cartSubtotal())+" — "+cartCount()+" carton(s)");
+ const subtotal=cartSubtotal(),expressFee=Math.round(subtotal*20)/100;
+ paragraph("DEVIS · "+cartCount()+" carton(s) · Prix normal : "+euro(subtotal)+" · Prix express : "+euro(subtotal+expressFee)+" (frais "+euro(expressFee)+")");
+ paragraph("Délais de livraison : normale 30 s · express 5 s. Trésorerie restante : "+euro(state.money-subtotal)+" / "+euro(state.money-subtotal-expressFee)+" (normal / express).");
  if(cartCount()){
-  button(panel,"Commander · Livraison normale (30 s) : "+euro(cartSubtotal()),()=>checkoutSupplier(false));
-  button(panel,"Commander · Livraison express (5 s, +20 %) : "+euro(Math.round(cartSubtotal()*120)/100),()=>checkoutSupplier(true));
+  button(panel,"Confirmer · livraison normale (30 s) : "+euro(subtotal),()=>checkoutSupplier(false));
+  button(panel,"Confirmer · livraison express (5 s) : "+euro(subtotal+expressFee),()=>checkoutSupplier(true));
  }
- const capacity=renderStockCapacity(panel);
- paragraph("Chaque zone possède sa capacité indépendante. Limite : "+MAX_BOXES_PER_PRODUCT+" cartons par produit, commandes en attente comprises.");
- if(Object.values(capacity).some(zone=>zone.free===0))paragraph("Tu peux commander pour les zones qui ont encore de la place.");
+ renderStockCapacity(panel);
+ paragraph("Les commandes en cours et les cartons en transit comptent dans les capacités. Chaque produit est limité à "+MAX_BOXES_PER_PRODUCT+" cartons.");
+ const filters=document.createElement("section");
+ Object.assign(filters.style,{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:"8px",margin:"13px 0"});panel.appendChild(filters);
+ const search=document.createElement("input");
+ search.type="search";search.placeholder="Rechercher un produit";search.value=supplierSearch;
+ search.setAttribute("aria-label","Rechercher un produit fournisseur");
+ Object.assign(search.style,{gridColumn:"1/-1",minWidth:"0",padding:"10px",background:"#142336",color:"#fff",border:"1px solid #64748b",borderRadius:"8px"});filters.appendChild(search);
+ function selector(value,choices,onChange){
+  const select=document.createElement("select");
+  Object.assign(select.style,{minWidth:"0",padding:"9px",background:"#142336",color:"#fff",border:"1px solid #64748b",borderRadius:"8px"});
+  for(const [key,label] of choices){const option=document.createElement("option");option.value=key;option.textContent=label;select.appendChild(option);}
+  select.value=value;select.addEventListener("change",()=>onChange(select.value));filters.appendChild(select);
+ }
+ selector(supplierZone,[["all","Toutes les réserves"],...STORAGE_KINDS.filter(kind=>storageLimit(kind)>0).map(kind=>[kind,storageName(kind)])],v=>{supplierZone=v;showOrders();});
+ selector(supplierFilter,[["all","Tous les produits"],["low","Rayons incomplets"],["cart","Dans le panier"]],v=>{supplierFilter=v;showOrders();});
+ const count=paragraph("");
+ const entries=[];
  for(const p of unlockedProducts()){
-  const a=state.inventory[p.id],qty=supplierCart[p.id]||0,pending=pendingBoxes(p.id);
-  const perProductRemaining=MAX_BOXES_PER_PRODUCT-a.boxes-pending-qty;
-  const kind=storageKind(p);
-  const productStatus=perProductRemaining<=0?"PLEIN":perProductRemaining===1?"DERNIÈRE PLACE":"Disponible";
-  paragraph(p.name+" ("+storageName(kind)+") — "+productStatus+" | "+a.boxes+"/"+MAX_BOXES_PER_PRODUCT+" stockés | "+pending+" à livrer | Panier : "+qty+" | "+euro(p.cost*BOX_UNITS)+"/carton");
-  const add=button(panel,"+ Ajouter 1 carton de "+p.name,()=>addSupplierItem(p));
-  add.disabled=a.boxes+pending+qty>=MAX_BOXES_PER_PRODUCT||cartCapacity(kind)<=cartCount(kind);
-  if(add.disabled)add.style.opacity=".45";
-  const more=button(panel,"+ 3 cartons · "+p.name,()=>changeSupplierQuantity(p,3));
-  more.disabled=add.disabled;
-  if(more.disabled)more.style.opacity=".45";
-  if(qty){
-   button(panel,"− 1 carton · "+p.name,()=>changeSupplierQuantity(p,-1));
-   button(panel,"Retirer cette référence du panier · "+p.name,()=>changeSupplierQuantity(p,-qty));
-  }
+  const a=state.inventory[p.id],qty=supplierCart[p.id]||0,waiting=pendingBoxes(p.id),kind=storageKind(p);
+  const capacity=Math.max(0,Math.min(MAX_BOXES_PER_PRODUCT-a.boxes-waiting-qty,cartCapacity(kind)-cartCount(kind)));
+  const row=document.createElement("section");
+  Object.assign(row.style,{background:"#142336",border:"1px solid #334155",borderRadius:"9px",padding:"10px",margin:"8px 0"});
+  const name=document.createElement("strong");name.textContent=p.name+" · "+storageName(kind);row.appendChild(name);
+  const info=document.createElement("p");
+  info.textContent="Rayon "+a.shelf+"/"+shelfCapacity(p)+" · Réserve "+a.boxes+" carton(s) + "+a.reserve+" article(s) · En cours "+waiting+" carton(s) · Prix "+euro(p.cost*BOX_UNITS)+"/carton";
+  Object.assign(info.style,{fontSize:"12px",lineHeight:"1.6",margin:"7px 0"});row.appendChild(info);
+  const label=document.createElement("label");label.textContent="Cartons dans le panier : ";
+  Object.assign(label.style,{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap",fontSize:"12px"});row.appendChild(label);
+  const qtyInput=document.createElement("input");qtyInput.type="number";qtyInput.min="0";qtyInput.max=String(qty+capacity);qtyInput.step="1";qtyInput.value=String(qty);
+  qtyInput.setAttribute("aria-label","Cartons de "+p.name);
+  Object.assign(qtyInput.style,{width:"72px",padding:"8px",background:"#1e293b",color:"#fff",border:"1px solid #64748b",borderRadius:"8px"});
+  qtyInput.addEventListener("change",()=>setSupplierQuantity(p,qtyInput.value));label.appendChild(qtyInput);
+  const add=button(row,"+ 1 carton · "+euro(p.cost*BOX_UNITS),()=>addSupplierItem(p));
+  add.disabled=capacity<=0;if(add.disabled)add.style.opacity=".45";
+  if(qty)button(row,"− 1 carton",()=>changeSupplierQuantity(p,-1));
+  panel.appendChild(row);entries.push({row,p,qty,kind,a});
  }
- if(state.deliveryDock.length)paragraph("CAMION À DÉCHARGER : "+state.deliveryDock.length+" carton(s) — quai de déchargement à l’arrière du supermarché.");
- if(state.supplierOrders.length){
-  paragraph("LIVRAISONS EN COURS");
-  for(const o of state.supplierOrders){
-   paragraph((o.express?"Express":"Normale")+" — "+o.items.reduce((n,it)=>n+it.qty,0)+" carton(s) — "+Math.max(0,Math.ceil((o.due-Date.now())/1000))+" s restantes");
+ function applyFilters(){
+  let shown=0;
+  for(const {row,p,qty,kind,a} of entries){
+   const show=p.name.toLocaleLowerCase("fr-FR").includes(supplierSearch.trim().toLocaleLowerCase("fr-FR"))&&
+    (supplierZone==="all"||supplierZone===kind)&&
+    (supplierFilter==="all"||supplierFilter==="cart"&&qty>0||supplierFilter==="low"&&a.shelf<shelfCapacity(p));
+   row.style.display=show?"":"none";if(show)shown++;
   }
+  count.textContent=shown+" référence(s) affichée(s)";
+ }
+ search.addEventListener("input",()=>{supplierSearch=search.value;applyFilters();});
+ applyFilters();
+ if(state.deliveryDock.length)paragraph("À DÉCHARGER : "+state.deliveryDock.length+" carton(s) au quai.");
+ if(state.supplierOrders.length){
+  paragraph("COMMANDES EN LIVRAISON");
+  for(const order of state.supplierOrders)
+   paragraph((order.express?"Express":"Normale")+" · "+order.items.reduce((n,item)=>n+item.qty,0)+" carton(s) · Arrivée dans "+Math.max(0,Math.ceil((order.due-Date.now())/1000))+" s");
   button(panel,"Actualiser le suivi",showOrders);
  }
+ button(panel,"Retour à l'ordinateur",showComputer);
 }
 function showStocks(){
  openPanel("Stocks");
@@ -8256,4 +8293,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.60 !");
+animate();toast("Business Empire Simulator V0.15.61 !");
