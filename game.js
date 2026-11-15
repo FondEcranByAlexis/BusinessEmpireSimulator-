@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.45 — réassort progressif des rayons
+// Business Empire Simulator V0.15.46 — animation de rangement du réassort
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5208,6 +5208,9 @@ const stockerGroup=new THREE.Group();
 const {legs:[stockerLegA,stockerLegB],arms:[stockerArmA,stockerArmB]}=personModel(stockerGroup,
  {shirt:0x16a34a,skin:0xc98b68,hair:0x241d22,woman:true,style:2,uniform:true});
 const stockerCarton=mallPart(stockerGroup,0,1.05,-.4,.55,.42,.48,standardMaterial({color:0xb98246}));
+// Un article manipulé dans la main, distinct du carton tenu contre le corps.
+const stockerHandProduct=mallPart(stockerArmA,0,-.52,-.12,.15,.22,.12,standardMaterial({color:0xfacc15}));
+stockerHandProduct.visible=false;
 scene.add(stockerGroup);
 stockerGroup.position.set(13,0,5);
 let stockerTarget=null,stockerPhase="idle",stockerCargo=null,stockerTimer=0,stockerWalk=0,stockerTalking=false;
@@ -5284,7 +5287,12 @@ function updateStocker(dt){
  if(!assigned)stockerBreakJourney=null;
  if(onBreak&&!stockerBreakJourney)stockerBreakJourney=beginStaffBreak(stockerGroup,STOCKER_BREAK_SEAT);
  stockerGroup.visible=!!(assigned&&(onDuty||onBreak||stockerBreakJourney));
- const stop=()=>{stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;};
+ const stop=()=>{
+  stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;
+  stockerHandProduct.visible=false;
+  stockerCarton.position.set(0,1.05,-.4);
+  stockerGroup.rotation.z=0;
+ };
  if(stockerBreakJourney){
   if(!stockerTalking){
    if(!onBreak)endStaffBreak(stockerBreakJourney);
@@ -5302,11 +5310,22 @@ function updateStocker(dt){
  if(stockerTimer>0){
   stockerTimer-=dt;
   if(stockerPhase==="placing"){
-   // Chaque geste correspond à un petit lot réellement rangé sur le rayon.
-   const reach=.25+.65*Math.sin(Math.PI*Math.max(0,Math.min(1,1-stockerTimer/.4)));
-   stockerArmA.rotation.x=reach;stockerArmB.rotation.x=.25+reach*.65;
    const p=catalog.find(p=>p.id===stockerCargo);
-   if(p)faceNpc(stockerGroup,p.x-stockerGroup.position.x,p.z-stockerGroup.position.z,dt);
+   if(p){
+    // Trois gestes identifiables : prendre dans le carton, tendre la main,
+    // déposer sur le plateau. Le carton reste soutenu de l'autre bras.
+    const progress=Math.max(0,Math.min(1,1-stockerTimer/.72));
+    const smooth=t=>t*t*(3-2*t);
+    const reach=progress<.25?0:progress<.75?smooth((progress-.25)/.5):1-smooth((progress-.75)/.25);
+    const tier=(Math.floor((state.inventory[p.id]?.shelf||0)/10)%3);
+    stockerArmA.rotation.x=.12+reach*(.65+tier*.11);
+    stockerArmB.rotation.x=.38;
+    stockerHandProduct.material.color.setHex(p.color||0xfacc15);
+    stockerHandProduct.visible=progress>.12&&progress<.85;
+    stockerCarton.position.set(.32,1.01,-.15);
+    stockerGroup.rotation.z=.035*reach;
+    faceNpc(stockerGroup,p.x-stockerGroup.position.x,p.z-stockerGroup.position.z,dt);
+   }
   }else stop();
   return;
  }
@@ -5327,7 +5346,7 @@ function updateStocker(dt){
      }
     }
    }else if(stockerPhase==="shelf"){
-    stockerPhase="placing";stockerTimer=.4;
+    stockerPhase="placing";stockerTimer=.72;
    }else if(stockerPhase==="placing"){
     const p=catalog.find(x=>x.id===stockerCargo);
     if(p){
@@ -5338,13 +5357,13 @@ function updateStocker(dt){
      stockerUnits-=qty;
      if(qty)sync();
      if(stockerUnits>0&&a.shelf<shelfCapacity(p)&&qty>0){
-      stockerTimer=.4;
+      stockerTimer=.72;
       return;
      }
      // Si le rayon s'est rempli pendant le trajet, restituer le surplus.
      if(stockerUnits>0)a.reserve+=stockerUnits;
     }
-    stockerCargo=null;stockerUnits=0;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;sync();
+    stockerCargo=null;stockerUnits=0;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;stop();sync();
    }else stockerPhase="idle";
    return;
   }else{
@@ -8006,4 +8025,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.45 !");
+animate();toast("Business Empire Simulator V0.15.46 !");
