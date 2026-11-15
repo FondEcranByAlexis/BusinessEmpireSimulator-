@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.57 — gestes de rangement avec article visible et dépôt progressif
+// Business Empire Simulator V0.15.58 — cycle de rangement fiable et orientation
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5117,9 +5117,16 @@ function staffRoute(group,point){
  return staffBreakPath(group.position,{x,z}).slice(1);
 }
 function faceNpc(group,dx,dz,dt){
- if(Math.hypot(dx,dz)<.001)return;
+ if(!Number.isFinite(dx)||!Number.isFinite(dz)||Math.hypot(dx,dz)<.001)return;
  const angle=Math.atan2(-dx,-dz)-group.rotation.y;
  group.rotation.y+=Math.atan2(Math.sin(angle),Math.cos(angle))*(1-Math.exp(-12*dt));
+}
+// Orienter précisément le personnage à l'arrêt, sans continuer
+// à regarder le dernier segment de navigation.
+function faceShelfImmediately(group,p){
+ if(!p)return;
+ const dx=p.x-group.position.x,dz=(p.z??1)-group.position.z;
+ if(Math.hypot(dx,dz)>.1)group.rotation.y=Math.atan2(-dx,-dz);
 }
 function takeDockCartons(p,limit){
  let quantity=0;
@@ -5398,7 +5405,7 @@ function updateStocker(dt){
     stockerHandProduct.visible=progress>.12&&progress<.85;
     stockerCarton.position.set(.32,1.01,-.15);
     stockerGroup.rotation.z=.035*reach;
-    faceNpc(stockerGroup,p.x-stockerGroup.position.x,p.z-stockerGroup.position.z,dt);
+    faceShelfImmediately(stockerGroup,p);
    }
   }else stop();
   return;
@@ -5423,7 +5430,7 @@ function updateStocker(dt){
    }else if(stockerPhase==="shelf"){
     // À l'arrivée, regarder le meuble et non le dernier segment de marche.
     const product=catalog.find(p=>p.id===stockerCargo);
-    if(product)faceNpc(stockerGroup,product.x-stockerGroup.position.x,product.z-stockerGroup.position.z,dt);
+    if(product)faceShelfImmediately(stockerGroup,product);
     stockerPhase="placing";stockerTimer=.72;
    }else if(stockerPhase==="placing"){
     const p=catalog.find(x=>x.id===stockerCargo);
@@ -6720,7 +6727,7 @@ const teamUnits=Object.entries(STAFF_PLANS).flatMap(([role,plan])=>plan.levels.m
   role==="shelf"?[12.3+(index%3)*.58,4.8+Math.floor(index/3)*.7]:
   [index%2?1.3:-1.3,7.4-index*.65];
  return {role,id:role+(index+1),name:plan.label+" "+(index+1),level,wage:plan.wage,
-  ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:role==="security"?index*3.5:index*.44,patrol:role==="security"?index*2:index,cargo:null,target:null,placingTimer:0};
+  ...teamAvatar(role,...start,WOMEN_ON_STAFF.has(role+(index+1))),route:[],delay:role==="security"?index*3.5:index*.44,patrol:role==="security"?index*2:index,cargo:null,target:null,placingTimer:0,placingStarted:false};
 }));
 const SHELF_TEAMS={cold:"Frais et surgelés",dry:"Produits secs et informatique"};
 const shelfRoster=teamUnits.filter(unit=>unit.role==="shelf");
@@ -6841,7 +6848,7 @@ function showTeamManagement(role="shelf"){
 function returnTeamCargo(unit){
  if(!unit.cargo)return;
  const {product,quantity}=unit.cargo;
- unit.placingTimer=0;
+ unit.placingTimer=0;unit.placingStarted=false;
  unit.handItem.visible=false;
  if(unit.role==="dock"){
   for(let i=0;i<Math.floor(quantity/BOX_UNITS);i++)state.deliveryDock.push({id:product.id,qty:BOX_UNITS});
@@ -6897,14 +6904,13 @@ function updateTeamJob(unit){
   return;
  }
  if(unit.cargo){
-  const {product,quantity}=unit.cargo,a=state.inventory[product.id];
-  if(unit.role==="dock"){
-   storeDockBatch(product,quantity);
-  }else{
-   const placed=Math.max(0,Math.min(quantity,shelfCapacity(product)-a.shelf));
-   a.shelf+=placed;a.reserve+=quantity-placed;
-  }
-  unit.cargo=null;unit.placingTimer=0;unit.handItem.visible=false;sync();refreshDeliveryDock();return;
+  // Les manutentionnaires déchargent à l'arrivée. La mise en rayon,
+  // elle, est exclusivement effectuée par l'animation de dépôt.
+  if(unit.role==="shelf")return;
+  const {product,quantity}=unit.cargo;
+  storeDockBatch(product,quantity);
+  unit.cargo=null;unit.placingTimer=0;unit.placingStarted=false;
+  unit.handItem.visible=false;sync();refreshDeliveryDock();return;
  }
  if(unit.role==="dock"){
   const position=unit.group.position;
@@ -6924,7 +6930,7 @@ function updateTeamJob(unit){
   // Vérifier d'abord l'accès physique au rayon, avant de sortir le stock.
   if(!teamRouteToShelf(unit,product))return;
   removeReserveUnits(state.inventory[product.id],quantity);
-  unit.cargo={product,quantity};save();return;
+  unit.cargo={product,quantity};unit.placingStarted=false;unit.placingTimer=0;save();return;
  }
  const team=shelfTeam(unit);
  const product=unlockedProducts().filter(p=>(storageKind(p)==="cold"?"cold":"dry")===team&&
@@ -6948,38 +6954,45 @@ function updateExpandedTeam(dt){
   }else{
    for(const leg of unit.legs)leg.rotation.x=0;
    if(unit.role==="shelf"&&unit.cargo){
-    // Un geste = au maximum deux articles effectivement déposés.
-    // Le rayon n'est rempli qu'au moment où la main atteint l'étagère.
+    // Phase explicite : l'employé ARRIVE, SE TOURNE, SAISIT,
+    // DÉPOSE un petit lot, puis reprend un geste ou une mission.
     const p=unit.cargo.product,a=state.inventory[p.id];
-    const duration=1.05;
-    if(unit.placingTimer<=0)unit.placingTimer=duration;
+    const duration=1.35;
+    if(!unit.placingStarted){
+     unit.placingStarted=true;
+     unit.placingTimer=duration;
+     faceShelfImmediately(unit.group,p);
+     unit.handItem.material.color.setHex(p.color||0xfacc15);
+    }
     unit.placingTimer=Math.max(0,unit.placingTimer-dt);
     const progress=1-unit.placingTimer/duration;
-    const smooth=t=>t*t*(3-2*t);
-    const reach=progress<.24?0:progress<.72?
-     smooth((progress-.24)/.48):1-smooth((progress-.72)/.28);
+    const ease=t=>t*t*(3-2*t);
+    const extend=progress<.20?0:progress<.60?ease((progress-.20)/.40):
+     progress<.84?1:1-ease((progress-.84)/.16);
     const tier=Math.floor(a.shelf/10)%3;
-    unit.arms[0].rotation.x=-.08+reach*(1.15+tier*.13);
-    unit.arms[1].rotation.x=.48;
-    unit.group.rotation.z=.07*reach;
-    unit.carton.position.set(.25,1.02,-.24);
-    unit.handItem.material.color.setHex(p.color||0xfacc15);
-    unit.handItem.visible=progress>.12&&progress<.73;
-    faceNpc(unit.group,p.x-unit.group.position.x,(p.z??1)-unit.group.position.z,dt);
+    unit.arms[0].rotation.x=-.12+extend*(1.2+tier*.1);
+    unit.arms[1].rotation.x=.55;
+    unit.group.rotation.z=.055*extend;
+    unit.carton.position.set(.24,1.0,-.27);
+    unit.handItem.visible=progress>=.10&&progress<.76;
+    // Rester face au meuble au lieu de reprendre l'angle de marche.
+    faceShelfImmediately(unit.group,p);
     if(unit.placingTimer<=0){
      const placed=Math.max(0,Math.min(2,unit.cargo.quantity,shelfCapacity(p)-a.shelf));
      a.shelf+=placed;
      unit.cargo.quantity-=placed;
-     // Conserver toutes les marchandises : le surplus revient en réserve.
      if(unit.cargo.quantity>0&&(placed===0||a.shelf>=shelfCapacity(p))){
       a.reserve+=unit.cargo.quantity;
       unit.cargo.quantity=0;
      }
      sync();
-     unit.placingTimer=0;unit.handItem.visible=false;
+     unit.placingStarted=false;
+     unit.handItem.visible=false;
      if(unit.cargo.quantity<=0){
-      unit.cargo=null;unit.carton.position.set(0,1,-.32);
-      unit.group.rotation.z=0;unit.arms[0].rotation.x=unit.arms[1].rotation.x=0;
+      unit.cargo=null;
+      unit.carton.position.set(0,1,-.32);
+      unit.group.rotation.z=0;
+      unit.arms[0].rotation.x=unit.arms[1].rotation.x=0;
       unit.delay=.45;
      }
     }
@@ -8198,4 +8211,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.57 !");
+animate();toast("Business Empire Simulator V0.15.58 !");
