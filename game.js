@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.54 — accès réels aux rayons pour réassort
+// Business Empire Simulator V0.15.55 — partage exclusif des missions de réassort
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5227,17 +5227,14 @@ let stockerIdleClock=0,stockerPatrolIndex=0,stockerPatrolRetry=0;
 const stockerUnreachableUntil=new Map();
 let stockerClock=0;
 function stockerNeeds(){
- // Donner la priorité aux rayons réellement vides, puis aux rayons partiels.
- // Un article seulement ciblé par un autre employé n'est PAS encore prélevé :
- // il doit rester disponible en cas d'échec de trajet de ce collègue.
+ // Une référence en cours de collecte par un collègue lui est réservée
+ // jusqu'à la fin de sa mission : Camille ne peut plus la lui prendre.
  const options=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
-  productStoredUnits(p)>0&&(stockerUnreachableUntil.get(p.id)||0)<=stockerClock);
- options.sort((a,b)=>{
-  const aCargo=teamUnits.some(u=>u.role==="shelf"&&u.cargo?.product===a);
-  const bCargo=teamUnits.some(u=>u.role==="shelf"&&u.cargo?.product===b);
-  if(aCargo!==bCargo)return Number(aCargo)-Number(bCargo);
-  return state.inventory[a.id].shelf-state.inventory[b.id].shelf;
- });
+  productStoredUnits(p)>0&&(stockerUnreachableUntil.get(p.id)||0)<=stockerClock&&
+  !teamUnits.some(u=>u.role==="shelf"&&
+   state.management.team?.[u.id]&&playerLevel()>=u.level&&
+   (u.target===p||u.cargo?.product===p)));
+ options.sort((a,b)=>state.inventory[a.id].shelf-state.inventory[b.id].shelf);
  return options[0];
 }
 function stockerTaskLabel(){
@@ -6918,7 +6915,9 @@ function updateTeamJob(unit){
  if(unit.target){
   const product=unit.target;unit.target=null;
   const quantity=Math.min(SHELF_CARRY_LIMIT*BOX_UNITS,productStoredUnits(product),shelfCapacity(product)-state.inventory[product.id].shelf);
-  if(quantity<=0||!teamRouteToShelf(unit,product))return;
+  if(quantity<=0)return;
+  // Vérifier d'abord l'accès physique au rayon, avant de sortir le stock.
+  if(!teamRouteToShelf(unit,product))return;
   removeReserveUnits(state.inventory[product.id],quantity);
   unit.cargo={product,quantity};save();return;
  }
@@ -6950,7 +6949,9 @@ function updateExpandedTeam(dt){
    }
    unit.delay-=dt;
    if(unit.delay<=0){
-    unit.delay=unit.role==="security"?1:2.5;
+    // Les équipes de rayon reprennent rapidement une mission disponible ;
+    // les pauses de plusieurs secondes sont réservées aux autres postes.
+    unit.delay=unit.role==="shelf"?.45:unit.role==="security"?1:2.5;
     updateTeamJob(unit);
     // Si aucun produit n'est disponible, les employés de rayon inspectent
     // les gondoles. Ne pas modifier leur cargaison ni les tâches de réassort.
@@ -8155,4 +8156,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.54 !");
+animate();toast("Business Empire Simulator V0.15.55 !");
