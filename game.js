@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.50 — reprise des rondes du personnel
+// Business Empire Simulator V0.15.51 — rondes des équipes rayons
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5286,7 +5286,9 @@ function stockerShelfPosition(p){
 }
 let stockerRoute=[];
 function stockerRouteTo(point){
- stockerRoute=staffRoute(stockerGroup,point).map(({x,z})=>[x,z]);
+ const path=staffRoute(stockerGroup,point);
+ if(!path.length)return false;
+ stockerRoute=path.map(({x,z})=>[x,z]);
  stockerTarget=stockerRoute.shift()??null;
  return !!stockerTarget;
 }
@@ -5297,9 +5299,8 @@ function stockerPatrol(){
  // aléatoires parfois bloquées à l'intérieur des gondoles.
  // Le point d'accès devant la réserve garantit un itinéraire de sortie.
  const checkpoints=[
-  [10.25,5.5],[8.8,4.0],[3.4,4.0],[0,5.0],
-  [-3.3,4.0],[-7.2,4.0],[-7.2,-1.6],
-  [-3.2,-1.6],[0,-1.5],[3.3,-1.6],[7.1,-1.6],[7.5,3.1]
+  [10,5.5],[8.8,5.5],[3.5,5.5],[0,5.5],[-3.5,5.5],
+  [-7,5.5],[-7,0],[-3.5,0],[0,0],[3.5,0],[7,0],[7,5.5]
  ];
  const position=stockerGroup.position;
  for(let k=0;k<checkpoints.length;k++){
@@ -6896,7 +6897,20 @@ function updateExpandedTeam(dt){
     unit.arms[0].rotation.x=unit.arms[1].rotation.x=0;
    }
    unit.delay-=dt;
-   if(unit.delay<=0){unit.delay=unit.role==="security"?1:2.5;updateTeamJob(unit);}
+   if(unit.delay<=0){
+    unit.delay=unit.role==="security"?1:2.5;
+    updateTeamJob(unit);
+    // Si aucun produit n'est disponible, les employés de rayon inspectent
+    // les gondoles. Ne pas modifier leur cargaison ni les tâches de réassort.
+    if(unit.role==="shelf"&&!unit.route.length&&!unit.target&&!unit.cargo){
+     const checkpoints=[[8.6,5.5],[3.5,5.5],[0,5.5],[-3.5,5.5],[-7,5.5],[-7,0],[-3.5,0],[0,0],[3.5,0],[7,0]];
+     for(let j=0;j<checkpoints.length;j++){
+      const i=((unit.patrol||0)+j)%checkpoints.length,p=checkpoints[i];
+      if(blocked(p[0],p[1],.22)||Math.hypot(unit.group.position.x-p[0],unit.group.position.z-p[1])<1)continue;
+      if(teamRouteTo(unit,p)){unit.patrol=i+1;break;}
+     }
+    }
+   }
   }
  }
  for(const register of extraRegisters){
@@ -8089,4 +8103,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.50 !");
+animate();toast("Business Empire Simulator V0.15.51 !");
