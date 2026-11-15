@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.35 — version synchronisée
+// Business Empire Simulator V0.15.36 — revêtement du parking étendu
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3372,9 +3372,9 @@ function buildStoreExterior(){
  const part=(x,y,z,w,h,d,mat)=>mallPart(group,x,y,z,w,h,d,mat);
 
  part(0,-.09,20.65,PARKING_HALF_WIDTH*2,.16,20.7,asphalt);
- // Grand parking latéral : 40 m supplémentaires vers l'ouest, sans toucher aux réserves à l'est.
- // Le bord ouest du parking est visible et continu jusqu'à X-65.
- part(-37.5,-.09,20.65,55,.16,20.7,asphalt);
+ // Le revêtement du parking couvre désormais la partie ouest agrandie,
+ // jusqu'à X=-90, sans créer de collision ni modifier les réserves à l'est.
+ part(-50,-.09,20.65,80,.16,20.7,asphalt);
  // Quatre rangées de places de 2,5 m, séparées par deux voies de circulation.
  for(const x of [-47,-44.5,-42,-39.5,-37,-34.5,-32,-29.5,-27,-24.5,-22,-19.5,-17,-14.5,-12]){
   for(const z of [12.3,24.9])part(x,.013,z,.065,.016,3.3,paint);
@@ -3382,11 +3382,10 @@ function buildStoreExterior(){
  for(const z of [15.6,21.6])part(-30,.013,z,39,.016,.08,paint);
  // Liaison transversale avec l'allée centrale.
  part(-29.5,-.088,31.7,41,.16,2.2,asphalt);
- // Extension du parking en direction de la ville, exclusivement côté ouest des réserves.
- part(-37.5,-.09,55,55,.16,48,asphalt);
- // Raccord homogène avec FBA City à Z75 : pas de plaque étroite
- // isolée ni de bord invisible à X-50, X-54 ou X-59.
- part(-37.5,-.09,79,55,.16,9,asphalt);
+ // Continuité du revêtement sur la zone de parking agrandie à l'ouest.
+ part(-50,-.09,55,80,.16,48,asphalt);
+ // Le raccord jusqu'à FBA City garde la même largeur, sans plaque isolée.
+ part(-50,-.09,79,80,.16,9,asphalt);
  for(const z of [36,48,60,72]){
   for(let x=-48;x<=-12;x+=3)part(x,.013,z,.07,.016,4.4,paint);
   part(-30,.013,z+2.3,39,.016,.07,paint);
@@ -7874,4 +7873,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.35 !");
+animate();toast("Business Empire Simulator V0.15.36 !");
