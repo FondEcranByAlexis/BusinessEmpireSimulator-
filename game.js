@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.61 — commandes fournisseurs sur PC
+// Business Empire Simulator V0.15.62 — animation du camion au quai
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1078,7 +1078,7 @@ function processSupplierOrders(){
   state.supplierOrders.splice(state.supplierOrders.indexOf(order),1);
   changed=true;
  }
- if(changed){sync();refreshDeliveryDock();toast("Camion arrivé ! Récupère les cartons à la zone livraison.");}
+ if(changed){sync();startTruckArrival();refreshDeliveryDock();toast("Livraison reçue au quai — camion en approche !");}
 }
 setInterval(processSupplierOrders,1000);
 function checkoutSupplier(express){
@@ -5066,10 +5066,69 @@ cube(25.65,-.15,5.45,3.1,.3,2.6,0xb9c1c8);
 // Quai arrière extérieur, sans murs qui dépassent du bâtiment.
 const dockFloor=cube(25.65,.045,-25.2,5.2,.09,4.8,0x64748b);
 const dockMark=cube(25.65,.105,-23.0,4.8,.018,.09,0xfacc15);
+// Camion de livraison : transformation visuelle indépendante de l'inventaire.
 const deliveryTruck=new THREE.Group();scene.add(deliveryTruck);
-const truckBody=cube(25.65,1.65,-29.0,3.5,2.8,4.2,0xe2e8f0);
-const truckCab=cube(25.65,1.15,-31.6,3.2,2,1.3,0x2563eb);
-const truckStripe=cube(25.65,2.45,-31.11,2.5,.3,.05,0xfacc15);
+const TRUCK_PARK_Z=-29,TRUCK_START_Z=-47;
+let deliveryTruckPhase="absent",deliveryTruckProgress=0;
+const truckMaterial=(color,metalness=.05)=>new THREE.MeshStandardMaterial({color,roughness:.68,metalness});
+function truckPart(parent,x,y,z,w,h,d,color){
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),truckMaterial(color));
+ mesh.position.set(x,y,z);parent.add(mesh);return mesh;
+}
+truckPart(deliveryTruck,0,1.8,0,3.5,2.8,4.3,0xe2e8f0);
+truckPart(deliveryTruck,0,1.2,-2.8,3.15,2.1,1.8,0x2563eb);
+truckPart(deliveryTruck,0,2.45,-3.75,2.45,.25,.08,0xfacc15);
+truckPart(deliveryTruck,0,2.1,-3.72,2.5,.65,.07,0x9fd8f2);
+truckPart(deliveryTruck,0,.55,-1.2,3.0,.65,1.2,0x374151);
+for(const x of [-1.83,1.83])for(const z of [-2.85,1.1]){
+ const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.58,.58,.28,16),truckMaterial(0x20252d));
+ wheel.rotation.z=Math.PI/2;wheel.position.set(x,.58,z);deliveryTruck.add(wheel);
+ const hub=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.30,16),truckMaterial(0xb8c2ce,.6));
+ hub.rotation.z=Math.PI/2;hub.position.set(x,.58,z);deliveryTruck.add(hub);
+}
+const truckDoorLeft=new THREE.Group(),truckDoorRight=new THREE.Group();
+truckDoorLeft.position.set(-1.72,1.8,2.18);truckDoorRight.position.set(1.72,1.8,2.18);
+deliveryTruck.add(truckDoorLeft,truckDoorRight);
+truckPart(truckDoorLeft,.86,0,.04,1.7,2.7,.09,0xd8e1ec);
+truckPart(truckDoorRight,-.86,0,.04,1.7,2.7,.09,0xd8e1ec);
+truckPart(truckDoorLeft,1.5,0,.12,.12,.45,.08,0x64748b);
+truckPart(truckDoorRight,-1.5,0,.12,.12,.45,.08,0x64748b);
+deliveryTruck.position.set(25.65,0,TRUCK_PARK_Z);
+deliveryTruck.visible=false;
+function startTruckArrival(){
+ if(deliveryTruckPhase==="absent"||deliveryTruckPhase==="leaving"){
+  deliveryTruckPhase="arriving";deliveryTruckProgress=0;
+  deliveryTruck.position.z=TRUCK_START_Z;
+  truckDoorLeft.rotation.y=truckDoorRight.rotation.y=0;
+ }
+}
+function updateDeliveryTruck(dt){
+ if(deliveryTruckPhase==="absent"){deliveryTruck.visible=false;return;}
+ deliveryTruck.visible=true;
+ if(deliveryTruckPhase==="arriving"){
+  deliveryTruckProgress=Math.min(1,deliveryTruckProgress+dt/6);
+  const t=deliveryTruckProgress;
+  const ease=t*t*(3-2*t);
+  deliveryTruck.position.z=TRUCK_START_Z+(TRUCK_PARK_Z-TRUCK_START_Z)*ease;
+  if(t>=1){deliveryTruckPhase="unloading";deliveryTruckProgress=0;}
+ }else if(deliveryTruckPhase==="unloading"){
+  deliveryTruckProgress=Math.min(1,deliveryTruckProgress+dt/1.6);
+  truckDoorLeft.rotation.y=-1.65*deliveryTruckProgress;
+  truckDoorRight.rotation.y=1.65*deliveryTruckProgress;
+  if(deliveryTruckProgress>=1)deliveryTruckPhase="parked";
+ }else if(deliveryTruckPhase==="parked"&&!state.deliveryDock.length){
+  deliveryTruckPhase="leaving";deliveryTruckProgress=0;
+ }else if(deliveryTruckPhase==="leaving"){
+  deliveryTruckProgress=Math.min(1,deliveryTruckProgress+dt/6);
+  truckDoorLeft.rotation.y=-1.65*(1-deliveryTruckProgress);
+  truckDoorRight.rotation.y=1.65*(1-deliveryTruckProgress);
+  deliveryTruck.position.z=TRUCK_PARK_Z+(TRUCK_START_Z-TRUCK_PARK_Z)*deliveryTruckProgress;
+  if(deliveryTruckProgress>=1){
+   deliveryTruckPhase="absent";deliveryTruck.visible=false;
+   if(state.deliveryDock.length)startTruckArrival();
+  }
+ }
+}
 const dockCartons=[];
 for(let i=0;i<8;i++){
  const m=cube(24.55+(i%3)*1.05,.4+Math.floor(i/3)*.7,-24.3,.72,.65,.72,0xb98246);
@@ -5606,7 +5665,12 @@ function updateWorker(dt){
 function refreshDeliveryDock(){
  const visibleDeliveries=state.deliveryDock.filter(it=>contentVisible(catalog.find(p=>p.id===it.id)));
  const n=visibleDeliveries.length;
- truckBody.visible=truckCab.visible=truckStripe.visible=n>0;
+ // Les colis restent disponibles au quai pendant l'animation du camion.
+ // Restaurer le camion à quai sur une sauvegarde déjà livrée.
+ if(n>0&&deliveryTruckPhase==="absent"){
+  deliveryTruckPhase="parked";deliveryTruck.position.z=TRUCK_PARK_Z;
+  truckDoorLeft.rotation.y=-1.65;truckDoorRight.rotation.y=1.65;
+ }
  dockCartons.forEach((m,i)=>{
   m.visible=i<Math.min(n,dockCartons.length);
   if(m.visible)labelDeliveryCarton(m,visibleDeliveries[i].id);
@@ -8132,6 +8196,7 @@ function animate(){
  homeDeliveryService.refresh();
  seatButton.style.display=seatedAtCheckout||near(7.3,6.5,3.4)?"block":"none";
  updateHandtruck();
+ if(!paused&&ageOverlay.style.display==="none")updateDeliveryTruck(dt);
  handtruckButton.style.display=canUseHandtruck()?"block":"none";
  checkoutRushButton.style.display=checkoutRush&&panel.style.display==="none"&&checkoutUI.style.display==="none"?"block":"none";
  surveillance.setDeskVisible(securityOpen());
@@ -8293,4 +8358,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.61 !");
+animate();toast("Business Empire Simulator V0.15.62 !");
