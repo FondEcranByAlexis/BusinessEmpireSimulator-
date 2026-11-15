@@ -5445,6 +5445,7 @@ const stockerGroup=new THREE.Group();
 const {legs:[stockerLegA,stockerLegB],arms:[stockerArmA,stockerArmB]}=personModel(stockerGroup,
  {shirt:0x16a34a,skin:0xc98b68,hair:0x241d22,woman:true,style:2,uniform:true});
 const stockerCarton=mallPart(stockerGroup,0,1.05,-.4,.55,.42,.48,standardMaterial({color:0xb98246}));
+ stockerCarton.visible=false;
 // Un article manipulé dans la main, distinct du carton tenu contre le corps.
 const stockerHandProduct=mallPart(stockerArmA,0,-.52,-.12,.15,.22,.12,standardMaterial({color:0xfacc15}));
 stockerHandProduct.visible=false;
@@ -5589,6 +5590,7 @@ function updateStocker(dt){
  if(!assigned)stockerBreakJourney=null;
  if(onBreak&&!stockerBreakJourney)stockerBreakJourney=beginStaffBreak(stockerGroup,STOCKER_BREAK_SEAT);
  stockerGroup.visible=!!(assigned&&(onDuty||onBreak||stockerBreakJourney));
+  if(!stockerCargo&&stockerUnits===0)stockerCarton.visible=false;
  const stop=()=>{
   stockerLegA.rotation.x=stockerLegB.rotation.x=stockerArmA.rotation.x=stockerArmB.rotation.x=0;
   stockerHandProduct.visible=false;
@@ -5639,7 +5641,7 @@ function updateStocker(dt){
     const p=catalog.find(p=>p.id===stockerCargo),a=state.inventory[p.id];
     stockerUnits=Math.max(0,Math.min(SHELF_CARRY_LIMIT*BOX_UNITS,productStoredUnits(p),shelfCapacity(p)-a.shelf));
     if(stockerUnits){removeReserveUnits(a,stockerUnits);stockerCarton.visible=true;}
-    else{stockerCargo=null;stockerPhase="idle";}
+    else{stockerCargo=null;stockerUnits=0;stockerCarton.visible=false;stockerPhase="idle";}
     if(stockerCargo){
      const p=catalog.find(p=>p.id===stockerCargo);
      stockerPhase="shelf";
