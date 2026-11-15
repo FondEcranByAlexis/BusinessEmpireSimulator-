@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.49 — orientation et tournée des rayons
+// Business Empire Simulator V0.15.50 — reprise des rondes du personnel
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5222,7 +5222,7 @@ stockerHandProduct.visible=false;
 scene.add(stockerGroup);
 stockerGroup.position.set(13,0,5);
 let stockerTarget=null,stockerPhase="idle",stockerCargo=null,stockerTimer=0,stockerWalk=0,stockerTalking=false;
-let stockerIdleClock=0,stockerPatrolIndex=0;
+let stockerIdleClock=0,stockerPatrolIndex=0,stockerPatrolRetry=0;
 function stockerNeeds(){
  const options=catalog.filter(p=>productAvailable(p)&&state.inventory[p.id].shelf<shelfCapacity(p)&&
   (state.inventory[p.id].boxes>0||state.inventory[p.id].reserve>0)&&!shelfJobTaken(p));
@@ -5293,15 +5293,22 @@ function stockerRouteTo(point){
 // Contrôle visuel des gondoles quand les stocks ne permettent plus de réassort.
 // Choisir un emplacement d'allée réellement accessible, puis s'y déplacer.
 function stockerPatrol(){
- const shelves=catalog.filter(p=>productAvailable(p)&&p.x>-9.4&&p.x<9.4&&p.z>-9.4&&p.z<9.4);
- if(!shelves.length)return false;
- for(let k=0;k<Math.min(shelves.length,24);k++){
-  const i=(stockerPatrolIndex+k*7)%shelves.length;
-  const target=stockerShelfPosition(shelves[i]);
-  if(Math.hypot(target[0]-stockerGroup.position.x,target[1]-stockerGroup.position.z)<1.25)continue;
+ // Une ronde courte, par les vraies allées, plutôt que des cibles
+ // aléatoires parfois bloquées à l'intérieur des gondoles.
+ // Le point d'accès devant la réserve garantit un itinéraire de sortie.
+ const checkpoints=[
+  [10.25,5.5],[8.8,4.0],[3.4,4.0],[0,5.0],
+  [-3.3,4.0],[-7.2,4.0],[-7.2,-1.6],
+  [-3.2,-1.6],[0,-1.5],[3.3,-1.6],[7.1,-1.6],[7.5,3.1]
+ ];
+ const position=stockerGroup.position;
+ for(let k=0;k<checkpoints.length;k++){
+  const i=(stockerPatrolIndex+k)%checkpoints.length;
+  const target=checkpoints[i];
+  if(Math.hypot(target[0]-position.x,target[1]-position.z)<1.1)continue;
   if(blocked(target[0],target[1],.22))continue;
   if(stockerRouteTo(target)){
-   stockerPatrolIndex=(i+1)%shelves.length;
+   stockerPatrolIndex=(i+1)%checkpoints.length;
    stockerPhase="patrol";
    return true;
   }
@@ -5335,6 +5342,7 @@ function updateStocker(dt){
  }
  if(!onDuty){stop();return;}
  if(stockerTalking){stop();faceNpc(stockerGroup,camera.position.x-stockerGroup.position.x,camera.position.z-stockerGroup.position.z,dt);return;}
+ stockerPatrolRetry=Math.max(0,stockerPatrolRetry-dt);
  if(stockerTimer>0){
   stockerTimer-=dt;
   if(stockerPhase==="placing"){
@@ -5374,6 +5382,9 @@ function updateStocker(dt){
      }
     }
    }else if(stockerPhase==="shelf"){
+    // À l'arrivée, regarder le meuble et non le dernier segment de marche.
+    const product=catalog.find(p=>p.id===stockerCargo);
+    if(product)faceNpc(stockerGroup,product.x-stockerGroup.position.x,product.z-stockerGroup.position.z,dt);
     stockerPhase="placing";stockerTimer=.72;
    }else if(stockerPhase==="placing"){
     const p=catalog.find(x=>x.id===stockerCargo);
@@ -5393,7 +5404,7 @@ function updateStocker(dt){
     }
     stockerCargo=null;stockerUnits=0;stockerCarton.visible=false;stockerPhase="idle";stockerTimer=2;stop();sync();
    }else if(stockerPhase==="patrol"){
-    stockerPhase="idle";stockerTimer=1.2;stop();
+    stockerPhase="idle";stockerTimer=.65;stop();
    }else stockerPhase="idle";
    return;
   }else{
@@ -5406,7 +5417,12 @@ function updateStocker(dt){
     // Après le dernier carton, inspecter plusieurs rayons au lieu de
     // rester figé sur place ou de retourner dos aux gondoles.
     stockerIdleClock+=dt;
-    if(stockerPatrol())return;
+    // Éviter de relancer une recherche A* à chaque image si un trajet
+    // échoue et essayer de nouveau après une courte surveillance.
+    if(stockerPatrolRetry<=0){
+     stockerPatrolRetry=1.5;
+     if(stockerPatrol())return;
+    }
     const shelves=catalog.filter(p=>productAvailable(p)&&p.x<9.5&&p.x>-9.5&&p.z<9&&p.z>-10);
     const watched=shelves.length?shelves[Math.floor(stockerIdleClock/4)%shelves.length]:null;
     const tx=watched?watched.x:0,tz=watched?watched.z:3;
@@ -8073,4 +8089,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.49 !");
+animate();toast("Business Empire Simulator V0.15.50 !");
