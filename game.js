@@ -3373,7 +3373,8 @@ function buildStoreExterior(){
 
  part(0,-.09,20.65,PARKING_HALF_WIDTH*2,.16,20.7,asphalt);
  // Grand parking latéral : 40 m supplémentaires vers l'ouest, sans toucher aux réserves à l'est.
- part(-30,-.09,20.65,40,.16,20.7,asphalt);
+ // Le bord ouest du parking est visible et continu jusqu'à X-65.
+ part(-37.5,-.09,20.65,55,.16,20.7,asphalt);
  // Quatre rangées de places de 2,5 m, séparées par deux voies de circulation.
  for(const x of [-47,-44.5,-42,-39.5,-37,-34.5,-32,-29.5,-27,-24.5,-22,-19.5,-17,-14.5,-12]){
   for(const z of [12.3,24.9])part(x,.013,z,.065,.016,3.3,paint);
@@ -3382,11 +3383,10 @@ function buildStoreExterior(){
  // Liaison transversale avec l'allée centrale.
  part(-29.5,-.088,31.7,41,.16,2.2,asphalt);
  // Extension du parking en direction de la ville, exclusivement côté ouest des réserves.
- part(-30,-.09,55,40,.16,48,asphalt);
- // Accotement prolongé pour matérialiser la marge piétonne à X-50.
- // Raccord praticable élargi vers l'ouest autour de X-54/Z73.
- // Le revêtement couvre maintenant les deux côtés de la jonction.
- part(-54,-.09,78,10,.16,24,asphalt);
+ part(-37.5,-.09,55,55,.16,48,asphalt);
+ // Raccord homogène avec FBA City à Z75 : pas de plaque étroite
+ // isolée ni de bord invisible à X-50, X-54 ou X-59.
+ part(-37.5,-.09,79,55,.16,9,asphalt);
  for(const z of [36,48,60,72]){
   for(let x=-48;x<=-12;x+=3)part(x,.013,z,.07,.016,4.4,paint);
   part(-30,.013,z+2.3,39,.016,.07,paint);
@@ -5917,11 +5917,11 @@ function blocked(x,z,r=.4){
  const dryElectronicsDoor=state.upgrades.store2&&x>33.9&&x<35.1&&z>-3.85&&z<-1.35;
  const entrance=Math.abs(x)<2.15&&z>9.0&&z<11.5;
  const forecourt=Math.abs(x)<PARKING_HALF_WIDTH-r&&z>10.38+r&&z<114-r;
- // Prolonger le passage à l'ouest : plus de collision invisible en
- // X-50 entre Z71 et Z75, sur le raccord parking / ville.
- // Ne plus arrêter la marche au bord X-54 : zone prolongée
- // jusqu'à X-59 pour permettre le passage à X-54 sans collision.
- const wideParking=x>-59+r&&x<-9.2-r&&z>10.38+r&&z<90-r;
+ // Aucun mur artificiel au bord ouest du parking : le joueur peut
+ // quitter le bitume et rejoindre le terrain de FBA City librement.
+ // La seule limite extérieure est celle de la carte (X=-1000).
+ const wideParking=x>CITY_BOUNDS.minX+r&&x<-9.2-r&&
+  z>10.38+r&&z<90-r;
  const parkingConnection=x>-11.2&&x<-7.8&&z>11.0&&z<78;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
@@ -5956,12 +5956,9 @@ function blocked(x,z,r=.4){
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
  if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  if(cityWallBlocked(x,z,r))return true;
- // Raccord sans obstacle : le bord ouest du parking rejoint FBA City à
- // Z75. Aucun meuble, mur de magasin ou collision ancienne ne doit
- // empêcher le passage entre X-50/Z71 et X-50/Z75.
- // Les bâtiments sont déjà contrôlés ci-dessus et les voitures restent
- // contrôlées séparément dans movePlayer.
- if(x>=-58.5&&x<=-47.5&&z>=67&&z<=88)return false;
+ // Les collisions des immeubles sont traitées ci-dessus. Il n'existe
+ // plus de bande de contournement codée en dur autour de X-50 : tous
+ // les extérieurs ouest doivent obéir à la même règle de circulation.
  // Les véhicules sont traités pour le joueur dans movePlayer, afin de
  // permettre de reculer lorsqu'une voiture est déjà trop proche.
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
