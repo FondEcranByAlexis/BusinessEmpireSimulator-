@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.43 — raccord chaussée FBA City
+// Business Empire Simulator V0.15.44 — liaison continue parking et FBA City
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -5953,10 +5953,12 @@ function blocked(x,z,r=.4){
  const wideParking=x>CITY_BOUNDS.minX+r&&x<-9.2-r&&
   z>10.38+r&&z<90-r;
  const parkingConnection=x>-11.2&&x<-7.8&&z>11.0&&z<78;
- // Raccord côté est : la chaussée de FBA City commence à Z=75,
- // tandis que l'ancien périmètre piéton s'arrêtait à X=9.8.
- // Couloir praticable jusqu'à la chaussée, sans toucher aux bâtiments.
- const eastRoadConnection=x>7.0+r&&x<30-r&&z>69+r&&z<79-r;
+ // La limite sud de FBA City est à Z=75. Le parking et l'entrée de ville
+ // doivent former une bande extérieure continue et non un couloir étroit :
+ // sinon le joueur retrouve un mur invisible au bord du premier rectangle.
+ // La bande ne traverse ni le magasin ni les immeubles (Z >= 60).
+ const cityRoadConnection=x>CITY_BOUNDS.minX+r&&x<CITY_BOUNDS.maxX-r&&
+  z>=60&&z<CITY_BOUNDS.minZ+14;
  const extraParking=false;
  // Quartier piétonnier et intérieurs accessibles des immeubles.
  const cityWalk=x>CITY_BOUNDS.minX+r&&x<CITY_BOUNDS.maxX-r&&z>CITY_BOUNDS.minZ-r&&z<CITY_BOUNDS.maxZ-r;
@@ -5988,13 +5990,12 @@ function blocked(x,z,r=.4){
  const link=autoLinkOpen()&&x>-35.85+r&&x<-30+r&&z>GALLERY_LINK_Z-1.35+r&&z<SHOWROOM_LINK_Z+1.35-r;
  const linkDoor=autoLinkOpen()&&Math.abs(x+30)<1.35&&
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
- if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||eastRoadConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
+ if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||cityRoadConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  if(cityWallBlocked(x,z,r))return true;
- // Jonction photographiée : continuité entre le sol clair et la route.
- // L'ancien filtre de X9 ne couvrait pas toute la chaussée sombre.
- // Ignorer les colliders orphelins uniquement sur ce raccord extérieur.
- // Les façades ont déjà été contrôlées ; les voitures le sont dans movePlayer.
- if(eastRoadConnection)return false;
+ // Sur la bande de liaison extérieure, ignorer uniquement les anciens
+ // colliders du parking. Les murs des bâtiments ont déjà été contrôlés
+ // par cityWallBlocked ; les voitures restent gérées par movePlayer.
+ if(cityRoadConnection)return false;
  // Les collisions des immeubles sont traitées ci-dessus. Il n'existe
  // plus de bande de contournement codée en dur autour de X-50 : tous
  // les extérieurs ouest doivent obéir à la même règle de circulation.
@@ -7992,4 +7993,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.43 !");
+animate();toast("Business Empire Simulator V0.15.44 !");
