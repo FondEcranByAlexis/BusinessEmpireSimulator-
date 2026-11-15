@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.75 — retrait des anciennes réserves et déplacement des figurines
+// Business Empire Simulator V0.15.76 — parcours clients et examen des rayons plus naturels
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6738,10 +6738,31 @@ function makeCustomer(){
  const paymentBills=part(.20,.014,.105,standardMaterial({color:0x86a873,roughness:.9}),0,-.55,-.13,paymentProp);
  paymentCard.visible=false;paymentBills.visible=false;
  armLeft.add(paymentProp);
- const available=unlockedProducts().sort(()=>Math.random()-.5);
- const first=available[0];
+ // V0.15.76 — liste de courses et visite progressive des rayons voisins.
+ const available=unlockedProducts();
+ const stocked=available.filter(p=>(state.inventory[p.id]?.shelf||0)>0);
+ const firstPool=stocked.length&&Math.random()<.85?stocked:available;
+ const first=firstPool[Math.floor(Math.random()*firstPool.length)];
  const count=1+Math.floor(Math.random()*4);
- const choices=available.filter(p=>p===first||Math.hypot(p.x-first.x,p.z-first.z)<15).slice(0,count);
+ const nearby=first?available.filter(p=>p!==first&&Math.hypot(p.x-first.x,p.z-first.z)<15):[];
+ for(let i=nearby.length-1;i>0;i--){
+  const j=Math.floor(Math.random()*(i+1));
+  [nearby[i],nearby[j]]=[nearby[j],nearby[i]];
+ }
+ const choices=first?[first,...nearby.slice(0,count-1)]:[];
+ const orderedChoices=[],remainingChoices=[...choices];
+ let previousShelf={x:0,z:8};
+ while(remainingChoices.length){
+  let nearest=0,best=Infinity;
+  for(let i=0;i<remainingChoices.length;i++){
+   const [x,z]=customerShelfPosition(remainingChoices[i]);
+   const distance=Math.hypot(x-previousShelf.x,z-previousShelf.z);
+   if(distance<best){best=distance;nearest=i;}
+  }
+  const chosen=remainingChoices.splice(nearest,1)[0];
+  orderedChoices.push(chosen);
+  const [x,z]=customerShelfPosition(chosen);previousShelf={x,z};
+ }
  const speed=1.35+Math.random()*.42;
  // Les clients arrivent depuis des points aléatoires de la ville et rejoignent le magasin à pied.
  const citySpawnX=(Math.random()-.5)*12;
@@ -6751,7 +6772,7 @@ function makeCustomer(){
   route.push({x:-11.8,z:5},{x:-20,z:-10.7},{x:-22.1,z:-14.6},{x:AUTO_LINK_X,z:SHOWROOM_LINK_Z},
    {x:AUTO_LINK_X,z:GALLERY_LINK_Z},{x:-17.8,z:GALLERY_LINK_Z},{x:0,z:MALL_PLAZA_Z});
  }
- for(const p of choices){
+ for(const p of orderedChoices){
   const [x,z]=customerShelfPosition(p);
   route.push({x,z,shop:p.id});
  }
@@ -8059,7 +8080,8 @@ function updateCustomers(dt){
     c.shoppingStall=0;c.waypoint++;c.navTarget=null;c.navRoute=null;
     if(arrived&&t.shop){
      c.phase="choosing";
-     c.timer=1.25+Math.random()*1.55;
+     // Hésitation variable avant la prise du produit, sans changer la transaction.
+     c.timer=1.1+c.personality*1.5+Math.random()*2.1;
      c.selectionDuration=c.timer;
      c.productId=t.shop;
     }
@@ -8605,4 +8627,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.75 !");
+animate();toast("Business Empire Simulator V0.15.76 !");
