@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.71 — cartons affichés dans les trois nouvelles réserves
+// Business Empire Simulator V0.15.72 — dépôts manuels reconnus dans les trois nouvelles réserves
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -4920,7 +4920,20 @@ function atElectronicsReserve(){
  const {x,z}=camera.position;
  return (x>10.35&&x<19.2&&z>-22.5&&z<-9)||(x>10.35&&x<17.8&&z>=-9&&z<-3)||inStorageWing("electronics",x,z)||!!state.upgrades.store2&&x>=15.3&&x<20.35&&z>30.75&&z<43.7;
 }
+// V0.15.72 : reconnaître les trois nouvelles réserves pour le dépôt manuel.
+// Les limites suivent la géométrie des salles construites, sans inclure la galerie.
+function rebuiltStorageKindAtPlayer(){
+ const {x,z}=camera.position;
+ for(const kind of ["dry","cold","electronics"]){
+  const room=rebuiltStorageLayouts[kind];
+  if(!room)continue;
+  if(x>room.x-6.6&&x<room.x+6.6&&z>room.front+.2&&z<room.front+room.length-.2)return kind;
+ }
+ return null;
+}
 function currentStorageKind(){
+ const rebuilt=rebuiltStorageKindAtPlayer();
+ if(rebuilt)return rebuilt;
  if(atElectronicsReserve())return "electronics";
  if(atColdRoom())return "cold";
  return atReserve()?"dry":null;
@@ -8543,4 +8556,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.71 !");
+animate();toast("Business Empire Simulator V0.15.72 !");
