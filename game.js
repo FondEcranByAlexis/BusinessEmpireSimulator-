@@ -3437,7 +3437,7 @@ function buildStoreExterior(){
  }
  // Deux anciens STOP supprimés. Seul celui de l'extrémité reste :
  // X-11 Z78 -> X-11 Z82, angle de 45 degrés conservé.
- stopSign(-11,82,Math.PI/4);
+ stopSign(-11,82,Math.PI/4+Math.PI);
  // La chaussée reste dégagée à la sortie du parking.
  // Ancienne pelouse supprimée : elle recouvrait une partie du parking élargi.
  part(0,-.04,12.22,PARKING_HALF_WIDTH*2,.10,3.94,concrete);
@@ -5952,6 +5952,12 @@ function blocked(x,z,r=.4){
   (Math.abs(z-SHOWROOM_LINK_Z)<1.5-r||Math.abs(z-GALLERY_LINK_Z)<1.5-r);
  if(!(shop||mall||mallDoor||reserve||relocatedDry||cold||storageWing||logisticsAccess||electronicsReserve||electronicsReserveDoor||dryElectronicsDoor||entrance||forecourt||wideParking||parkingConnection||extraParking||cityWalk||reserveDoor||coldDoor||serviceDoor||serviceCorridor||rearDock||breakRoom||breakDoor||newStorageRoom||newStorageDoor||hall||hallDoor||auto||autoDoor||link||linkDoor))return true;
  if(cityWallBlocked(x,z,r))return true;
+ // Raccord sans obstacle : le bord ouest du parking rejoint FBA City à
+ // Z75. Aucun meuble, mur de magasin ou collision ancienne ne doit
+ // empêcher le passage entre X-50/Z71 et X-50/Z75.
+ // Les bâtiments sont déjà contrôlés ci-dessus et les voitures restent
+ // contrôlées séparément dans movePlayer.
+ if(x>=-52&&x<=-48&&z>=69&&z<=81)return false;
  // Les véhicules sont traités pour le joueur dans movePlayer, afin de
  // permettre de reculer lorsqu'une voiture est déjà trop proche.
  const candidates=r<=COLLIDER_CELL_PADDING?colliderCells.get(colliderCell(x,z)):colliders;
