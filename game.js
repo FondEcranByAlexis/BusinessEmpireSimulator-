@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.50 — tableau des stocks enrichi
+// Business Empire Simulator V0.16.55 — arrivages, tri, remplissage et filtres persistants
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -875,17 +875,20 @@ function showReserveCapacityOverview(){
  button(panel,"Actualiser les capacités",showReserveCapacityOverview);
  button(panel,"Retour aux alertes de stock",showStockOverview);
 }
-// V0.16.50 — tableau détaillé : recherche, filtres de réserve, tous les états, actualisation.
+// V0.16.55 — panneau de stock enrichi, purement consultatif.
+let stockOverviewPreferences={search:"",status:"all",zone:"all",sort:"priority"};
 function showStockOverview(){
  openPanel("ÉTAT DES STOCKS");
  const products=unlockedProducts().map(p=>({product:p,status:stockAlert(p)}));
  const urgent=products.filter(item=>item.status!=="OK");
+ const arriving=products.filter(({product:p})=>pendingBoxes(p.id)>0).length;
  const ruptures=urgent.filter(item=>item.status==="RUPTURE").length;
  const low=urgent.length-ruptures;
  paragraph("Ruptures : "+ruptures+" · Stocks faibles : "+low+" · Produits débloqués : "+products.length);
+ paragraph("Produits avec cartons attendus ou en transit : "+arriving);
  button(panel,"Consulter les capacités des réserves",showReserveCapacityOverview);
  const search=document.createElement("input");
- search.type="search";search.placeholder="Rechercher un produit";
+ search.type="search";search.placeholder="Rechercher un produit";search.value=stockOverviewPreferences.search;
  search.setAttribute("aria-label","Rechercher dans les stocks");
  Object.assign(search.style,{display:"block",width:"100%",marginTop:"10px",padding:"10px",
   borderRadius:"7px",background:"#1e293b",border:"1px solid #64748b",color:"#fff",fontSize:"12px"});
@@ -902,9 +905,21 @@ function showStockOverview(){
  for(const [kind,title] of [["all","Toutes les réserves"],...STORAGE_KINDS.map(k=>[k,storageName(k)])]){
   const option=document.createElement("option");option.value=kind;option.textContent=title;zone.appendChild(option);
  }
+ zone.value=stockOverviewPreferences.zone;
  zoneLabel.appendChild(zone);panel.appendChild(zoneLabel);
+ const sortLabel=document.createElement("label");
+ sortLabel.textContent="Trier par : ";
+ Object.assign(sortLabel.style,{display:"block",marginTop:"10px",fontSize:"12px"});
+ const sort=document.createElement("select");
+ Object.assign(sort.style,{padding:"7px",marginLeft:"6px",maxWidth:"100%",background:"#1e293b",
+  color:"#fff",border:"1px solid #64748b",borderRadius:"7px"});
+ for(const [value,title] of [["priority","Urgence puis nom"],["name","Nom A-Z"],["stock","Stock total croissant"],["incoming","Arrivages décroissants"]]){
+  const option=document.createElement("option");option.value=value;option.textContent=title;sort.appendChild(option);
+ }
+ sort.value=stockOverviewPreferences.sort;
+ sortLabel.appendChild(sort);panel.appendChild(sortLabel);
  const list=document.createElement("div");panel.appendChild(list);
- let active="all";
+ let active=stockOverviewPreferences.status;
  function draw(){
   list.replaceChildren();
   for(const entry of filters.children){
@@ -914,10 +929,14 @@ function showStockOverview(){
   }
   const term=search.value.trim().toLocaleLowerCase("fr");
   const visible=products.filter(({product:p,status})=>
-   (active==="all"?status!=="OK":active==="ALL PRODUCTS"||status===active)&&
+   (active==="all"?status!=="OK":active==="ALL PRODUCTS"||active==="INCOMING"&&pendingBoxes(p.id)>0||status===active)&&
    (zone.value==="all"||storageKind(p)===zone.value)&&
    p.name.toLocaleLowerCase("fr").includes(term))
    .sort((a,b)=>{
+    const stock=p=>{const v=state.inventory[p.id];return v.shelf+v.reserve+v.boxes*BOX_UNITS;};
+    if(sort.value==="name")return a.product.name.localeCompare(b.product.name,"fr");
+    if(sort.value==="stock")return stock(a.product)-stock(b.product)||a.product.name.localeCompare(b.product.name,"fr");
+    if(sort.value==="incoming")return pendingBoxes(b.product.id)-pendingBoxes(a.product.id)||a.product.name.localeCompare(b.product.name,"fr");
     const rank={"RUPTURE":0,"STOCK FAIBLE":1,"OK":2};
     return rank[a.status]-rank[b.status]||a.product.name.localeCompare(b.product.name,"fr");
    });
@@ -935,7 +954,10 @@ function showStockOverview(){
    const a=state.inventory[p.id],stored=a.shelf+a.reserve+a.boxes*BOX_UNITS;
    const pending=pendingBoxes(p.id);
    const line=document.createElement("div");
+   const capacity=shelfCapacity(p);
+   const fillPercent=capacity>0?Math.round(a.shelf/capacity*100):0;
    line.textContent=status+" — "+p.name+" · "+storageName(storageKind(p))+
+    " · Rayon "+fillPercent+" % rempli"+
     " · Rayon : "+a.shelf+" · Réserve : "+(a.reserve+a.boxes*BOX_UNITS)+
     " · Total : "+stored+(pending?" · En commande/transit : "+pending:"");
    Object.assign(line.style,{marginTop:"8px",padding:"10px",borderRadius:"8px",background:"#1e293b",
@@ -945,16 +967,18 @@ function showStockOverview(){
   }
  }
  for(const [filter,label] of [["all","Toutes ("+urgent.length+")"],["RUPTURE","Ruptures ("+ruptures+")"],
-  ["STOCK FAIBLE","Faibles ("+low+")"],["ALL PRODUCTS","Tous les produits ("+products.length+")"]]){
+  ["STOCK FAIBLE","Faibles ("+low+")"],["INCOMING","En arrivage ("+arriving+")"],
+  ["ALL PRODUCTS","Tous les produits ("+products.length+")"]]){
   const btn=document.createElement("button");btn.type="button";
   btn.dataset.filter=filter;btn.textContent=label;
   Object.assign(btn.style,{padding:"8px",borderRadius:"7px",fontSize:"11px",
    fontWeight:"bold",touchAction:"manipulation",color:"#fff"});
-  btn.addEventListener("click",()=>{active=filter;draw();});
+  btn.addEventListener("click",()=>{active=filter;stockOverviewPreferences.status=filter;draw();});
   filters.appendChild(btn);
  }
- search.addEventListener("input",draw);
- zone.addEventListener("change",draw);
+ search.addEventListener("input",()=>{stockOverviewPreferences.search=search.value;draw();});
+ zone.addEventListener("change",()=>{stockOverviewPreferences.zone=zone.value;draw();});
+ sort.addEventListener("change",()=>{stockOverviewPreferences.sort=sort.value;draw();});
  draw();
  button(panel,"Actualiser le tableau des stocks",showStockOverview);
  button(panel,"Ouvrir les commandes fournisseurs",showOrders);
@@ -9419,4 +9443,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.50 !");
+animate();toast("Business Empire Simulator V0.16.55 !");
