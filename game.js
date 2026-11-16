@@ -1,11 +1,11 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.17.70";
+import { installStartScreen } from "./start-screen.js?v=0.17.75";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.70 — trois emplacements de sauvegarde indépendants
+// Business Empire Simulator V0.17.75 — suppression sécurisée et tutoriel débutant
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -25,11 +25,12 @@ const SAVE_SLOT_SESSION=DEV_MODE?"bes-dev-save-slot":"bes-save-slot";
 const storedSlot=Number(sessionStorage.getItem(SAVE_SLOT_SESSION));
 const activeSaveSlot=Number.isInteger(storedSlot)&&storedSlot>=1&&storedSlot<=3?storedSlot:1;
 function slotSaveKey(slot){return slot===1?SAVE_BASE:SAVE_BASE+"-slot-"+slot;}
+function deletedSlotKey(slot){return slotSaveKey(slot)+"-deleted";}
 const SAVE=slotSaveKey(activeSaveSlot);
 const confirmedFreshStart=sessionStorage.getItem("bes-new-game-confirmed")==="1";
 if(confirmedFreshStart)sessionStorage.removeItem("bes-new-game-confirmed");
 let startHasSavedGame=false;
-try{startHasSavedGame=!!JSON.parse(localStorage.getItem(SAVE))?.inventory;}catch(error){}
+try{startHasSavedGame=localStorage.getItem(deletedSlotKey(activeSaveSlot))!=="1"&&!!JSON.parse(localStorage.getItem(SAVE))?.inventory;}catch(error){}
 const PLAYTIME_KEY="fba-dev-playtime-v1";
 let playtime={ms:0,running:false,splits:[],startLevel:1};
 try{const d=JSON.parse(localStorage.getItem(PLAYTIME_KEY));if(d&&Number.isFinite(d.ms))playtime={ms:Math.max(0,d.ms),running:false,splits:Array.isArray(d.splits)?d.splits:[],startLevel:d.startLevel||1};}catch(e){}
@@ -529,7 +530,7 @@ function load(){
     if(Number.isFinite(src.price))dst.price=Math.max(1,Math.round(src.price));
    }
   }else{
-   const old=DEV_MODE||activeSaveSlot!==1||confirmedFreshStart?null:JSON.parse(localStorage.getItem(LEGACY));
+   const old=DEV_MODE||activeSaveSlot!==1||confirmedFreshStart||localStorage.getItem(deletedSlotKey(activeSaveSlot))==="1"?null:JSON.parse(localStorage.getItem(LEGACY));
    if(old){
     for(const k of ["money","day","sales"])if(Number.isFinite(old[k])&&old[k]>=0)s[k]=old[k];
     const qty=Math.max(0,Math.floor(old.stock||0));
@@ -10251,6 +10252,7 @@ const startMenu=installStartScreen({
  activeSlot:activeSaveSlot,
  getSlots:()=>[1,2,3].map(id=>{
   try{
+   if(localStorage.getItem(deletedSlotKey(id))==="1")return {id,exists:false};
    const data=JSON.parse(localStorage.getItem(slotSaveKey(id)));
    if(!data?.inventory)return {id,exists:false};
    return {id,exists:true,day:Math.max(1,Number(data.day)||1),
@@ -10261,11 +10263,24 @@ const startMenu=installStartScreen({
   if(!Number.isInteger(id)||id<1||id>3)return;
   try{
    save();
-   if(replace)localStorage.removeItem(slotSaveKey(id));
+   if(create){
+    localStorage.removeItem(slotSaveKey(id));
+    localStorage.removeItem(deletedSlotKey(id));
+    sessionStorage.setItem("bes-new-game-confirmed","1");
+   }
    sessionStorage.setItem(SAVE_SLOT_SESSION,String(id));
-   if(create)sessionStorage.setItem("bes-new-game-confirmed","1");
    location.reload();
   }catch(error){console.warn("Sélection d'emplacement",error);toast("Impossible de changer d'emplacement.");}
+ },
+ onDeleteSlot:id=>{
+  if(!Number.isInteger(id)||id<1||id>3)return false;
+  try{
+   // Marqueur de suppression : l’initialisation ne fait pas réapparaître une partie vide.
+   localStorage.setItem(deletedSlotKey(id),"1");
+   localStorage.removeItem(slotSaveKey(id));
+   if(id===activeSaveSlot)location.reload();
+   return true;
+  }catch(error){console.warn("Suppression d’emplacement",error);toast("Impossible de supprimer la sauvegarde.");return false;}
  },
  onShow:()=>{paused=true;releaseMouseLook();panel.style.display="none";save();},
  onContinue:()=>{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();},
