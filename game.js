@@ -1,12 +1,12 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.17.80";
-import { createPlayableTutorial } from "./playable-tutorial.js?v=0.17.80";
+import { installStartScreen } from "./start-screen.js?v=0.17.85";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.17.85";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.80 — tutoriel interactif guidé dans le magasin
+// Business Empire Simulator V0.17.85 — objectifs guidés et retour au menu général
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -826,6 +826,13 @@ function openPanel(title){
  panel.replaceChildren();
  const h=document.createElement("h2");h.textContent=title;h.style.fontSize="18px";panel.appendChild(h);
  button(panel,"Fermer",()=>panel.style.display="none");
+ // Navigation commune à tous les panneaux de jeu, sans casser leurs contrôles.
+ // L'accueil possède déjà son propre bouton de retour.
+ if(title!=="☰ Menu principal"){
+  const back=button(panel,"← Retour au menu",showMainMenu);
+  back.style.background="#334155";
+  back.setAttribute("aria-label","Retourner au menu principal");
+ }
  panel.style.display="block";
 }
 function paragraph(t){
@@ -1561,6 +1568,7 @@ function showOrders(){
  button(panel,"Retour à l'ordinateur",showComputer);
 }
 function showStocks(){
+ playableTutorial?.notify("stocks");
  openPanel("Stocks");
  renderStockCapacity(panel,false);
  unlockedProducts().forEach(p=>{
