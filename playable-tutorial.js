@@ -1,4 +1,4 @@
-// Business Empire Simulator V0.18.05 — parcours d'initiation guidé dans le vrai magasin.
+// Business Empire Simulator V0.18.10 — parcours d'initiation guidé dans le vrai magasin.
 // Les étapes s'accomplissent avec des événements du jeu, jamais avec un bouton "Valider".
 export function createPlayableTutorial({getPosition,getHeading,getCartCount,getReserveTarget,isStoreOpen,isGameplayReady,onFinish}){
  const steps=[
