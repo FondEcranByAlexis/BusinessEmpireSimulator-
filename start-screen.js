@@ -1,6 +1,6 @@
-// Accueil indépendant du gameplay — BES V0.17.70
+// Accueil indépendant du gameplay — BES V0.17.75
 export function installStartScreen(config){
- const {hasSave,onShow,onContinue,onNewGame,getSettings,onGraphics,onVolume,onSensitivity,onFullscreen,getSlots,activeSlot,onSelectSlot}=config;
+ const {hasSave,onShow,onContinue,onNewGame,getSettings,onGraphics,onVolume,onSensitivity,onFullscreen,getSlots,activeSlot,onSelectSlot,onDeleteSlot}=config;
  let existing=hasSave;
  const overlay=document.createElement("div");
  overlay.id="bes-start-screen";
@@ -11,7 +11,7 @@ export function installStartScreen(config){
  const title=document.createElement("h1");title.textContent="BUSINESS EMPIRE SIMULATOR";title.style.cssText="font-size:clamp(26px,5vw,36px);line-height:1.1;margin:18px 0 8px";
  const tagline=document.createElement("p");tagline.textContent="Ton supermarché, ta gestion, ton empire.";tagline.style.cssText="color:#cbd5e1;font-size:13px;margin-bottom:24px";
  const buttons=document.createElement("div");
- const footer=document.createElement("p");footer.textContent="V0.17.70 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
+ const footer=document.createElement("p");footer.textContent="V0.17.75 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
  card.append(brand,title,tagline,buttons,footer);overlay.appendChild(card);document.body.appendChild(overlay);
  function add(label,fn,secondary=false){
   const b=document.createElement("button");b.type="button";b.textContent=label;
@@ -46,7 +46,27 @@ export function installStartScreen(config){
     }
    },!slot.exists&&!creating);
   }
+  if(!creating)add("Supprimer une sauvegarde",showDeleteSlots,true);
   add("← Retour",home,true);
+ }
+ function showDeleteSlots(){
+  page("Supprimer une sauvegarde","Choisis l’emplacement à effacer. Cette action ne concerne pas les autres parties.");
+  for(const slot of getSlots()){
+   if(slot.exists)add("Supprimer · "+slotsLabel(slot),()=>confirmDelete(slot),true);
+  }
+  add("← Retour",()=>showSlots(false),true);
+ }
+ function confirmDelete(slot){
+  page("Confirmer la suppression","ATTENTION : "+slotsLabel(slot)+" sera supprimé définitivement. Les autres sauvegardes resteront intactes.");
+  const confirmation=document.createElement("input");
+  confirmation.type="text";confirmation.placeholder="Écris SUPPRIMER";
+  confirmation.setAttribute("aria-label","Confirmer en écrivant SUPPRIMER");
+  confirmation.style.cssText="display:block;width:100%;box-sizing:border-box;padding:11px;background:#142336;color:#fff;border:1px solid #64748b;border-radius:8px;margin:12px 0";
+  buttons.appendChild(confirmation);
+  const erase=add("Supprimer définitivement l’emplacement "+slot.id,()=>onDeleteSlot(slot.id),true);
+  erase.disabled=true;erase.style.opacity=".4";
+  confirmation.addEventListener("input",()=>{erase.disabled=confirmation.value.trim().toUpperCase()!=="SUPPRIMER";erase.style.opacity=erase.disabled?".4":"1";});
+  add("Annuler",()=>showDeleteSlots(),true);
  }
  function confirmReplace(slot){
   page("Remplacer l’emplacement "+slot.id,"Cette action effacera uniquement cette partie : "+slotsLabel(slot)+". Les autres emplacements seront conservés.");
@@ -70,6 +90,22 @@ export function installStartScreen(config){
   slider("Sensibilité souris",s.sensitivity,onSensitivity);
   add("Plein écran",onFullscreen,true);add("← Retour",home,true);
  }
+ const tutorialSteps=[
+  ["Bienvenue dans ton supermarché","Tu débutes avec ton propre magasin. Ton objectif : satisfaire les clients, vendre des produits et développer ton commerce à ton rythme."],
+  ["Se déplacer et interagir","Utilise ZQSD / WASD pour avancer, la souris pour regarder et E pour interagir. Appuie sur M pour ouvrir le menu et F pour parler aux clients."],
+  ["Commander et remplir les rayons","Ouvre MAGASIN puis Fournisseurs pour acheter des cartons. Réceptionne les livraisons et remplis les rayons depuis la réserve. Tu pourras ensuite recruter du personnel."],
+  ["Accueillir les clients et encaisser","Ouvre ton magasin, observe les clients et passe à la caisse pour encaisser. Les demandes clients sont accessibles depuis MAGASIN · Gestion."],
+  ["Développer ton empire","Gagne de l’argent et des points, débloque des licences, des rayons et des extensions. Tu peux avancer sans te presser : la partie est enregistrée dans son emplacement."]
+ ];
+ function tutorial(newPlayer=false,index=0){
+  const step=tutorialSteps[index];
+  page("Tutoriel · "+(index+1)+"/"+tutorialSteps.length,step[0]+" — "+step[1]);
+  if(index+1<tutorialSteps.length)add("Suivant",()=>tutorial(newPlayer,index+1));
+  else add(newPlayer?"Commencer ma partie":"Terminer",()=>{if(newPlayer){overlay.style.display="none";existing=true;onNewGame(false);}else home();});
+  add(newPlayer?"Passer le tutoriel":"← Retour à l’accueil",()=>{
+   if(newPlayer){overlay.style.display="none";existing=true;onNewGame(false);}else home();
+  },true);
+ }
  function help(){page("Commandes / Aide","ZQSD / WASD / flèches : avancer · Souris : regarder · E : interagir · F : parler aux clients · M : menu · Échap : libérer la souris.");add("← Retour",home,true);}
  function credits(){page("Crédits","BUSINESS EMPIRE SIMULATOR — développé pour FBA GAMES par FondEcranByAlexis.");add("← Retour",home,true);}
  function home(){
@@ -80,8 +116,9 @@ export function installStartScreen(config){
   add("＋ Nouvelle partie",newGame);
   add("⚙ Paramètres",settings,true);
   add("⌨ Commandes / Aide",help,true);
+  add("📘 Tutoriel",()=>tutorial(false),true);
   add("★ Crédits",credits,true);
  }
  home();
- return {show:home,beginNew:()=>{overlay.style.display="none";existing=true;onNewGame(false);}};
+ return {show:home,beginNew:()=>tutorial(true)};
 }
