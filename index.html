@@ -7,9 +7,9 @@
         content="width=device-width, initial-scale=1,
         maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#101820">
-  <title>Business Empire Simulator V0.18.25</title>
+  <title>Business Empire Simulator V0.18.30</title>
 
-  <link rel="stylesheet" href="style.css?v=0.18.25">
+  <link rel="stylesheet" href="style.css?v=0.18.30">
 </head>
 
 <body>
@@ -27,7 +27,7 @@
 
   <div id="hud">
     <h1>BUSINESS EMPIRE</h1>
-    <span id="storeName">FBA Supermarket · V0.18.25</span>
+    <span id="storeName">FBA Supermarket · V0.18.30</span>
     <button id="stockAlertDetails" class="stock-alert-details" type="button">Voir les stocks</button>
 
     <div class="stats">
@@ -57,13 +57,18 @@
   </div>
 
   <div id="crosshair">+</div>
+  <div id="bes-target-label" aria-live="off"></div>
 
   <div id="actions">
+    <button id="bes-quick-toggle" type="button" aria-expanded="false" aria-controls="bes-quick-items">☷ Gestion</button>
+    <div id="bes-quick-items">
     <button id="cityMapButton" type="button" aria-label="Ouvrir la carte interactive">🗺 Carte</button>
     <button id="restock">Réapprovisionner</button>
     <button id="openShop">Ouvrir le magasin</button>
+    </div>
   </div>
 
+  <div id="bes-mobile-help" aria-hidden="true">Déplacement à gauche · Regard à droite</div>
   <div id="controls">
     <div id="joystick" aria-label="Joystick de déplacement"><div id="joystickStick"></div></div>
     <div class="hint">Glisse sur l'écran pour regarder</div>
@@ -90,7 +95,17 @@
     document.getElementById("startLandscape").addEventListener("click",requestLandscape);
     document.getElementById("fullscreenLandscape").addEventListener("click",requestLandscape);
   </script>
-  <script type="module" src="game.js?v=0.18.25"></script>
+  <script>
+    const quickToggle = document.getElementById("bes-quick-toggle");
+    const quickItems = document.getElementById("bes-quick-items");
+    quickToggle.addEventListener("click", () => {
+      const open = quickToggle.getAttribute("aria-expanded") !== "true";
+      quickToggle.setAttribute("aria-expanded", String(open));
+      quickItems.classList.toggle("is-open",open);
+    });
+    quickItems.addEventListener("click",e=>{if(e.target.closest("button")){quickItems.classList.remove("is-open");quickToggle.setAttribute("aria-expanded","false");}});
+  </script>
+  <script type="module" src="game.js?v=0.18.30"></script>
 
 </body>
 </html>
