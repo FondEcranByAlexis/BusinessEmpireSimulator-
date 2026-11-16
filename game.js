@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.95 — groupes en caisse, enfants et chariots
+// Business Empire Simulator V0.16.00 — tableau d'alerte des stocks en temps réel
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -774,6 +774,25 @@ function hud(){
  $("money").textContent=Math.round(state.money).toLocaleString("fr-FR")+" €";
  $("day").textContent=state.day;
  $("stock").textContent=total();
+ // V0.16.00 — synthèse des références réellement accessibles au niveau actuel.
+ // Le calcul réutilise les seuils déjà appliqués aux commandes fournisseurs.
+ const alerts=$("stockAlerts");
+ if(alerts){
+  const products=unlockedProducts();
+  const out=products.filter(p=>stockAlert(p)==="RUPTURE");
+  const low=products.filter(p=>stockAlert(p)==="STOCK FAIBLE");
+  if(out.length||low.length){
+   alerts.textContent=(out.length?out.length+" rupture"+(out.length>1?"s":""):"")+
+    (out.length&&low.length?" · ":"")+
+    (low.length?low.length+" stock"+(low.length>1?"s":"")+" faible"+(low.length>1?"s":""):"");
+   alerts.className=out.length?"stock-alert-critical":"stock-alert-warning";
+   alerts.title=[...out.map(p=>"Rupture : "+p.name),...low.map(p=>"Stock faible : "+p.name)].join("\n");
+  }else{
+   alerts.textContent="Stocks sous contrôle";
+   alerts.className="stock-alert-ok";
+   alerts.title="Toutes les références débloquées sont approvisionnées";
+  }
+ }
 }
 let toastTimer;
 function toast(t){
