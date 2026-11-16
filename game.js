@@ -1,11 +1,12 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.17.75";
+import { installStartScreen } from "./start-screen.js?v=0.17.80";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.17.80";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.75 — suppression sécurisée et tutoriel débutant
+// Business Empire Simulator V0.17.80 — tutoriel interactif guidé dans le magasin
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1486,6 +1487,7 @@ function checkoutSupplier(express){
  sync();showOrders();toast("Commande payée — livraison dans "+(express?5:30)+" secondes");
 }
 function showOrders(){
+ playableTutorial?.notify("suppliers");
  processSupplierOrders();
  openPanel("FOURNISSEURS — PC de commandes");
  paragraph("Trésorerie : "+euro(state.money)+" · Cartons sélectionnés : "+cartCount());
@@ -1657,6 +1659,7 @@ Object.assign(actions.style,{position:"fixed",right:"12px",bottom:"110px",zIndex
 document.body.appendChild(actions);
 // Menu centralisé, adapté aux petits écrans.
 let paused=false;
+let playableTutorial=null;
 const menuButton=button(actions,"☰ Menu",showMainMenu);
 menuButton.style.background="#334155";
 button(actions,"Interagir",interact).style.background="#15803d";
@@ -1911,6 +1914,7 @@ function showDevelopmentProgress(){
  button(panel,"Retour au menu principal",showMainMenu);
 }
 function showMainMenu(){
+ playableTutorial?.notify("menu");
  openPanel("☰ Menu principal");
  button(panel,"⌂ Retour à l’accueil",()=>startMenu.show());
  paragraph("Choisis une rubrique pour afficher seulement les actions utiles.");
@@ -2378,6 +2382,7 @@ function requestIsOutOfStock(productId){
 }
 let customerRequestView={status:"open",search:"",sort:"priority"};
 function showCustomerRequests(){
+ playableTutorial?.notify("requests");
  openPanel("CARNET — DEMANDES CLIENTS");
  const requests=customerRequests();
  const open=requests.filter(item=>!item.closed).length;
@@ -10066,7 +10071,7 @@ function animate(){
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  if(!paused&&ageOverlay.style.display==="none"){
-  movePlayer(dt);fbaCity.update(camera.position,performance.now());updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateCustomerCompanions(dt);updateWorker(dt);updateStocker(dt);
+  movePlayer(dt);playableTutorial?.tick();fbaCity.update(camera.position,performance.now());updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateCustomerCompanions(dt);updateWorker(dt);updateStocker(dt);
   updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateTheftPolice(dt);updateRegisterIndicators();updateCheckoutRush(dt);
  }
  homeDeliveryService.refresh();
@@ -10282,18 +10287,32 @@ const startMenu=installStartScreen({
    return true;
   }catch(error){console.warn("Suppression d’emplacement",error);toast("Impossible de supprimer la sauvegarde.");return false;}
  },
- onShow:()=>{paused=true;releaseMouseLook();panel.style.display="none";save();},
- onContinue:()=>{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();},
- onNewGame:replace=>{
+ onShow:()=>{paused=true;releaseMouseLook();panel.style.display="none";playableTutorial?.stop(false);save();},
+ onContinue:(withTutorial=false)=>{
+  paused=false;
+  if(!ageProfile)showAgePrompt();
+  else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
+  if(withTutorial)playableTutorial?.start();
+ },
+ onNewGame:(replace,withTutorial=false)=>{
   if(replace){
    try{sessionStorage.setItem("bes-new-game-confirmed","1");localStorage.removeItem(SAVE);location.reload();}catch(error){console.warn(error);toast("Impossible de remplacer la sauvegarde.");}
-  }else{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();}
+  }else{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();if(withTutorial)playableTutorial?.start();}
  },
  getSettings:()=>({graphics:graphicsMode,volume:Math.round(audioSettings.volume*100),sensitivity:mouseSensitivity}),
  onGraphics:mode=>{graphicsMode=mode;localStorage.setItem(GRAPHICS_KEY,mode);resizeGameView();},
  onVolume:value=>{audioSettings.volume=value/100;saveAudioSettings();},
  onSensitivity:value=>{mouseSensitivity=value;localStorage.setItem(MOUSE_SENSITIVITY_KEY,String(value));},
  onFullscreen:()=>{document.documentElement.requestFullscreen?.().catch(()=>{});}
+});
+playableTutorial=createPlayableTutorial({
+ getPosition:()=>({x:camera.position.x,z:camera.position.z}),
+ isGameplayReady:()=>!paused&&ageOverlay.style.display==="none",
+ onFinish:completed=>{
+  state.management??={};
+  state.management.tutorialStatus=completed?"completed":"skipped";
+  save();
+ }
 });
 paused=true;
 if(confirmedFreshStart)startMenu.beginNew();
