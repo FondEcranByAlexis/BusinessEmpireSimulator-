@@ -1,12 +1,12 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.18.10";
-import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.10";
+import { installStartScreen } from "./start-screen.js?v=0.18.15";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.15";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.10 — objectifs quotidiens toujours visibles sans bloquer les contrôles
+// Business Empire Simulator V0.18.15 — missions évolutives de carrière
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -471,6 +471,7 @@ function load(){
     if(current.homeDelivery&&typeof current.homeDelivery==="object")s.homeDelivery=current.homeDelivery;
     if(current.points&&typeof current.points==="object")s.points=current.points;
     if(current.dailyMission&&typeof current.dailyMission==="object")s.dailyMission=current.dailyMission;
+    if(current.careerMission&&typeof current.careerMission==="object")s.careerMission=current.careerMission;
     if(current.dayStartStats&&typeof current.dayStartStats==="object")s.dayStartStats=current.dayStartStats;
     if(current.lastDailyReport&&typeof current.lastDailyReport==="object")s.lastDailyReport=current.lastDailyReport;
    if(Number.isFinite(current.satisfaction))s.satisfaction=Math.max(0,Math.min(100,Math.round(current.satisfaction)));
@@ -605,6 +606,51 @@ const DAILY_MISSION_GOALS=[
  {key:"restocks",name:"Effectuer 5 réassorts de rayons",target:5,reward:65},
  {key:"deliveries",name:"Effectuer 1 livraison à domicile",target:1,reward:100}
 ];
+
+const CAREER_TIERS=[
+ {min:1,max:4,served:12,restocks:8,deliveries:0,reward:45},
+ {min:5,max:9,served:30,restocks:20,deliveries:2,reward:70},
+ {min:10,max:19,served:65,restocks:45,deliveries:5,reward:110},
+ {min:20,max:34,served:110,restocks:75,deliveries:8,reward:160},
+ {min:35,max:49,served:170,restocks:110,deliveries:12,reward:215},
+ {min:50,max:74,served:240,restocks:160,deliveries:17,reward:275},
+ {min:75,max:100,served:350,restocks:240,deliveries:24,reward:350}
+];
+const CAREER_LABELS={served:"Clients servis",restocks:"Réassorts de rayons",deliveries:"Livraisons à domicile"};
+function careerTierIndex(){
+ const level=playerLevel();
+ return Math.max(0,CAREER_TIERS.findIndex(t=>level>=t.min&&level<=t.max));
+}
+function careerMissionState(){
+ const tier=careerTierIndex();
+ if(!state.careerMission||state.careerMission.tier!==tier)
+  state.careerMission={tier,served:0,restocks:0,deliveries:0,claimed:[]};
+ const mission=state.careerMission;
+ for(const key of ["served","restocks","deliveries"])
+  mission[key]=Math.max(0,Math.floor(Number(mission[key])||0));
+ if(!Array.isArray(mission.claimed))mission.claimed=[];
+ return mission;
+}
+function careerGoals(){
+ const mission=careerMissionState(),tier=CAREER_TIERS[mission.tier];
+ return ["served","restocks","deliveries"].filter(key=>tier[key]>0).map(key=>({
+  key,name:CAREER_LABELS[key],target:tier[key],reward:tier.reward,
+  current:Math.min(tier[key],mission[key]),claimed:mission.claimed.includes(key)
+ }));
+}
+function recordCareerEvent(kind){
+ const mission=careerMissionState(),tier=CAREER_TIERS[mission.tier];
+ if(!["served","restocks","deliveries"].includes(kind)||!tier[kind]||mission.claimed.includes(kind))return;
+ mission[kind]++;
+ if(mission[kind]>=tier[kind]){
+  mission.claimed.push(kind);
+  const reward=tier.reward;
+  awardPoints("pm",reward,"mission de carrière : "+CAREER_LABELS[kind]);
+  toast("Mission de carrière réussie : "+CAREER_LABELS[kind]+" · +"+reward+" PM");
+ }
+ save();
+}
+
 // Mini-affichage permanent : non interactif afin de préserver les actions 3D et le HUD.
 const missionTracker=document.createElement("aside");
 missionTracker.id="bes-mission-tracker";
