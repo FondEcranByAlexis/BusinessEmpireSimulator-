@@ -1,4 +1,4 @@
-// Accueil indépendant du gameplay — BES V0.17.90
+// Accueil indépendant du gameplay — BES V0.17.95
 export function installStartScreen(config){
  const {hasSave,onShow,onContinue,onNewGame,getSettings,onGraphics,onVolume,onSensitivity,onFullscreen,getSlots,activeSlot,onSelectSlot,onDeleteSlot}=config;
  let existing=hasSave;
@@ -11,7 +11,7 @@ export function installStartScreen(config){
  const title=document.createElement("h1");title.textContent="BUSINESS EMPIRE SIMULATOR";title.style.cssText="font-size:clamp(26px,5vw,36px);line-height:1.1;margin:18px 0 8px";
  const tagline=document.createElement("p");tagline.textContent="Ton supermarché, ta gestion, ton empire.";tagline.style.cssText="color:#cbd5e1;font-size:13px;margin-bottom:24px";
  const buttons=document.createElement("div");
- const footer=document.createElement("p");footer.textContent="V0.17.90 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
+ const footer=document.createElement("p");footer.textContent="V0.17.95 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
  card.append(brand,title,tagline,buttons,footer);overlay.appendChild(card);document.body.appendChild(overlay);
  function add(label,fn,secondary=false){
   const b=document.createElement("button");b.type="button";b.textContent=label;
@@ -107,7 +107,7 @@ export function installStartScreen(config){
   },true);
  }
  function tutorialIntro(newGame=false){
-  page("Tutoriel interactif","Une formation complète dans ton supermarché : déplacements guidés, commandes réelles, réception des cartons, recrutement et demandes clients. Suis la flèche jusqu’aux zones indiquées.");
+  page("Tutoriel interactif","Une formation pratique : explorer, commander, réceptionner, ranger en réserve, remplir un rayon, ouvrir le magasin et encaisser ton premier client. Suis les flèches pour rejoindre les zones utiles.");
   add("▶ Commencer le tutoriel",()=>{
    overlay.style.display="none";
    existing=true;
