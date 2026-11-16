@@ -63,7 +63,7 @@ export function installStartScreen(config){
   confirmation.setAttribute("aria-label","Confirmer en écrivant SUPPRIMER");
   confirmation.style.cssText="display:block;width:100%;box-sizing:border-box;padding:11px;background:#142336;color:#fff;border:1px solid #64748b;border-radius:8px;margin:12px 0";
   buttons.appendChild(confirmation);
-  const erase=add("Supprimer définitivement l’emplacement "+slot.id,()=>onDeleteSlot(slot.id),true);
+  const erase=add("Supprimer définitivement l’emplacement "+slot.id,()=>{if(onDeleteSlot(slot.id)!==false)showSlots(false);},true);
   erase.disabled=true;erase.style.opacity=".4";
   confirmation.addEventListener("input",()=>{erase.disabled=confirmation.value.trim().toUpperCase()!=="SUPPRIMER";erase.style.opacity=erase.disabled?".4":"1";});
   add("Annuler",()=>showDeleteSlots(),true);
