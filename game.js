@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.35 — états des réserves à surveiller
+// Business Empire Simulator V0.16.40 — retrait des collisions héritées dans l'allée sèche
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6635,6 +6635,16 @@ function blocked(x,z,r=.4){
   const orphaned=storageInterior&&storageRoomLegacyColliders.has(c)
    &&c.minX>10.45&&c.maxX<23.65&&c.minZ>-22.4&&c.maxZ<-3.05;
   if(orphaned)return false;
+  // V0.16.40 : l'allée centrale de la réserve sèche reconstruite est libre.
+  // Ignorer ici uniquement les anciens obstacles (non issus de la reconstruction).
+  // Les murs périphériques et les rayonnages reconstruits gardent leurs collisions.
+  const dryRoom=rebuiltStorageLayouts.dry;
+  const oldHitInDryCenter=!rebuiltStorageRooms.includes(c)&&dryRoom&&
+   x>dryRoom.x-1.05&&x<dryRoom.x+1.05&&
+   z>dryRoom.front+1.1&&z<dryRoom.front+dryRoom.length-1.1&&
+   c.maxX>dryRoom.x-1.05&&c.minX<dryRoom.x+1.05&&
+   c.maxZ>dryRoom.front+1.1&&c.minZ<dryRoom.front+dryRoom.length-1.1;
+  if(oldHitInDryCenter)return false;
   return x+r>c.minX&&x-r<c.maxX&&z+r>c.minZ&&z-r<c.maxZ&&
    !c.disabled&&contentVisible(c)&&(!c.requiresUpgrade||state.upgrades[c.requiresUpgrade])&&
    (!c.lockedBy||!state.upgrades[c.lockedBy])&&(!c.requiresLicense||state.upgrades[c.requiresLicense])&&(!c.level||playerLevel()>=c.level)&&
@@ -9373,4 +9383,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.35 !");
+animate();toast("Business Empire Simulator V0.16.40 !");
