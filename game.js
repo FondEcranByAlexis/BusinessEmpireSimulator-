@@ -10239,4 +10239,19 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.60 !");
+animate();
+const startMenu=installStartScreen({
+ hasSave:startHasSavedGame,
+ onContinue:()=>{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();},
+ onNewGame:replace=>{
+  if(replace){
+   try{localStorage.removeItem(SAVE);location.reload();}catch(error){console.warn(error);toast("Impossible de remplacer la sauvegarde.");}
+  }else{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();}
+ },
+ getSettings:()=>({graphics:graphicsMode,volume:Math.round(audioSettings.volume*100),sensitivity:mouseSensitivity}),
+ onGraphics:mode=>{graphicsMode=mode;localStorage.setItem(GRAPHICS_KEY,mode);resizeGameView();},
+ onVolume:value=>{audioSettings.volume=value/100;saveAudioSettings();},
+ onSensitivity:value=>{mouseSensitivity=value;localStorage.setItem(MOUSE_SENSITIVITY_KEY,String(value));},
+ onFullscreen:()=>{document.documentElement.requestFullscreen?.().catch(()=>{});}
+});
+paused=true;
