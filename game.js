@@ -655,7 +655,7 @@ function recordCareerEvent(kind){
 const missionTracker=document.createElement("aside");
 missionTracker.id="bes-mission-tracker";
 missionTracker.setAttribute("aria-label","Missions quotidiennes");
-missionTracker.innerHTML='<div class="bes-mission-title">MISSIONS · <span id="bes-mission-day"></span></div><div id="bes-mission-rows"></div>';
+missionTracker.innerHTML='<div class="bes-mission-title">MISSIONS · <span id="bes-mission-day"></span></div><div id="bes-mission-rows"></div><div class="bes-career-heading">CARRIÈRE · <span id="bes-career-tier"></span></div><div class="bes-mission-item"><span id="bes-career-name" class="bes-mission-name"></span><span id="bes-career-progress" class="bes-mission-progress"></span></div>';
 document.body.appendChild(missionTracker);
 const missionTrackerDay=missionTracker.querySelector("#bes-mission-day");
 const missionTrackerRows=missionTracker.querySelector("#bes-mission-rows");
@@ -678,6 +678,11 @@ function refreshMissionTracker(){
   name.textContent=(done?"✓ ":"")+goal.name.replace(" dans la journée","").replace("Effectuer ","");
   progress.textContent=locked?"N2":done?"OK":Math.min(goal.target,daily[goal.key])+"/"+goal.target;
  }
+ const tier=CAREER_TIERS[careerTierIndex()];
+ const goals=careerGoals(),active=goals.find(g=>!g.claimed);
+ missionTracker.querySelector("#bes-career-tier").textContent="N"+tier.min+"–"+tier.max;
+ missionTracker.querySelector("#bes-career-name").textContent=active?active.name:"Palier terminé ✓";
+ missionTracker.querySelector("#bes-career-progress").textContent=active?active.current+"/"+active.target:"OK";
 }
 function todayMission(){
  if(state.dailyMission.day!==state.day)
