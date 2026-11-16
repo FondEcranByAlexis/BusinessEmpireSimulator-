@@ -1,4 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
+import {installStoreParkingTraffic} from "./store-parking-traffic.js?v=0.18.40";
 import {installBuildingSafety} from "./building-safety.js?v=0.18.39";
 import { installStartScreen } from "./start-screen.js?v=0.18.25";
 import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.25";
@@ -7,7 +8,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.39 — toucher directement les objets interactifs sur écran tactile
+// Business Empire Simulator V0.18.40 — toucher directement les objets interactifs sur écran tactile
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3499,6 +3500,10 @@ const fbaCity=installCity({THREE,scene});
 // Portée augmentée pour éviter le découpage brutal de la scène près de Z75.
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,165);
 camera.position.set(0,1.7,7.5);camera.rotation.order="YXZ";
+// Trafic propre au parking. Les véhicules de FBA City ne sont pas modifiés.
+const storeParkingTraffic=installStoreParkingTraffic({
+ THREE,scene,camera,getDeliveryVan:()=>homeDeliveryService?.van?.position
+});
 const buildingSafety=installBuildingSafety({THREE,scene,camera,notify:toast});
 const homeDeliveryService=installHomeDeliveries({
  THREE,scene,camera,state,playerLevel,blocked,notify:toast,save,sync,checkLevelUp,
@@ -4587,7 +4592,11 @@ function buildStoreExterior(){
  // Le raccord jusqu'à FBA City garde la même largeur, sans plaque isolée.
  part(-50,-.09,79,80,.16,9,asphalt);
  for(const z of [36,48,60,72]){
-  for(let x=-48;x<=-12;x+=3)part(x,.013,z,.07,.016,4.4,paint);
+  for(let x=-48;x<=-12;x+=3){
+   // Place livraison agrandie sur la rangée Z=48 : largeur 6 m, bornes X=-27/-21.
+   if(z===48&&(x===-24))continue;
+   part(x,.013,z,.07,.016,4.4,paint);
+  }
   part(-30,.013,z+2.3,39,.016,.07,paint);
  }
  // Bande de circulation centrale, réservée aux véhicules et piétons.
@@ -10421,7 +10430,7 @@ function animate(){
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  if(!paused&&ageOverlay.style.display==="none"){
-  movePlayer(dt);playableTutorial?.tick();fbaCity.update(camera.position,performance.now());updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateCustomerCompanions(dt);updateWorker(dt);updateStocker(dt);
+  movePlayer(dt);playableTutorial?.tick();fbaCity.update(camera.position,performance.now());updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateCustomerCompanions(dt);storeParkingTraffic.update(dt);updateWorker(dt);updateStocker(dt);
   updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateTheftPolice(dt);updateRegisterIndicators();updateCheckoutRush(dt);
  }
  homeDeliveryService.refresh();
