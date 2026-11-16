@@ -1,6 +1,6 @@
 // Business Empire Simulator V0.17.90 — parcours d'initiation guidé dans le vrai magasin.
 // Les étapes s'accomplissent avec des événements du jeu, jamais avec un bouton "Valider".
-export function createPlayableTutorial({getPosition,getHeading,isGameplayReady,onFinish}){
+export function createPlayableTutorial({getPosition,getHeading,getCartCount,isGameplayReady,onFinish}){
  const steps=[
   {title:"Premiers pas",instruction:"Déplace-toi de 3 mètres avec ZQSD / WASD ou les flèches.",event:"walk",hint:"Explore le magasin à ton rythme."},
   {title:"Menu principal",instruction:"Appuie sur M ou sur « ☰ Menu ».",event:"menu",hint:"Tous tes outils de gestion sont regroupés ici."},
@@ -78,6 +78,7 @@ export function createPlayableTutorial({getPosition,getHeading,isGameplayReady,o
  function tick(){
   if(!active||step>=steps.length||!isGameplayReady())return;
   const current=steps[step],p=getPosition();
+  if(current.event==="cart"&&getCartCount()>0)notify("cart");
   if(current.event==="walk"&&startPosition&&Math.hypot(p.x-startPosition.x,p.z-startPosition.z)>=3)notify("walk");
   if(current.target&&Math.hypot(p.x-current.target.x,p.z-current.target.z)<=current.target.radius)notify("arrive");
   updateArrow();
