@@ -6,7 +6,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.25 — toucher directement les objets interactifs sur écran tactile
+// Business Empire Simulator V0.18.30 — toucher directement les objets interactifs sur écran tactile
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1763,7 +1763,14 @@ let paused=false;
 let playableTutorial=null;
 const menuButton=button(actions,"☰ Menu",showMainMenu);
 menuButton.style.background="#334155";
-button(actions,"Interagir",interact).style.background="#15803d";
+const besContextButton=button(actions,"Interagir (E)",()=>{
+ if(!canLookAround())return;
+ if(nearestTalkingCustomer())showCustomerConversation();
+ else if(canUseHandtruck())useHandtruck();
+ else interact();
+});
+besContextButton.id="bes-context-action";
+besContextButton.style.background="#15803d";
 const talkCustomerButton=button(actions,"Parler au client (F)",showCustomerConversation);
 talkCustomerButton.setAttribute("aria-keyshortcuts","F");
 talkCustomerButton.title="Touche F : parler au client le plus proche, ou répondre à sa demande";
@@ -1775,6 +1782,21 @@ handtruckButton.style.display="none";
 const checkoutRushButton=button(actions,"Files d’attente",showCheckoutRush);
 checkoutRushButton.style.background="#92400e";
 checkoutRushButton.style.display="none";
+
+/* V0.18.30 — panneau d'actions compact sans supprimer les commandes existantes */
+const besMobileQuery=window.matchMedia("(pointer:coarse)");
+function besUpdateActionLayout(){
+ const mobile=besMobileQuery.matches;
+ actions.id="bes-action-dock";
+ actions.style.setProperty("bottom",mobile?"max(8px, env(safe-area-inset-bottom))":"110px");
+ actions.style.setProperty("right",mobile?"max(10px, env(safe-area-inset-right))":"12px");
+ actions.style.setProperty("width",mobile?"min(155px, 26vw)":"110px");
+ talkCustomerButton.style.setProperty("display",mobile?"none":talkCustomerButton.style.display);
+ handtruckButton.style.setProperty("display",mobile?"none":handtruckButton.style.display);
+}
+besUpdateActionLayout();
+besMobileQuery.addEventListener?.("change",besUpdateActionLayout);
+
 function showProfile(){
  openPanel("Profil du commerçant");
  paragraph("Commerçant · "+state.playerName);
@@ -10338,6 +10360,7 @@ renderer.domElement.addEventListener("webglcontextrestored",()=>{
  contextLost=false;
  refreshOnResume=true;
 });
+let besPriceOutline=null;
 function animate(){
  requestAnimationFrame(animate);
   playtimeTick();
@@ -10356,6 +10379,35 @@ function animate(){
   const priceTarget=canLookAround()&&!held?aimedPriceProduct():null;
   shelfPriceHint.style.display=priceTarget?"block":"none";
   if(priceTarget)shelfPriceHint.textContent="E · Modifier le prix : "+priceTarget.name;
+ }
+
+ // Action contextuelle et repérage visuel : seul le produit réellement visé est encadré.
+ if(performance.now()-(window.__besContextRefresh||0)>150){
+  window.__besContextRefresh=performance.now();
+  const usable=canLookAround();
+  const customer=usable?nearestTalkingCustomer():null;
+  const price=usable?aimedPriceProduct():null;
+  const label=$("bes-target-label");
+  const crosshair=$("crosshair");
+  let text="";
+  if(usable&&customer)text="Parler au client (F)";
+  else if(usable&&price)text="Modifier le prix · "+price.name;
+  else if(usable&&held)text="Poser l'article (E)";
+  else if(usable&&canUseHandtruck())text="Utiliser le diable (T)";
+  else if(usable&&near(1.29,10.245,2.25))text="Panneau d'ouverture (E)";
+  besContextButton.textContent=text||"Interagir (E)";
+  label.textContent=text;
+  label.style.display=text?"block":"none";
+  crosshair.classList.toggle("bes-interactive",!!text);
+  if(price&&interactivePriceLabels.length){
+   const mesh=interactivePriceLabels.find(o=>o.userData.priceProductId===price.id&&o.visible&&o.parent?.visible);
+   if(mesh){
+    if(!besPriceOutline)besPriceOutline=new THREE.BoxHelper(mesh,0xfacc15);
+    else besPriceOutline.setFromObject(mesh);
+    if(!besPriceOutline.parent)scene.add(besPriceOutline);
+    besPriceOutline.visible=true;
+   }else if(besPriceOutline)besPriceOutline.visible=false;
+  }else if(besPriceOutline)besPriceOutline.visible=false;
  }
  const signInReach=near(1.29,10.245,2.25)&&canLookAround()&&!held;
  entranceSignHint.style.display=signInReach?"block":"none";
