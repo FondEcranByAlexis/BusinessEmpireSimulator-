@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.95 — filtres, priorisation et feuille de route des chantiers
+// Business Empire Simulator V0.17.00 — gestion des prix et filtres commerciaux
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1554,20 +1554,89 @@ function showStocks(){
   paragraph(p.name+" — "+stockAlert(p)+" | Rayon "+a.shelf+"/"+shelfCapacity(p)+" | "+storageName(storageKind(p))+" : "+a.boxes+"/"+MAX_BOXES_PER_PRODUCT+" cartons + "+a.reserve+" en vrac | "+a.price+" €");
  });
 }
+// V0.17.00 — le joueur choisit les tarifs : recherche, filtres et réglages manuels.
+// Les prix sont modifiés uniquement par action du joueur, puis enregistrés.
+let salesPricePreferences={search:"",zone:"all",visibility:"all"};
 function showPrices(){
- openPanel("Prix de vente");
- catalog.filter(contentVisible).forEach(p=>{
-  const a=state.inventory[p.id];paragraph(p.name+" : "+a.price+" €");
-  button(panel,"− 1 €",()=>{a.price=Math.max(1,a.price-1);updatePriceLabel(p);save();showPrices();});
-  button(panel,"+ 1 €",()=>{a.price++;updatePriceLabel(p);save();showPrices();});
-  // V0.15.82 : créer une situation de test réellement trop chère.
-  // Le prix est modifié explicitement par le testeur, jamais automatiquement.
-  if(DEV_MODE&&a.shelf>0)button(panel,"TEST · Prix excessif (+60 % du prix normal)",()=>{
-   a.price=Math.max(a.price,Math.ceil(p.price*1.6));
-   updatePriceLabel(p);save();showPrices();
-   toast(p.name+" : "+euro(a.price)+" · observe les prochains clients de ce rayon");
-  });
+ openPanel("PRIX DE VENTE — GESTION COMMERCIALE");
+ const search=document.createElement("input");
+ search.type="search";search.placeholder="Rechercher un produit";search.value=salesPricePreferences.search;
+ Object.assign(search.style,{display:"block",width:"100%",padding:"9px",margin:"10px 0",
+  color:"#fff",background:"#142336",border:"1px solid #64748b",borderRadius:"7px"});
+ panel.appendChild(search);
+ const selectors=document.createElement("div");
+ Object.assign(selectors.style,{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:"7px"});
+ panel.appendChild(selectors);
+ function select(choices,value,callback,label){
+  const el=document.createElement("select");
+  el.setAttribute("aria-label",label);
+  Object.assign(el.style,{minWidth:"0",width:"100%",padding:"8px",color:"#fff",
+   background:"#142336",border:"1px solid #64748b",borderRadius:"7px"});
+  for(const [key,name] of choices){
+   const opt=document.createElement("option");opt.value=key;opt.textContent=name;el.appendChild(opt);
+  }
+  el.value=value;el.addEventListener("change",()=>callback(el.value));selectors.appendChild(el);
+ }
+ select([["all","Toutes les réserves"],...STORAGE_KINDS.map(kind=>[kind,storageName(kind)])],
+  salesPricePreferences.zone,v=>{salesPricePreferences.zone=v;draw();},"Réserve des produits");
+ select([["all","Toutes les références"],["unlocked","Produits débloqués"],["stocked","Produits en rayon"]],
+  salesPricePreferences.visibility,v=>{salesPricePreferences.visibility=v;draw();},"Visibilité des produits");
+ const list=document.createElement("div");panel.appendChild(list);
+ search.addEventListener("input",()=>{salesPricePreferences.search=search.value;draw();});
+ function draw(){
+  list.replaceChildren();
+  const products=catalog.filter(p=>contentVisible(p)&&
+   (salesPricePreferences.zone==="all"||storageKind(p)===salesPricePreferences.zone)&&
+   (salesPricePreferences.visibility==="all"||
+    salesPricePreferences.visibility==="unlocked"&&productAvailable(p)||
+    salesPricePreferences.visibility==="stocked"&&productAvailable(p)&&state.inventory[p.id].shelf>0)&&
+   p.name.toLocaleLowerCase("fr").includes(salesPricePreferences.search.trim().toLocaleLowerCase("fr")))
+   .sort((a,b)=>a.name.localeCompare(b.name,"fr"));
+  const count=document.createElement("p");count.textContent=products.length+" référence(s) affichée(s).";
+  Object.assign(count.style,{fontSize:"12px",marginTop:"9px"});list.appendChild(count);
+  if(!products.length){
+   const empty=document.createElement("p");empty.textContent="Aucun produit ne correspond aux filtres.";
+   list.appendChild(empty);
+  }
+  for(const p of products){
+   const a=state.inventory[p.id];
+   const card=document.createElement("section");
+   Object.assign(card.style,{padding:"10px",margin:"9px 0",background:"#142336",
+    border:"1px solid #334155",borderRadius:"8px"});
+   const title=document.createElement("strong");title.textContent=p.name+" · "+storageName(storageKind(p));
+   const price=document.createElement("p");
+   Object.assign(price.style,{fontSize:"12px",margin:"7px 0"});
+   const refresh=()=>{
+    price.textContent="Prix actuel : "+euro(a.price)+" · Prix de base : "+euro(p.price)+
+     (productAvailable(p)?"":" · Produit non débloqué");
+   };
+   refresh();card.append(title,price);
+   const controls=document.createElement("div");
+   Object.assign(controls.style,{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"5px"});
+   card.appendChild(controls);
+   function change(label,compute){
+    const btn=button(controls,label,()=>{
+     const next=compute(a.price);
+     a.price=Math.max(1,Math.round(next*100)/100);
+     updatePriceLabel(p);save();refresh();
+    });
+    Object.assign(btn.style,{marginTop:"0",padding:"8px",fontSize:"11px"});
+   }
+   change("− 5 €",value=>value-5);
+   change("− 1 €",value=>value-1);
+   change("+ 1 €",value=>value+1);
+   change("+ 5 €",value=>value+5);
+   change("Prix de base",()=>p.price);
+   if(DEV_MODE&&a.shelf>0)change("TEST +60 %",value=>Math.max(value,Math.ceil(p.price*1.6)));
+   list.appendChild(card);
+  }
+ }
+ draw();
+ button(panel,"Réinitialiser la recherche et les filtres",()=>{
+  salesPricePreferences={search:"",zone:"all",visibility:"all"};showPrices();
  });
+ button(panel,"Actualiser les prix",showPrices);
+ button(panel,"← Retour à la gestion",()=>showMainMenuSection("magasin"));
 }
 $("restock").textContent="Commander";
 $("restock").addEventListener("click",showOrders);
@@ -1836,7 +1905,6 @@ function showMainMenu(){
    paused=!paused;toast(paused?"Simulation en pause":"Simulation reprise");showMainMenu();
   }],
   ["MAGASIN · Gestion",()=>showMainMenuSection("magasin")],
-  ["FBA GAMES · Avancement du développement",showDevelopmentProgress],
   ["ÉQUIPE · Personnel",()=>showMainMenuSection("equipe")],
   ["VILLE · Exploration",()=>showMainMenuSection("ville")],
   ["PROFIL · Paramètres",()=>showMainMenuSection("profil")],
@@ -1889,7 +1957,6 @@ function showMainMenuAdvanced(){
  });
  button(panel,"Paramètres",showSettings);
  button(panel,"Profil",showProfile);
- button(panel,"Avancement du développement (%)",showDevelopmentProgress);
  if(state.lastDailyReport)button(panel,"Dernier bilan de fin de journée",()=>showDailyReport());
  button(panel,"Figurines dorées : "+state.goldenCollection.found.length+"/100",showGoldenCollection);
  button(panel,"Carte interactive 2 × 2 km",showCityMap);
@@ -9824,4 +9891,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.95 !");
+animate();toast("Business Empire Simulator V0.17.00 !");
