@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.30 — carnet de demandes clients et suivi commercial
+// Business Empire Simulator V0.17.35 — traitement et suivi des demandes clients
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -2345,26 +2345,82 @@ function recordCustomerRequest(product,customer){
  if(records.length>60)records.length=60;
  save();toast("Demande enregistrée : "+product.name);return true;
 }
+// V0.17.35 : affichage et suivi des demandes, sans commande ni mouvement de stock.
+let customerRequestView={status:"open",search:""};
 function showCustomerRequests(){
  openPanel("CARNET — DEMANDES CLIENTS");
  const requests=customerRequests();
- paragraph(requests.filter(item=>!item.closed).length+" demande(s) en cours · "+requests.length+" enregistrée(s).");
- paragraph("Les demandes sont enregistrées dans la sauvegarde. Aucune commande automatique.");
- if(!requests.length)paragraph("Aucune demande enregistrée. Utilise F près d'un client pour noter un produit.");
- for(const request of requests){
-  const product=catalog.find(p=>p.id===request.productId);
-  if(!product)continue;
-  const shelf=state.inventory[product.id]?.shelf||0;
-  paragraph((request.closed?"TERMINÉE":"EN ATTENTE")+" · "+product.name+
-   " · Jour "+request.day+" "+formatHour(request.hour)+
-   " · Rayon : "+shelf+" article(s)"+(shelf>0?" · Disponible":" · Vide"));
-  if(!request.closed){
-   button(panel,"Clôturer · "+product.name,()=>{
-    request.closed=true;save();showCustomerRequests();
-   });
+ const open=requests.filter(item=>!item.closed).length;
+ const ready=requests.filter(item=>!item.closed&&(state.inventory[item.productId]?.shelf||0)>0).length;
+ paragraph(open+" demande(s) en cours · "+ready+" produit(s) déjà disponibles en rayon · "+requests.length+" demande(s) au total.");
+ paragraph("Les demandes sont sauvegardées. Le traitement et la clôture restent manuels.");
+ const search=document.createElement("input");search.type="search";
+ search.value=customerRequestView.search;search.placeholder="Rechercher un produit demandé";
+ search.setAttribute("aria-label","Rechercher dans les demandes des clients");
+ Object.assign(search.style,{display:"block",width:"100%",margin:"10px 0",padding:"9px",
+  color:"#fff",background:"#142336",border:"1px solid #64748b",borderRadius:"8px"});
+ panel.appendChild(search);
+ const select=document.createElement("select");
+ select.setAttribute("aria-label","Filtrer les demandes");
+ Object.assign(select.style,{display:"block",width:"100%",margin:"8px 0",padding:"9px",
+  color:"#fff",background:"#142336",border:"1px solid #64748b",borderRadius:"8px"});
+ for(const [key,label] of [["open","En cours"],["ready","Disponible en rayon"],["missing","Rayon vide"],["closed","Terminées"],["all","Toutes les demandes"]]){
+  const option=document.createElement("option");option.value=key;option.textContent=label;select.appendChild(option);
+ }
+ select.value=customerRequestView.status;panel.appendChild(select);
+ const list=document.createElement("div");panel.appendChild(list);
+ search.addEventListener("input",()=>{customerRequestView.search=search.value;draw();});
+ select.addEventListener("change",()=>{customerRequestView.status=select.value;draw();});
+ function draw(){
+  list.replaceChildren();
+  const entries=requests.filter(item=>{
+   const p=catalog.find(p=>p.id===item.productId);
+   if(!p||!p.name.toLocaleLowerCase("fr").includes(customerRequestView.search.trim().toLocaleLowerCase("fr")))return false;
+   const shelf=state.inventory[p.id]?.shelf||0;
+   return customerRequestView.status==="all"||
+    customerRequestView.status==="open"&&!item.closed||
+    customerRequestView.status==="ready"&&!item.closed&&shelf>0||
+    customerRequestView.status==="missing"&&!item.closed&&shelf===0||
+    customerRequestView.status==="closed"&&!!item.closed;
+  });
+  const counter=document.createElement("p");counter.textContent=entries.length+" demande(s) affichée(s).";
+  Object.assign(counter.style,{fontSize:"12px",margin:"9px 0"});list.appendChild(counter);
+  if(!entries.length){
+   const empty=document.createElement("p");empty.textContent="Aucune demande dans cette catégorie.";
+   list.appendChild(empty);
+  }
+  for(const request of entries){
+   const product=catalog.find(p=>p.id===request.productId);
+   const shelf=state.inventory[product.id]?.shelf||0;
+   const reserve=(state.inventory[product.id]?.reserve||0)+
+    (state.inventory[product.id]?.boxes||0)*BOX_UNITS;
+   const incoming=pendingBoxes(product.id);
+   const card=document.createElement("section");
+   Object.assign(card.style,{padding:"10px",margin:"10px 0",background:"#142336",
+    border:"1px solid #334155",borderRadius:"9px"});
+   const heading=document.createElement("strong");
+   heading.textContent=product.name+" · "+(request.closed?"Terminée":shelf>0?"En rayon":"À traiter");
+   const details=document.createElement("p");
+   details.textContent="Jour "+request.day+" · "+formatHour(request.hour)+
+    " | Rayon : "+shelf+" · Réserve : "+reserve+" articles · Livraisons : "+incoming+" carton(s)";
+   Object.assign(details.style,{fontSize:"12px",lineHeight:"1.5"});
+   card.append(heading,details);
+   if(!request.closed){
+    button(card,"Consulter les fournisseurs · "+product.name,()=>{
+     supplierSearch=product.name;supplierZone="all";supplierFilter="all";showOrders();
+    });
+    button(card,"Marquer comme traitée · "+product.name,()=>{
+     request.closed=true;save();showCustomerRequests();
+    });
+   }
+   list.appendChild(card);
   }
  }
- button(panel,"Actualiser les demandes",showCustomerRequests);
+ draw();
+ button(panel,"Actualiser le carnet",showCustomerRequests);
+ button(panel,"Réinitialiser les filtres",()=>{
+  customerRequestView={status:"open",search:""};showCustomerRequests();
+ });
  button(panel,"← Retour à la gestion",()=>showMainMenuSection("magasin"));
 }
 function showCommercialManagement(){
@@ -10068,4 +10124,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.30 !");
+animate();toast("Business Empire Simulator V0.17.35 !");
