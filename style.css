@@ -405,3 +405,10 @@ body.fba-dev-layout #actions{top:64px}
  #hud #pointsHud{font-size:9px;padding:3px 5px;margin-top:4px}
  body.fba-dev-layout #actions{top:57px!important}
 }
+
+/* V0.16.00 — indicateurs de stock compacts, lisibles en paysage */
+#hud .stock-alert-line{max-width:230px;line-height:1.35}
+#hud #stockAlerts{font-weight:700;overflow-wrap:anywhere}
+#hud #stockAlerts.stock-alert-ok{color:#4ade80}
+#hud #stockAlerts.stock-alert-warning{color:#fbbf24}
+#hud #stockAlerts.stock-alert-critical{color:#f87171}
