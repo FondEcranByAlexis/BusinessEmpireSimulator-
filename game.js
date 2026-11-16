@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.85 — clients sollicitant spontanément le joueur
+// Business Empire Simulator V0.15.86 — réactions à la qualité du service
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6710,12 +6710,18 @@ const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTime
 const staffCustomerChat={stocker:0,worker:0};
 // V0.15.85 : une seule demande spontanée active, avec expiration automatique.
 let activeCustomerHelp=null,customerHelpCooldown=6;
+function setCustomerServiceMood(c,mood){
+ // Effet purement comportemental, sans impact sur satisfaction ni économie.
+ c.serviceMood=mood;
+ c.serviceMoodTimer=2.5+c.personality*.9;
+}
 function updateCustomerHelp(c,dt){
  if(c.helpRequest>0){
   c.helpRequest=Math.max(0,c.helpRequest-dt);
   if(!c.helpRequest){
    if(activeCustomerHelp===c)activeCustomerHelp=null;
    c.helpProduct=null;
+   setCustomerServiceMood(c,"disappointed");
   }
   return true;
  }
@@ -6766,21 +6772,29 @@ function showCustomerConversationChoices(c){
   c.productId&&catalog.find(p=>p.id===c.productId)||
   c.route.slice(c.waypoint).map(p=>catalog.find(item=>item.id===p.shop)).find(Boolean);
  if(c.helpProduct&&product)paragraph("Demande du client : Où se trouve "+product.name+" ?");
- const answer=message=>{
+ const answer=(message,mood="neutral")=>{
+  if(mood!=="neutral")setCustomerServiceMood(c,mood);
   openPanel("CLIENT — RÉPONSE");
-  paragraph("Client : "+message);speakDialogue(message,"customer");
+  paragraph("Client : "+message);
+  if(mood==="happy")paragraph("Réaction : le client est reconnaissant.");
+  if(mood==="disappointed")paragraph("Réaction : le client est déçu mais reste poli.");
+  speakDialogue(message,"customer");
   button(panel,"Continuer",()=>showCustomerConversationChoices(c));
   button(panel,"Terminer",()=>{c.playerConversation=false;panel.style.display="none";});
  };
  button(panel,"Bonjour, besoin d’aide ?",()=>answer(product?"Bonjour ! Je cherche "+product.name+".":"Bonjour ! Je regarde les articles, merci."));
  button(panel,"Vous cherchez un produit ?",()=>answer(product?"Oui, je cherche "+product.name+".":"Pas de produit précis, merci."));
- if(product)button(panel,"Indiquer le rayon",()=>answer(
-  (state.inventory[product.id]?.shelf||0)>0?
+ if(product)button(panel,"Indiquer le rayon",()=>{
+  const stocked=(state.inventory[product.id]?.shelf||0)>0;
+  answer(stocked?
    "Merci beaucoup ! Je vais chercher "+product.name+" dans ce rayon.":
-   "Ah d’accord, il n’y en a plus en rayon. Merci de m’avoir prévenu."
- ));
- button(panel,"Tout se passe bien ?",()=>answer(c.missingProducts?"Je n’ai pas trouvé tout ce que je voulais.":"Oui, tout va bien, merci !"));
- button(panel,"Bonne journée !",()=>answer("Merci, bonne journée à vous aussi !"));
+   "Ah d’accord, il n’y en a plus en rayon. Merci de m’avoir prévenu.",
+   stocked?"happy":"disappointed");
+ });
+ button(panel,"Tout se passe bien ?",()=>answer(
+  c.missingProducts?"Je n’ai pas trouvé tout ce que je voulais.":"Oui, tout va bien, merci !",
+  c.missingProducts?"disappointed":"happy"));
+ button(panel,"Bonne journée !",()=>answer("Merci, bonne journée à vous aussi !","happy"));
  button(panel,"Terminer",()=>{c.playerConversation=false;panel.style.display="none";});
 }
 const MAX_CUSTOMERS=5,DAY_SECONDS=600,OPEN_HOUR=8,CLOSE_HOUR=20;
@@ -7020,6 +7034,20 @@ function updateCustomerVisual(c,dt){
  if(c.phase!=="queue"&&c.phase!=="auxQueue"&&c.phase!=="waitingRegister"){
   c.group.rotation.z*=Math.exp(-3*dt);
   if(c.phase!=="shopping")c.group.rotation.x*=Math.exp(-3*dt);
+ }
+ // Animation temporaire superposée aux déplacements existants.
+ if(c.serviceMoodTimer>0){
+  c.serviceMoodTimer=Math.max(0,c.serviceMoodTimer-dt);
+  const strength=Math.min(1,c.serviceMoodTimer/.35);
+  if(c.serviceMood==="happy"){
+   c.head.rotation.x+=.12*Math.sin(c.visualClock*5+c.glanceOffset)*strength;
+   c.armLeft.rotation.x+=.14*strength;
+  }else if(c.serviceMood==="disappointed"){
+   c.head.rotation.x+=.13*strength;
+   c.head.rotation.y+=.14*Math.sin(c.visualClock*2.6)*strength;
+   c.armRight.rotation.x-=.15*strength;
+  }
+  if(c.serviceMoodTimer===0)c.serviceMood=null;
  }
 }
 // Zone réservée au personnel derrière la caisse : interdite aux clients.
@@ -8860,4 +8888,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.85 !");
+animate();toast("Business Empire Simulator V0.15.86 !");
