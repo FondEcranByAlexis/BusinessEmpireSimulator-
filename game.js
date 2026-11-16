@@ -10287,7 +10287,7 @@ const startMenu=installStartScreen({
    return true;
   }catch(error){console.warn("Suppression d’emplacement",error);toast("Impossible de supprimer la sauvegarde.");return false;}
  },
- onShow:()=>{paused=true;releaseMouseLook();panel.style.display="none";playableTutorial?.stop(false);save();},
+ onShow:()=>{paused=true;releaseMouseLook();panel.style.display="none";if(playableTutorial?.isActive())playableTutorial.stop(false);save();},
  onContinue:(withTutorial=false)=>{
   paused=false;
   if(!ageProfile)showAgePrompt();
