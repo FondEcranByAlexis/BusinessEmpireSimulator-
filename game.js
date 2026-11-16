@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.30 — répartition d'occupation par réserve
+// Business Empire Simulator V0.16.35 — états des réserves à surveiller
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -831,6 +831,25 @@ function showReserveCapacityOverview(){
   const reserved=kinds.reduce((sum,kind)=>sum+stockCapacityStatus(kind,false).used,0);
   const percentage=capacity>0?Math.round(reserved/capacity*100):0;
   paragraph("Occupation globale : "+reserved+" / "+capacity+" emplacements ("+percentage+" %), livraisons incluses.");
+  // V0.16.35 — synthèse consultative des zones dont la capacité se raréfie.
+  const attention=kinds.map(kind=>stockCapacityStatus(kind,false))
+   .filter(data=>data.status!=="DISPONIBLE");
+  if(attention.length){
+   const box=document.createElement("section");
+   Object.assign(box.style,{padding:"10px",marginTop:"10px",borderRadius:"8px",background:"#422006",
+    border:"1px solid #f59e0b",fontSize:"12px",lineHeight:"1.6"});
+   const title=document.createElement("strong");
+   title.textContent="Réserves à surveiller ("+attention.length+")";
+   box.appendChild(title);
+   for(const data of attention){
+    const line=document.createElement("div");
+    line.textContent=storageName(data.kind)+" : "+data.status+" · "+data.free+" place(s) libre(s)";
+    box.appendChild(line);
+   }
+   panel.appendChild(box);
+  }else{
+   paragraph("Toutes les réserves accessibles disposent de suffisamment de place.");
+  }
  }
  // V0.16.30 — lecture du pourcentage par réserve, sans modifier les calculs.
  if(kinds.length){
@@ -9354,4 +9373,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.30 !");
+animate();toast("Business Empire Simulator V0.16.35 !");
