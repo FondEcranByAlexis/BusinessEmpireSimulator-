@@ -1,12 +1,12 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.18.15";
-import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.15";
+import { installStartScreen } from "./start-screen.js?v=0.18.20";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.20";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.15 — missions évolutives de carrière
+// Business Empire Simulator V0.18.20 — édition directe des prix des étiquettes
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -4898,6 +4898,7 @@ function updatePriceLabel(p){
  ctx.font="bold 83px Arial";ctx.fillText(price.toFixed(2).replace(".",",")+" €",22,131,468);
  uploadTexturePixels(texture,canvas);label.price=price;
 }
+const interactivePriceLabels=[];
 function priceLabel(p,width=.52){
  const key=p.id;
  if(!priceLabelTextures[key]){
@@ -4909,8 +4910,11 @@ function priceLabel(p,width=.52){
   priceLabelTextures[key]={canvas,texture};
   updatePriceLabel(p);
  }
- return new THREE.Mesh(new THREE.PlaneGeometry(width,width*192/512),
+ const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,width*192/512),
   new THREE.MeshBasicMaterial({map:priceLabelTextures[key].texture,side:THREE.DoubleSide}));
+ mesh.userData.priceProductId=p.id;
+ interactivePriceLabels.push(mesh);
+ return mesh;
 }
 function addPriceRail(parent,p,y,width,front){
  // Réglette discrète au bord du plateau, avec un seul petit porte-prix.
@@ -7112,6 +7116,56 @@ function placeHeldArticle(){
   " en rayon"+(remaining?" · "+remaining+" dans le carton":" · carton terminé"));
  return true;
 }
+// Sélection précise de l'étiquette regardée, sans remplacer les fonctions E existantes.
+const priceRaycaster=new THREE.Raycaster();
+const priceAim=new THREE.Vector2(0,0);
+function aimedPriceProduct(){
+ if(!interactivePriceLabels.length||held)return null;
+ camera.updateMatrixWorld(true);
+ scene.updateMatrixWorld(true);
+ priceRaycaster.setFromCamera(priceAim,camera);
+ priceRaycaster.far=2.9;
+ const hits=priceRaycaster.intersectObjects(interactivePriceLabels,false);
+ const hit=hits.find(h=>h.object.visible&&h.object.parent?.visible);
+ if(!hit)return null;
+ const product=catalog.find(p=>p.id===hit.object.userData.priceProductId);
+ return product&&productAvailable(product)?product:null;
+}
+function showShelfPriceEditor(p){
+ if(!p||!productAvailable(p))return;
+ openPanel("ÉTIQUETTE DE RAYON · "+p.name);
+ const inv=state.inventory[p.id];
+ const info=paragraph("Prix d'achat : "+euro(p.cost)+" · Prix de référence : "+euro(p.price));
+ const price=document.createElement("div");
+ price.style.cssText="font-size:25px;font-weight:800;text-align:center;margin:14px 0;color:#f8fafc";
+ const margin=document.createElement("div");
+ margin.style.cssText="font-size:14px;text-align:center;margin:8px 0 14px";
+ panel.append(price,margin);
+ const row=document.createElement("div");
+ row.style.cssText="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px";
+ panel.appendChild(row);
+ function refresh(){
+  price.textContent="Prix affiché : "+euro(inv.price);
+  const profit=inv.price-p.cost;
+  margin.textContent="Marge brute unitaire : "+(profit>=0?"+":"")+euro(profit);
+  margin.style.color=profit>=0?"#86efac":"#fca5a5";
+ }
+ function adjust(label,delta){
+  const b=button(row,label,()=>{
+   inv.price=Math.max(1,Math.round((inv.price+delta)*100)/100);
+   updatePriceLabel(p);save();refresh();
+  });
+  b.style.cssText+=";margin:0;padding:10px 1px;font-size:12px";
+ }
+ adjust("− 1 €",-1);adjust("− 0,10 €",-.1);
+ adjust("+ 0,10 €",.1);adjust("+ 1 €",1);
+ const reset=button(panel,"Prix de référence : "+euro(p.price),()=>{
+  inv.price=p.price;updatePriceLabel(p);save();refresh();
+ });
+ reset.style.background="#475569";
+ button(panel,"Confirmer et fermer",()=>{panel.style.display="none";});
+ refresh();
+}
 function interact(){
  // Enseigne extérieure : E à proximité déclenche exactement la même action
  // que le bouton d’ouverture ; ne modifie jamais directement shopOpen.
@@ -7127,6 +7181,8 @@ function interact(){
   }
   placeHeldArticle();return;
  }
+ const labelProduct=aimedPriceProduct();
+ if(labelProduct){showShelfPriceEditor(labelProduct);return;}
  if(homeDeliveryService.interact())return;
  if(collectNearbyGolden())return;
  const entranceResult=fbaCity.toggleEntranceAt(camera.position.x,camera.position.z);
