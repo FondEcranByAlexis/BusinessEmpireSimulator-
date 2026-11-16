@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import {installBuildingSafety} from "./building-safety.js?v=0.18.36";
+import {installBuildingSafety} from "./building-safety.js?v=0.18.37";
 import { installStartScreen } from "./start-screen.js?v=0.18.25";
 import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.25";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
@@ -7,7 +7,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.36 — toucher directement les objets interactifs sur écran tactile
+// Business Empire Simulator V0.18.37 — toucher directement les objets interactifs sur écran tactile
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
