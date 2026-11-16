@@ -1,4 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
+import {installBuildingSafety} from "./building-safety.js?v=0.18.35";
 import { installStartScreen } from "./start-screen.js?v=0.18.25";
 import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.25";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
@@ -6,7 +7,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.30 — toucher directement les objets interactifs sur écran tactile
+// Business Empire Simulator V0.18.35 — toucher directement les objets interactifs sur écran tactile
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3498,6 +3499,7 @@ const fbaCity=installCity({THREE,scene});
 // Portée augmentée pour éviter le découpage brutal de la scène près de Z75.
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,165);
 camera.position.set(0,1.7,7.5);camera.rotation.order="YXZ";
+const buildingSafety=installBuildingSafety({THREE,scene,camera,notify:toast});
 const homeDeliveryService=installHomeDeliveries({
  THREE,scene,camera,state,playerLevel,blocked,notify:toast,save,sync,checkLevelUp,
  awardDelivery:()=>recordProgressEvent("deliveries"),
@@ -7193,6 +7195,7 @@ function showShelfPriceEditor(p){
  refresh();
 }
 function interact(){
+ if(!held&&buildingSafety.interact())return;
  // Enseigne extérieure : E à proximité déclenche exactement la même action
  // que le bouton d’ouverture ; ne modifie jamais directement shopOpen.
  if(!held&&near(1.29,10.245,2.25)){
@@ -10395,6 +10398,7 @@ function animate(){
   else if(usable&&held)text="Poser l'article (E)";
   else if(usable&&canUseHandtruck())text="Utiliser le diable (T)";
   else if(usable&&near(1.29,10.245,2.25))text="Panneau d'ouverture (E)";
+  else if(usable&&buildingSafety.nearby())text=buildingSafety.nearby().name+" (E)";
   besContextButton.textContent=text||"Interagir (E)";
   label.textContent=text;
   label.style.display=text?"block":"none";
