@@ -7,9 +7,9 @@
         content="width=device-width, initial-scale=1,
         maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#101820">
-  <title>Business Empire Simulator V0.15.95</title>
+  <title>Business Empire Simulator V0.16.00</title>
 
-  <link rel="stylesheet" href="style.css?v=0.15.95">
+  <link rel="stylesheet" href="style.css?v=0.16.00">
 </head>
 
 <body>
@@ -35,6 +35,7 @@
       <div>Heure : <b id="hour">08:00</b></div>
       <div>Magasin : <b id="shopStatus">FERMÉ</b></div>
       <div>Stock : <b id="stock">30</b></div>
+      <div class="stock-alert-line">Alertes : <b id="stockAlerts" class="stock-alert-ok" aria-live="polite">Stocks sous contrôle</b></div>
     </div>
     <div id="pointsHud" aria-label="Points de progression">
       <span id="pointsHudValue">N1 · 0 pts · PS 0 / PL 0 / PM 0</span>
@@ -88,7 +89,7 @@
     document.getElementById("startLandscape").addEventListener("click",requestLandscape);
     document.getElementById("fullscreenLandscape").addEventListener("click",requestLandscape);
   </script>
-  <script type="module" src="game.js?v=0.15.95"></script>
+  <script type="module" src="game.js?v=0.16.00"></script>
 
 </body>
 </html>
