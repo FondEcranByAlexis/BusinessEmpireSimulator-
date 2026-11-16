@@ -1,11 +1,11 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.17.65";
+import { installStartScreen } from "./start-screen.js?v=0.17.70";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.65 — écran d’accueil
+// Business Empire Simulator V0.17.70 — trois emplacements de sauvegarde indépendants
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -19,7 +19,13 @@ const DEV_AUTHORIZED=localStorage.getItem("fba-dev-authorized")==="true";
 const DEV_MODE=DEV_AUTHORIZED&&localStorage.getItem("fba-dev-enabled")==="true";
 if(DEV_MODE)document.body.classList.add("fba-dev-layout");
 if(DEV_ACTIVATION==="activer")history.replaceState(null,"",location.pathname);
-const SAVE=DEV_MODE?DEV_SAVE:NORMAL_SAVE;
+// L'emplacement 1 conserve la clé historique de sauvegarde.
+const SAVE_BASE=DEV_MODE?DEV_SAVE:NORMAL_SAVE;
+const SAVE_SLOT_SESSION=DEV_MODE?"bes-dev-save-slot":"bes-save-slot";
+const storedSlot=Number(sessionStorage.getItem(SAVE_SLOT_SESSION));
+const activeSaveSlot=Number.isInteger(storedSlot)&&storedSlot>=1&&storedSlot<=3?storedSlot:1;
+function slotSaveKey(slot){return slot===1?SAVE_BASE:SAVE_BASE+"-slot-"+slot;}
+const SAVE=slotSaveKey(activeSaveSlot);
 const confirmedFreshStart=sessionStorage.getItem("bes-new-game-confirmed")==="1";
 if(confirmedFreshStart)sessionStorage.removeItem("bes-new-game-confirmed");
 let startHasSavedGame=false;
@@ -523,7 +529,7 @@ function load(){
     if(Number.isFinite(src.price))dst.price=Math.max(1,Math.round(src.price));
    }
   }else{
-   const old=DEV_MODE?null:JSON.parse(localStorage.getItem(LEGACY));
+   const old=DEV_MODE||activeSaveSlot!==1||confirmedFreshStart?null:JSON.parse(localStorage.getItem(LEGACY));
    if(old){
     for(const k of ["money","day","sales"])if(Number.isFinite(old[k])&&old[k]>=0)s[k]=old[k];
     const qty=Math.max(0,Math.floor(old.stock||0));
@@ -10242,6 +10248,25 @@ sync();updateStoreSigns();updateOpen();updateConstructionUI();
 animate();
 const startMenu=installStartScreen({
  hasSave:startHasSavedGame,
+ activeSlot:activeSaveSlot,
+ getSlots:()=>[1,2,3].map(id=>{
+  try{
+   const data=JSON.parse(localStorage.getItem(slotSaveKey(id)));
+   if(!data?.inventory)return {id,exists:false};
+   return {id,exists:true,day:Math.max(1,Number(data.day)||1),
+    money:Math.round(Number(data.money)||0),store:String(data.storeName||"FBA Supermarket").slice(0,40)};
+  }catch(error){return {id,exists:false};}
+ }),
+ onSelectSlot:(id,create,replace)=>{
+  if(!Number.isInteger(id)||id<1||id>3)return;
+  try{
+   save();
+   if(replace)localStorage.removeItem(slotSaveKey(id));
+   sessionStorage.setItem(SAVE_SLOT_SESSION,String(id));
+   if(create)sessionStorage.setItem("bes-new-game-confirmed","1");
+   location.reload();
+  }catch(error){console.warn("Sélection d'emplacement",error);toast("Impossible de changer d'emplacement.");}
+ },
  onShow:()=>{paused=true;releaseMouseLook();panel.style.display="none";save();},
  onContinue:()=>{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();},
  onNewGame:replace=>{
