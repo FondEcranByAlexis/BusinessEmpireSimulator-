@@ -1,4 +1,4 @@
-// BES V0.18.41 — sens unique et départs fiables du parking.
+// BES V0.18.42 — raccordement correct aux voies urbaines, sans circulation sur trottoir.
 // Trois véhicules légers au maximum, en basse géométrie pour PC et téléphone.
 // Aucune modification des voitures, des feux ou des carrefours de FBA City.
 export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
@@ -40,12 +40,16 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
  }
  for(let i=0;i<3;i++)cars.push(makeCar(i));
  let spawnElapsed=0,sequence=0;
- // Entrée par X=-9, puis circulation vers l'ouest par Z=55.
- // La sortie contourne la rangée par l'ouest puis emprunte Z=74 vers l'est.
- // Les deux sens ne se rencontrent jamais sur une même allée.
- const start={x:-9,z:91},junction={x:-9,z:55};
- const outboundWest={x:-52,z:55},outboundNorth={x:-52,z:74};
- const outboundEast={x:-9,z:74};
+ // Route urbaine à X≈0.7 (largeur 10 m), deux voies de 3.6 m :
+ // X=-2.9 vers le magasin (sud), X=4.3 vers la ville (nord).
+ // Rue transversale de FBA City à Z≈75.7 : entrée par Z=79.3,
+ // sortie par Z=72.1. Aucun point sur les trottoirs bordant les rues.
+ // La boucle interne du parking, déjà validée, reste intacte.
+ const start={x:-2.9,z:95},entryTurn={x:-2.9,z:79.3};
+ const entryCross={x:-9,z:79.3},junction={x:-9,z:55};
+ const outboundWest={x:-52,z:55},outboundNorth={x:-52,z:72.1};
+ const outboundEast={x:-9,z:72.1};
+ const exitTurn={x:4.3,z:72.1},exitRoad={x:4.3,z:95};
  const moving=car=>car.state==="arriving"||car.state==="leaving";
  const trafficBusy=()=>cars.some(moving);
  // Marquages directionnels sur les deux allées, non collidants.
@@ -71,7 +75,7 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
   car.slot=slot;car.group.position.set(start.x,0,start.z);
   car.group.visible=true;car.state="arriving";car.index=0;car.stay=35+(sequence%4)*13;
   car.speed=4.5+(sequence%3)*.5;
-  car.route=[junction,{x:slot.x,z:55},slot];
+  car.route=[entryTurn,entryCross,junction,{x:slot.x,z:55},slot];
   sequence++;
   return true;
  }
@@ -101,7 +105,7 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
    if(leaving){
     leaving.state="leaving";leaving.index=0;
     // Tous les départs suivent le sens unique OUEST puis NORD puis EST.
-    leaving.route=[{x:leaving.slot.x,z:55},outboundWest,outboundNorth,outboundEast,start];
+    leaving.route=[{x:leaving.slot.x,z:55},outboundWest,outboundNorth,outboundEast,exitTurn,exitRoad];
    }else if(spawnElapsed>=18){
     const inactive=cars.find(car=>car.state==="inactive");
     if(inactive&&startTrip(inactive))spawnElapsed=0;
