@@ -3,7 +3,8 @@ import {makeDeliveryVan} from "./delivery-van.js?v=0.15.08";
 import {cityBuildingsForBlock} from "./city.js?v=0.15.08";
 export function installHomeDeliveries(o){
  const {THREE,scene,state,camera,playerLevel,blocked,notify,save,sync,checkLevelUp,openPanel,paragraph,button,panel,getControls,setHeading,clearLook,resetFloor}=o;
- const PRICE=1800,DEPOT={x:-24,z:40};
+ // Zone de livraison dédiée à la rangée de places Z=48, avec largeur de deux places.
+ const PRICE=1800,DEPOT={x:-24,z:48};
  const van=makeDeliveryVan({THREE,scene});van.setPosition(DEPOT.x,DEPOT.z,Math.PI);
  let driving=false,heading=Math.PI,speed=0;
  state.homeDelivery??={completed:0,active:null};
@@ -18,12 +19,12 @@ export function installHomeDeliveries(o){
   const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);
   m.rotation.x=-Math.PI/2;m.position.set(x,y,z);bay.add(m);return m;
  };
- mark(DEPOT.x,DEPOT.z,4.3,7.5,ground,.047);
- for(const offset of [-2.15,2.15])mark(DEPOT.x+offset,DEPOT.z,.13,7.5,paint,.087);
- for(const offset of [-3.75,3.75])mark(DEPOT.x,DEPOT.z+offset,4.3,.13,paint,.087);
+ mark(DEPOT.x,DEPOT.z,5.9,7.5,ground,.047);
+ for(const offset of [-2.95,2.95])mark(DEPOT.x+offset,DEPOT.z,.13,7.5,paint,.087);
+ for(const offset of [-3.75,3.75])mark(DEPOT.x,DEPOT.z+offset,5.9,.13,paint,.087);
  // Panneau à l'extérieur de la place, pour ne pas barrer l'accès au fourgon.
  const pole=new THREE.Mesh(new THREE.BoxGeometry(.10,2.8,.10),metal);
- pole.position.set(DEPOT.x-3.05,1.4,DEPOT.z);bay.add(pole);
+ pole.position.set(DEPOT.x-3.65,1.4,DEPOT.z);bay.add(pole);
  const signCanvas=document.createElement("canvas");signCanvas.width=512;signCanvas.height=256;
  const ctx=signCanvas.getContext("2d");
  ctx.fillStyle="#075985";ctx.fillRect(0,0,512,256);
@@ -294,7 +295,7 @@ export function installHomeDeliveries(o){
    buy.disabled=state.money<PRICE;
    return;
   }
-  paragraph("Place réservée FBA Livraisons : parking X −24 / Z 40, panneau bleu.");
+  paragraph("Place réservée FBA Livraisons : parking X −24 / Z 48, panneau bleu.");
   if(state.homeDelivery.returning)
    paragraph("Retour en cours : suis le tracé GPS jusqu'à la place réservée pour terminer la tournée.");
   paragraph("Pour récupérer un colis, gare le fourgon dans la place et utilise « Récupérer une commande ».");
