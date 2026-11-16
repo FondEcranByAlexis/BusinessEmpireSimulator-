@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.65 — filtres logistiques cumulables
+// Business Empire Simulator V0.16.70 — recherche, couverture partielle et bilan logistique par zone
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -877,7 +877,7 @@ function showReserveCapacityOverview(){
 }
 // V0.16.60 — outils de lecture uniquement : aucun stock ou inventaire modifié.
 // V0.16.65 — filtres consultatifs pour les priorités et les arrivages.
-let logisticsOverviewPrefs={restockZone:"all",restockStatus:"all",incomingZone:"all"};
+let logisticsOverviewPrefs={restockZone:"all",restockStatus:"all",incomingZone:"all",restockSearch:"",incomingSearch:""};
 function logisticsZoneSelector(value,onChange){
  const wrap=document.createElement("label");wrap.textContent="Réserve : ";
  Object.assign(wrap.style,{display:"block",margin:"10px 0",fontSize:"12px"});
@@ -903,6 +903,29 @@ function showShelfRestockPriorities(){
  paragraph(entries.length+" rayon(s) incomplet(s) · "+entries.filter(e=>e.empty).length+" vide(s).");
  paragraph(ready.length+" à compléter depuis la réserve · "+waiting.length+
   " en attente de cartons · "+noStock.length+" sans réserve ni arrivage.");
+ const unitsMissing=entries.reduce((sum,e)=>sum+e.missing,0);
+ const unitsReady=entries.reduce((sum,e)=>sum+e.canFill,0);
+ paragraph("Articles manquants en rayon : "+unitsMissing+" · Réassort possible immédiatement : "+unitsReady+
+  " · Reste non couvert : "+(unitsMissing-unitsReady)+".");
+ const zoneSummary=document.createElement("section");
+ Object.assign(zoneSummary.style,{margin:"9px 0",padding:"9px",background:"#1e293b",borderRadius:"8px",fontSize:"12px",lineHeight:"1.7"});
+ for(const kind of STORAGE_KINDS){
+  const selected=entries.filter(e=>storageKind(e.p)===kind);
+  if(!selected.length)continue;
+  const row=document.createElement("div");
+  row.textContent=storageName(kind)+" : "+selected.length+" rayon(s) incomplet(s), "+
+   selected.reduce((n,e)=>n+e.canFill,0)+" article(s) prêts à remettre en rayon";
+  zoneSummary.appendChild(row);
+ }
+ panel.appendChild(zoneSummary);
+ const search=document.createElement("input");
+ search.type="search";search.placeholder="Rechercher un rayon";
+ search.setAttribute("aria-label","Rechercher dans les priorités de mise en rayon");
+ search.value=logisticsOverviewPrefs.restockSearch;
+ Object.assign(search.style,{display:"block",width:"100%",margin:"9px 0",padding:"9px",fontSize:"12px",
+  color:"#fff",background:"#1e293b",border:"1px solid #64748b",borderRadius:"7px"});
+ search.addEventListener("input",()=>{logisticsOverviewPrefs.restockSearch=search.value;drawRestockMatches();});
+ panel.appendChild(search);
  // Deux filtres cumulables ; les chiffres précédents restent globaux.
  logisticsZoneSelector(logisticsOverviewPrefs.restockZone,v=>{
   logisticsOverviewPrefs.restockZone=v;showShelfRestockPriorities();
@@ -914,23 +937,33 @@ function showShelfRestockPriorities(){
  Object.assign(filter.style,{marginLeft:"6px",padding:"8px",background:"#1e293b",
   color:"#fff",border:"1px solid #64748b",borderRadius:"7px",maxWidth:"100%"});
  const options=[["all","Tous les rayons incomplets"],["empty","Rayons vides"],
-  ["ready","Réassort possible"],["waiting","Livraison attendue"],["none","Stock à commander"]];
+  ["ready","Réassort possible"],["partial","Réassort partiel"],["waiting","Livraison attendue"],["none","Stock à commander"]];
  for(const [key,label] of options){
   const option=document.createElement("option");option.value=key;option.textContent=label;filter.appendChild(option);
  }
  filter.value=logisticsOverviewPrefs.restockStatus;
  filter.addEventListener("change",()=>{logisticsOverviewPrefs.restockStatus=filter.value;showShelfRestockPriorities();});
  filterLabel.appendChild(filter);panel.appendChild(filterLabel);
- const selected=entries.filter(e=>(logisticsOverviewPrefs.restockZone==="all"||
-  storageKind(e.p)===logisticsOverviewPrefs.restockZone)&&
-  (logisticsOverviewPrefs.restockStatus==="all"||
-   logisticsOverviewPrefs.restockStatus==="empty"&&e.empty||
-   logisticsOverviewPrefs.restockStatus==="ready"&&e.canFill>0||
-   logisticsOverviewPrefs.restockStatus==="waiting"&&e.canFill===0&&e.incoming>0||
-   logisticsOverviewPrefs.restockStatus==="none"&&e.canFill===0&&e.incoming===0));
- paragraph(selected.length+" rayon(s) correspondant aux filtres.");
- if(!selected.length)paragraph("Aucun rayon correspondant aux filtres sélectionnés.");
- for(const e of selected){
+ const list=document.createElement("div");
+ panel.appendChild(list);
+ function drawRestockMatches(){
+  list.replaceChildren();
+  const selected=entries.filter(e=>(logisticsOverviewPrefs.restockZone==="all"||
+   storageKind(e.p)===logisticsOverviewPrefs.restockZone)&&
+   e.p.name.toLocaleLowerCase("fr").includes(logisticsOverviewPrefs.restockSearch.trim().toLocaleLowerCase("fr"))&&
+   (logisticsOverviewPrefs.restockStatus==="all"||
+    logisticsOverviewPrefs.restockStatus==="empty"&&e.empty||
+    logisticsOverviewPrefs.restockStatus==="ready"&&e.canFill>0||
+    logisticsOverviewPrefs.restockStatus==="partial"&&e.canFill>0&&e.canFill<e.missing||
+    logisticsOverviewPrefs.restockStatus==="waiting"&&e.canFill===0&&e.incoming>0||
+    logisticsOverviewPrefs.restockStatus==="none"&&e.canFill===0&&e.incoming===0));
+  const count=document.createElement("p");count.textContent=selected.length+" rayon(s) correspondant aux filtres.";
+  Object.assign(count.style,{fontSize:"12px"});list.appendChild(count);
+  if(!selected.length){
+   const note=document.createElement("p");note.textContent="Aucun rayon correspondant aux filtres sélectionnés.";
+   list.appendChild(note);
+  }
+  for(const e of selected){
   const row=document.createElement("div");
   const status=e.canFill>0?"RÉASSORT POSSIBLE":e.incoming>0?"LIVRAISON ATTENDUE":"STOCK À COMMANDER";
   row.textContent=(e.empty?"RAYON VIDE — ":"")+e.p.name+" · "+storageName(storageKind(e.p))+
@@ -940,10 +973,13 @@ function showShelfRestockPriorities(){
   Object.assign(row.style,{fontSize:"12px",padding:"10px",marginTop:"8px",lineHeight:"1.5",
    background:"#1e293b",borderLeft:"4px solid "+(e.canFill>0?"#22c55e":e.incoming>0?"#f59e0b":"#f87171"),
    borderRadius:"7px"});
-  panel.appendChild(row);
+  list.appendChild(row);
+  }
  }
+ drawRestockMatches();
  button(panel,"Réinitialiser les filtres",()=>{
-  logisticsOverviewPrefs.restockZone="all";logisticsOverviewPrefs.restockStatus="all";showShelfRestockPriorities();
+  logisticsOverviewPrefs.restockZone="all";logisticsOverviewPrefs.restockStatus="all";
+  logisticsOverviewPrefs.restockSearch="";showShelfRestockPriorities();
  });
  button(panel,"Actualiser les priorités",showShelfRestockPriorities);
  button(panel,"Consulter les arrivages",showIncomingShipmentsOverview);
@@ -956,32 +992,50 @@ function showIncomingShipmentsOverview(){
   .filter(e=>e.boxes>0).sort((a,b)=>b.boxes-a.boxes||a.p.name.localeCompare(b.p.name,"fr"));
  const total=entries.reduce((n,e)=>n+e.boxes,0);
  paragraph(entries.length+" produit(s) attendu(s) · "+total+" carton(s) en commande, au quai ou en transit.");
+ const search=document.createElement("input");
+ search.type="search";search.placeholder="Rechercher un produit attendu";
+ search.value=logisticsOverviewPrefs.incomingSearch;
+ Object.assign(search.style,{display:"block",width:"100%",padding:"9px",margin:"9px 0",
+  fontSize:"12px",color:"#fff",background:"#1e293b",border:"1px solid #64748b",borderRadius:"7px"});
+ search.addEventListener("input",()=>{logisticsOverviewPrefs.incomingSearch=search.value;drawIncomingMatches();});
+ panel.appendChild(search);
  logisticsZoneSelector(logisticsOverviewPrefs.incomingZone,v=>{
   logisticsOverviewPrefs.incomingZone=v;showIncomingShipmentsOverview();
  });
- const filtered=entries.filter(e=>logisticsOverviewPrefs.incomingZone==="all"||
-  storageKind(e.p)===logisticsOverviewPrefs.incomingZone);
- paragraph(filtered.length+" référence(s) · "+filtered.reduce((n,e)=>n+e.boxes,0)+" carton(s) dans la sélection.");
- for(const kind of STORAGE_KINDS){
+ const list=document.createElement("div");panel.appendChild(list);
+ function drawIncomingMatches(){
+  list.replaceChildren();
+  const filtered=entries.filter(e=>(logisticsOverviewPrefs.incomingZone==="all"||
+   storageKind(e.p)===logisticsOverviewPrefs.incomingZone)&&
+   e.p.name.toLocaleLowerCase("fr").includes(logisticsOverviewPrefs.incomingSearch.trim().toLocaleLowerCase("fr")));
+  const summary=document.createElement("p");
+  summary.textContent=filtered.length+" référence(s) · "+filtered.reduce((n,e)=>n+e.boxes,0)+" carton(s) dans la sélection.";
+  list.appendChild(summary);
+  for(const kind of STORAGE_KINDS){
   const section=filtered.filter(e=>storageKind(e.p)===kind);
   if(!section.length)continue;
   const count=section.reduce((n,e)=>n+e.boxes,0);
   const heading=document.createElement("h3");
   heading.textContent=storageName(kind)+" — "+count+" carton(s)";
   Object.assign(heading.style,{fontSize:"14px",margin:"13px 0 5px"});
-  panel.appendChild(heading);
+  list.appendChild(heading);
   for(const {p,boxes} of section){
    const line=document.createElement("div");
    line.textContent=p.name+" · "+boxes+" carton(s) · "+boxes*BOX_UNITS+" articles attendus";
    Object.assign(line.style,{fontSize:"12px",lineHeight:"1.5",padding:"8px",
     marginTop:"5px",background:"#1e293b",borderRadius:"7px"});
-   panel.appendChild(line);
+   list.appendChild(line);
   }
  }
- if(!filtered.length)paragraph("Aucun carton attendu pour cette sélection.");
+  if(!filtered.length){
+   const note=document.createElement("p");note.textContent="Aucun carton attendu pour cette sélection.";
+   list.appendChild(note);
+  }
+ }
+ drawIncomingMatches();
  paragraph("Les données regroupent les commandes fournisseurs et les cartons en cours de manutention. Aucun délai supplémentaire n'est estimé.");
  button(panel,"Afficher toutes les réserves",()=>{
-  logisticsOverviewPrefs.incomingZone="all";showIncomingShipmentsOverview();
+  logisticsOverviewPrefs.incomingZone="all";logisticsOverviewPrefs.incomingSearch="";showIncomingShipmentsOverview();
  });
  button(panel,"Actualiser les arrivages",showIncomingShipmentsOverview);
  button(panel,"Voir les priorités de mise en rayon",showShelfRestockPriorities);
@@ -9560,4 +9614,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.65 !");
+animate();toast("Business Empire Simulator V0.16.70 !");
