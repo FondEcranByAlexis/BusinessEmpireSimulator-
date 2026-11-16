@@ -59,5 +59,5 @@ export function installStartScreen(config){
   add("★ Crédits",credits,true);
  }
  home();
- return {show:home};
+ return {show:home,beginNew:()=>{overlay.style.display="none";existing=true;onNewGame(false);}};
 }
