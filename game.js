@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.15 — dialogues clients contextuels et nouveaux conseils
+// Business Empire Simulator V0.17.20 — variation des voix françaises
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -2962,7 +2962,7 @@ function sayCheckoutLine(customer,stage,message){
  const spoken=customer.checkoutLines??=new Set();
  if(spoken.has(stage))return false;
  spoken.add(stage);
- speakDialogue(message,"customer");
+ speakDialogue(message,"customer",false,customer);
  return true;
 }
 function showCheckout(){
@@ -7443,11 +7443,10 @@ function reactCompanion(c,event,product=null){
  const synth=window.speechSynthesis,Utterance=window.SpeechSynthesisUtterance,now=performance.now();
  if(companionsDialogueCooldown>0||d>8||!audioSettings.dialogue||!audioSettings.volume||
     !synth||!Utterance||document.hidden||synth.speaking||synth.pending||now-lastDialogue<6000)return;
- const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith("fr")&&v.localService);
  for(const [i,msg] of [first,second].entries()){
-  const line=new Utterance(msg);line.lang="fr-FR";if(voice)line.voice=voice;
+  const line=applyCharacterVoice(new Utterance(msg),i?c.companion:c);
   line.volume=audioSettings.volume*Math.max(.18,.52*(1-d/10));
-  line.rate=i?1.02:.96;line.pitch=i?1.04:.94;synth.speak(line);
+  synth.speak(line);
  }
  companionsDialogueCooldown=19;lastDialogue=now;
 }
@@ -7528,11 +7527,9 @@ function updateCustomerCompanions(dt){
     if(synth&&Utterance&&audioSettings.dialogue&&audioSettings.volume&&!document.hidden&&
        !synth.speaking&&!synth.pending&&now-lastDialogue>6000&&
        near(c.group.position.x,c.group.position.z,8)){
-     const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith("fr")&&v.localService);
      for(const [i,message] of [phrase,reply].entries()){
-      const line=new Utterance(message);line.lang="fr-FR";if(voice)line.voice=voice;
-      line.volume=audioSettings.volume*.48;line.rate=i?1.0:.94;line.pitch=i?1.04:.93;
-      synth.speak(line);
+      const line=applyCharacterVoice(new Utterance(message),i?c:c.companion);
+      line.volume=audioSettings.volume*.48;synth.speak(line);
      }
      lastDialogue=now;
     }
@@ -7575,11 +7572,9 @@ function updateCustomerSocial(dt){
    const now=performance.now();
    if(!audioSettings.dialogue||!audioSettings.volume||!synth||!Utterance||
       synth.speaking||synth.pending||now-lastDialogue<6000||playerDistance>9)return;
-   const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith("fr")&&v.localService);
    const speak=(message,c)=>{
-    const line=new Utterance(message);line.lang="fr-FR";if(voice)line.voice=voice;
+    const line=applyCharacterVoice(new Utterance(message),c);
     line.volume=audioSettings.volume*Math.max(.16,.56*(1-playerDistance/10));
-    line.rate=.95+c.personality*.14;line.pitch=.9+c.personality*.28;
     synth.speak(line);
    };
    lastDialogue=now;speak(first,a);speak(second,b);
@@ -7661,7 +7656,7 @@ function showCustomerConversationChoices(c){
   paragraph("Client : "+message);
   if(mood==="happy")paragraph("Réaction : le client est reconnaissant.");
   if(mood==="disappointed")paragraph("Réaction : le client est déçu mais reste poli.");
-  speakDialogue(message,"customer");
+  speakDialogue(message,"customer",false,c);
   button(panel,"Continuer",()=>showCustomerConversationChoices(c));
   button(panel,"Terminer",()=>{c.playerConversation=false;panel.style.display="none";});
  };
@@ -8863,17 +8858,36 @@ function playSound(effect){
    break;
  }
 }
-function speakDialogue(message,role,ambient=false){
+// Voix disponibles sur le système : choix stable par client, sans dépendance externe.
+function frenchVoiceOptions(){
+ const synth=window.speechSynthesis;
+ return synth?synth.getVoices().filter(v=>(v.lang||"").toLowerCase().startsWith("fr"))
+  .sort((a,b)=>Number(/natural|neural|enhanced|premium/i.test(b.name))-
+   Number(/natural|neural|enhanced|premium/i.test(a.name))||
+   Number(b.localService)-Number(a.localService)): [];
+}
+function applyCharacterVoice(line,customer=null,role="customer"){
+ const choices=frenchVoiceOptions();
+ const person=customer||{};
+ if(!Number.isInteger(person.voiceProfile))person.voiceProfile=Math.floor(Math.random()*8);
+ const index=person.voiceProfile;
+ const voice=choices.length?choices[index%choices.length]:null;
+ if(voice)line.voice=voice;
+ line.lang=voice?.lang||"fr-FR";
+ const speeds=[.94,.98,1.01,.96,1.04,.99,1.02,.95];
+ const pitches=[.97,1.03,1.08,.94,1.05,1,.96,1.07];
+ line.rate=Math.min(1.12,speeds[index%8]+(person.temperament==="pressé"?.05:person.temperament==="bavard"?-.03:0));
+ line.pitch=pitches[index%8]-(role==="worker"?.05:0);
+ return line;
+}
+function speakDialogue(message,role,ambient=false,customer=null){
  const synth=window.speechSynthesis,Utterance=window.SpeechSynthesisUtterance;
  if(!audioSettings.dialogue||!audioSettings.volume||!synth||!Utterance||document.hidden)return;
  const now=performance.now();
  if(ambient&&(synth.speaking||synth.pending||now-lastDialogue<6000))return false;
  if(!ambient)synth.cancel();
- const line=new Utterance(message);
- line.lang="fr-FR";line.volume=audioSettings.volume*(ambient?.48:.85);
- const voice=synth.getVoices().find(voice=>voice.localService&&voice.lang==="fr-FR");
- if(voice)line.voice=voice;
- line.rate=role==="worker"?.95:1.03;line.pitch=role==="worker"?.84:role==="stocker"?1.13:1;
+ const line=applyCharacterVoice(new Utterance(message),customer,role);
+ line.volume=audioSettings.volume*(ambient?.48:.85);
  lastDialogue=now;synth.speak(line);
  return true;
 }
@@ -8897,6 +8911,7 @@ function showAudioSettings(){
  button(panel,"Voix des dialogues · "+(audioSettings.dialogue?"Activées":"Coupées"),()=>{
   audioSettings.dialogue=!audioSettings.dialogue;saveAudioSettings();showAudioSettings();
  });
+ paragraph("Voix françaises disponibles : "+frenchVoiceOptions().length+". Si une seule voix est installée, les différences resteront limitées.");
  button(panel,"Tester le son du scanner",()=>playSound("scan"));
  button(panel,"Tester la voix d’un client",()=>{
   if(!audioSettings.dialogue||!audioSettings.volume){toast("Active les voix et augmente le volume dans Audio");return;}
@@ -9656,12 +9671,8 @@ function customerVoice(c,key,lines,radius=9){
  const now=performance.now();
  if(synth.speaking||synth.pending||now-lastDialogue<6000)return false;
  const distance=Math.hypot(camera.position.x-c.group.position.x,camera.position.z-c.group.position.z);
- const line=new Utterance(lines[Math.floor(Math.random()*lines.length)]);
- line.lang="fr-FR";
- const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith("fr")&&v.localService);
- if(voice)line.voice=voice;
+ const line=applyCharacterVoice(new Utterance(lines[Math.floor(Math.random()*lines.length)]),c);
  line.volume=audioSettings.volume*Math.max(.18,.85*(1-distance/radius));
- line.rate=.96+c.personality*.15;line.pitch=.9+c.personality*.25;
  lastDialogue=now;synth.speak(line);c.voiceLines.add(key);
  return true;
 }
@@ -9976,4 +9987,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.15 !");
+animate();toast("Business Empire Simulator V0.17.20 !");
