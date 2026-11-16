@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.35 — traitement et suivi des demandes clients
+// Business Empire Simulator V0.17.40 — priorités et tri des demandes clients
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -2346,13 +2346,14 @@ function recordCustomerRequest(product,customer){
  save();toast("Demande enregistrée : "+product.name);return true;
 }
 // V0.17.35 : affichage et suivi des demandes, sans commande ni mouvement de stock.
-let customerRequestView={status:"open",search:""};
+let customerRequestView={status:"open",search:"",sort:"priority"};
 function showCustomerRequests(){
  openPanel("CARNET — DEMANDES CLIENTS");
  const requests=customerRequests();
  const open=requests.filter(item=>!item.closed).length;
  const ready=requests.filter(item=>!item.closed&&(state.inventory[item.productId]?.shelf||0)>0).length;
- paragraph(open+" demande(s) en cours · "+ready+" produit(s) déjà disponibles en rayon · "+requests.length+" demande(s) au total.");
+ const urgent=requests.filter(item=>!item.closed&&item.priority).length;
+ paragraph(open+" demande(s) en cours · "+ready+" produit(s) déjà disponibles en rayon · "+urgent+" prioritaire(s) · "+requests.length+" demande(s) au total.");
  paragraph("Les demandes sont sauvegardées. Le traitement et la clôture restent manuels.");
  const search=document.createElement("input");search.type="search";
  search.value=customerRequestView.search;search.placeholder="Rechercher un produit demandé";
@@ -2364,13 +2365,21 @@ function showCustomerRequests(){
  select.setAttribute("aria-label","Filtrer les demandes");
  Object.assign(select.style,{display:"block",width:"100%",margin:"8px 0",padding:"9px",
   color:"#fff",background:"#142336",border:"1px solid #64748b",borderRadius:"8px"});
- for(const [key,label] of [["open","En cours"],["ready","Disponible en rayon"],["missing","Rayon vide"],["closed","Terminées"],["all","Toutes les demandes"]]){
+ for(const [key,label] of [["open","En cours"],["ready","Disponible en rayon"],["missing","Rayon vide"],["closed","Terminées"],["priority","Prioritaires"],["all","Toutes les demandes"]]){
   const option=document.createElement("option");option.value=key;option.textContent=label;select.appendChild(option);
  }
  select.value=customerRequestView.status;panel.appendChild(select);
+ const sort=document.createElement("select");
+ sort.setAttribute("aria-label","Trier les demandes");
+ Object.assign(sort.style,{display:"block",width:"100%",margin:"8px 0",padding:"9px",color:"#fff",background:"#142336",border:"1px solid #64748b",borderRadius:"8px"});
+ for(const [key,label] of [["priority","Priorités puis anciennes"],["oldest","Plus anciennes d’abord"],["newest","Plus récentes d’abord"],["empty","Rayons vides d’abord"]]){
+  const option=document.createElement("option");option.value=key;option.textContent=label;sort.appendChild(option);
+ }
+ sort.value=customerRequestView.sort;panel.appendChild(sort);
  const list=document.createElement("div");panel.appendChild(list);
  search.addEventListener("input",()=>{customerRequestView.search=search.value;draw();});
  select.addEventListener("change",()=>{customerRequestView.status=select.value;draw();});
+ sort.addEventListener("change",()=>{customerRequestView.sort=sort.value;draw();});
  function draw(){
   list.replaceChildren();
   const entries=requests.filter(item=>{
@@ -2381,7 +2390,18 @@ function showCustomerRequests(){
     customerRequestView.status==="open"&&!item.closed||
     customerRequestView.status==="ready"&&!item.closed&&shelf>0||
     customerRequestView.status==="missing"&&!item.closed&&shelf===0||
-    customerRequestView.status==="closed"&&!!item.closed;
+    customerRequestView.status==="closed"&&!!item.closed||
+    customerRequestView.status==="priority"&&!item.closed&&!!item.priority;
+  });
+  entries.sort((a,b)=>{
+   const time=(r)=>r.day*24+Number(r.hour||0);
+   if(customerRequestView.sort==="priority"&&!!a.priority!==!!b.priority)return a.priority?-1:1;
+   if(customerRequestView.sort==="empty"){
+    const aEmpty=(state.inventory[a.productId]?.shelf||0)===0;
+    const bEmpty=(state.inventory[b.productId]?.shelf||0)===0;
+    if(aEmpty!==bEmpty)return aEmpty?-1:1;
+   }
+   return customerRequestView.sort==="newest"?time(b)-time(a):time(a)-time(b);
   });
   const counter=document.createElement("p");counter.textContent=entries.length+" demande(s) affichée(s).";
   Object.assign(counter.style,{fontSize:"12px",margin:"9px 0"});list.appendChild(counter);
@@ -2399,13 +2419,23 @@ function showCustomerRequests(){
    Object.assign(card.style,{padding:"10px",margin:"10px 0",background:"#142336",
     border:"1px solid #334155",borderRadius:"9px"});
    const heading=document.createElement("strong");
-   heading.textContent=product.name+" · "+(request.closed?"Terminée":shelf>0?"En rayon":"À traiter");
+   heading.textContent=(request.priority&&!request.closed?"★ PRIORITAIRE · ":"")+product.name+" · "+(request.closed?"Terminée":shelf>0?"En rayon":"À traiter");
    const details=document.createElement("p");
    details.textContent="Jour "+request.day+" · "+formatHour(request.hour)+
     " | Rayon : "+shelf+" · Réserve : "+reserve+" articles · Livraisons : "+incoming+" carton(s)";
    Object.assign(details.style,{fontSize:"12px",lineHeight:"1.5"});
    card.append(heading,details);
    if(!request.closed){
+    const hint=document.createElement("p");
+    hint.textContent=shelf>0?"Produit disponible : vérifie le rayon avant de clôturer.":
+     reserve>0?"Rayon vide : marchandises présentes en réserve, réassort à effectuer.":
+     incoming>0?"Rayon et réserve vides : livraison fournisseur en attente.":
+     "Rupture complète : consulter les fournisseurs pour commander.";
+    Object.assign(hint.style,{fontSize:"12px",lineHeight:"1.5",color:"#fbbf24",margin:"6px 0"});
+    card.appendChild(hint);
+    button(card,request.priority?"Retirer la priorité · "+product.name:"Marquer prioritaire · "+product.name,()=>{
+     request.priority=!request.priority;save();showCustomerRequests();
+    });
     button(card,"Consulter les fournisseurs · "+product.name,()=>{
      supplierSearch=product.name;supplierZone="all";supplierFilter="all";showOrders();
     });
@@ -2419,7 +2449,7 @@ function showCustomerRequests(){
  draw();
  button(panel,"Actualiser le carnet",showCustomerRequests);
  button(panel,"Réinitialiser les filtres",()=>{
-  customerRequestView={status:"open",search:""};showCustomerRequests();
+  customerRequestView={status:"open",search:"",sort:"priority"};showCustomerRequests();
  });
  button(panel,"← Retour à la gestion",()=>showMainMenuSection("magasin"));
 }
