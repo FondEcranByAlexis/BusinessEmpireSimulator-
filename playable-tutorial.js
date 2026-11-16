@@ -1,9 +1,10 @@
-// Business Empire Simulator V0.17.80 — tutoriel réellement jouable.
+// Business Empire Simulator V0.17.85 — tutoriel réellement jouable.
 export function createPlayableTutorial({getPosition,isGameplayReady,onFinish}){
  const steps=[
   {title:"Découvre ton magasin",instruction:"Déplace-toi de quelques mètres avec ZQSD / WASD ou les flèches.",hint:"Marche dans le magasin pour découvrir les déplacements.",event:"walk"},
   {title:"Ouvre le menu",instruction:"Appuie sur M ou sur « ☰ Menu » pour ouvrir le menu principal.",hint:"Le menu centralise toutes les fonctions.",event:"menu"},
-  {title:"Consulte les fournisseurs",instruction:"Dans MAGASIN · Gestion, ouvre « Fournisseurs ».",hint:"Les fournisseurs permettent de commander des produits pour tes rayons.",event:"suppliers"},
+  {title:"Vérifie tes stocks",instruction:"Dans MAGASIN · Gestion, ouvre « Stocks » pour vérifier les quantités disponibles.",hint:"Objectif : repérer l’état des rayons avant de commander.",event:"stocks"},
+  {title:"Consulte les fournisseurs",instruction:"Dans MAGASIN · Gestion, ouvre « Fournisseurs ».",hint:"Objectif : savoir où préparer une commande, sans achat obligatoire.",event:"suppliers"},
   {title:"Découvre les demandes clients",instruction:"Reviens dans MAGASIN · Gestion et ouvre « Demandes des clients ».",hint:"Tu retrouveras les demandes et les produits recherchés par tes clients.",event:"requests"}
  ];
  const overlay=document.createElement("aside");
@@ -12,14 +13,27 @@ export function createPlayableTutorial({getPosition,isGameplayReady,onFinish}){
  overlay.style.cssText="position:fixed;right:12px;top:94px;width:min(300px,calc(100vw - 24px));z-index:180;background:#0c2034f2;border:1px solid #38bdf8;border-radius:12px;box-shadow:0 8px 30px #0009;padding:14px;color:white;font:13px/1.5 Arial,sans-serif;pointer-events:auto;display:none;max-height:55vh;overflow:auto";
  const header=document.createElement("strong"),title=document.createElement("h2"),instruction=document.createElement("p"),hint=document.createElement("p");
  header.style.color="#7dd3fc";title.style.cssText="font-size:17px;margin:8px 0";hint.style.cssText="color:#cbd5e1;margin-top:8px";
+ const objectives=document.createElement("div");
+ objectives.style.cssText="margin:12px 0;padding:9px;border:1px solid #334155;border-radius:9px;background:#102b43";
+ const objectiveTitle=document.createElement("strong");objectiveTitle.textContent="MES OBJECTIFS";
+ objectiveTitle.style.cssText="display:block;font-size:11px;color:#7dd3fc;letter-spacing:.7px;margin-bottom:7px";
+ const checklist=document.createElement("div");checklist.setAttribute("aria-label","Objectifs du tutoriel");
+ objectives.append(objectiveTitle,checklist);
  const controls=document.createElement("div");controls.style.cssText="display:flex;gap:7px;margin-top:12px;flex-wrap:wrap";
  const skip=document.createElement("button");skip.type="button";skip.textContent="Passer le tutoriel";
  skip.style.cssText="padding:8px 12px;background:#334155;color:white;border:1px solid #64748b;border-radius:7px;cursor:pointer";
  controls.appendChild(skip);
- overlay.append(header,title,instruction,hint,controls);document.body.appendChild(overlay);
+ overlay.append(header,title,instruction,hint,objectives,controls);document.body.appendChild(overlay);
  let active=false,step=0,startingPosition=null,started=false;
  function render(){
   overlay.style.display=active?"block":"none";
+  checklist.replaceChildren();
+  steps.forEach((goal,i)=>{
+   const item=document.createElement("div");
+   item.textContent=(i<step?"✓ ":i===step?"➜ ":"○ ")+(i+1)+". "+goal.title;
+   item.style.cssText="padding:4px 0;font-size:12px;color:"+(i<step?"#86efac":i===step?"#fff":"#94a3b8")+";font-weight:"+(i===step?"700":"400");
+   checklist.appendChild(item);
+  });
   if(!active)return;
   if(step===steps.length){
    header.textContent="FORMATION TERMINÉE";
