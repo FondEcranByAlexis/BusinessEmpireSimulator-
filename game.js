@@ -9801,6 +9801,10 @@ function updateCustomers(dt){
  }
 }
 const openButton=$("openShop");
+const entranceSignHint=document.createElement("div");
+entranceSignHint.setAttribute("role","status");
+entranceSignHint.style.cssText="position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:19;display:none;padding:10px 13px;border:1px solid #38bdf8;background:#0b2039e8;color:#fff;border-radius:10px;font:600 12px system-ui;pointer-events:none;white-space:nowrap";
+document.body.appendChild(entranceSignHint);
 function toggleEntranceSign(){
  if(paused||ageOverlay.style.display!=="none"||panel.style.display!=="none")return;
  if(openButton.disabled){
@@ -10147,6 +10151,9 @@ function animate(){
   clock.start();
  }
  const dt=Math.min(clock.getDelta(),.05);
+ const signInReach=near(1.29,10.245,2.25)&&canLookAround()&&!held;
+ entranceSignHint.style.display=signInReach?"block":"none";
+ if(signInReach)entranceSignHint.textContent="E ou clic sur le panneau · "+(shopOpen?"FERMER":"OUVRIR")+" le magasin";
  updateCartonAnimations(dt);
  const smooth=1-Math.exp(-14*dt);
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
