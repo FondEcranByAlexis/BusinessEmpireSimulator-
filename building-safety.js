@@ -1,4 +1,4 @@
-// Business Empire Simulator V0.18.36 — corrections d'implantation des équipements de sécurité du bâtiment.
+// Business Empire Simulator V0.18.37 — corrections d'implantation des équipements de sécurité du bâtiment.
 // Accessoires visuels sans collisions : ils n'altèrent ni les chemins des employés,
 // ni les accès aux rayons, ni les points de livraison.
 export function installBuildingSafety({THREE,scene,camera,notify}){
@@ -22,8 +22,13 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
   ctx.fillText(text,256,75,470);
   const texture=new THREE.CanvasTexture(canvas);
   texture.colorSpace=THREE.SRGBColorSpace;
-  const sign=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide}));
-  parent.add(sign);return sign;
+  // Deux véritables faces lisibles : jamais de texture vue par son verso (texte inversé).
+  const material=new THREE.MeshBasicMaterial({map:texture,side:THREE.FrontSide,depthWrite:false});
+  const front=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);
+  front.position.z=.009;parent.add(front);
+  const reverse=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);
+  reverse.rotation.y=Math.PI;reverse.position.z=-.009;parent.add(reverse);
+  return front;
  }
  function extinguisher(x,z,rotation,name){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotation;root.add(g);
@@ -46,9 +51,9 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
  }
  function emergencyLight(x,z){
   const g=new THREE.Group();g.position.set(x,0,z);root.add(g);
-  block(g,0,3.25,0,.52,.17,.22,metal);
-  block(g,0,3.25,.12,.40,.09,.025,glow);
-  const marker=label(g,"SECOURS",.47,.11,"#166534");marker.position.set(0,3.02,.135);
+  block(g,0,4.68,0,.52,.17,.22,metal);
+  block(g,0,4.63,.12,.40,.09,.025,glow);
+  const marker=label(g,"SECOURS",.47,.11,"#166534");marker.position.set(0,4.39,.135);
  }
  function evacuationPlan(x,z,rotation){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotation;root.add(g);
@@ -65,7 +70,7 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
   ctx.fillStyle="#15803d";ctx.beginPath();ctx.moveTo(225,562);ctx.lineTo(287,562);ctx.lineTo(256,604);ctx.fill();
   ctx.font="bold 23px Arial";ctx.fillStyle="#0f172a";ctx.fillText("Sortie principale",256,645);
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
-  const panel=new THREE.Mesh(new THREE.PlaneGeometry(.78,1.04),new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide}));
+  const panel=new THREE.Mesh(new THREE.PlaneGeometry(.78,1.04),new THREE.MeshBasicMaterial({map:texture,side:THREE.FrontSide}));
   panel.position.z=.045;panel.position.y=1.65;g.add(panel);
   items.push({x,z,name:"Plan d'évacuation",kind:"plan"});
  }
@@ -75,17 +80,20 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
   items.push({x,z,name:"Accès réservé au personnel",kind:"staff"});
  }
  // Placement en bordure de circulation. Aucun colliseur ajouté.
- extinguisher(-9.18,8.15,Math.PI/2,"entrée de la surface de vente");
- extinguisher(9.18,7.75,-Math.PI/2,"près de l’entrée du magasin");
- extinguisher(10.48,4.25,Math.PI/2,"accès à la réserve sèche");
- extinguisher(24.1,-18.2,-Math.PI/2,"zone de livraison");
- exitSign(0,9.02,Math.PI,"SORTIE  →");
+ extinguisher(-9.78,8.15,Math.PI/2,"entrée de la surface de vente");
+ extinguisher(9.78,7.75,-Math.PI/2,"près de l’entrée du magasin");
+ // Mur permanent nord de réserve (z=1.5) : pas dans la baie d’accès x=10, z=4..7.
+ extinguisher(12.65,1.72,0,"réserve sèche");
+ // Face intérieure du mur de la zone logistique x≈24.
+ extinguisher(23.82,-18.2,-Math.PI/2,"zone de livraison");
+ exitSign(0,9.02,Math.PI,"SORTIE  ↓");
  exitSign(25.5,-23.7,0,"ISSUE / QUAI");
  emergencyLight(-6,7.3);emergencyLight(6,7.3);
  emergencyLight(12,9.3);emergencyLight(25.5,-22.5);
- evacuationPlan(-9.22,3.4,Math.PI/2);
- // Repère sur l’entrée effective de la réserve, côté surface de vente (normal vers -X).
- staffMark(9.76,5.5,-Math.PI/2);
+ // Mur de façade permanente côté surface de vente, hors paroi d’extension.
+ evacuationPlan(-6.4,9.73,Math.PI);
+ // Salle de repos : paroi à côté de son accès x=24, z≈-6, et non sous « ZONE STOCKAGE ».
+ staffMark(24.27,-8.05,Math.PI/2);
  function nearby(maxDistance=1.65){
   let closest=null,best=maxDistance;
   for(const item of items){
