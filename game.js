@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.10 — correction affichage version et raccourci stocks
+// Business Empire Simulator V0.16.15 — filtres d'alerte des stocks
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -824,11 +824,30 @@ function showStockOverview(){
  const products=unlockedProducts().map(p=>({product:p,status:stockAlert(p)}));
  const urgent=products.filter(item=>item.status!=="OK")
   .sort((a,b)=>(a.status==="RUPTURE"?0:1)-(b.status==="RUPTURE"?0:1)||a.product.name.localeCompare(b.product.name,"fr"));
- if(!urgent.length){
-  paragraph("Tous les produits débloqués sont approvisionnés.");
- }else{
-  paragraph(urgent.length+" référence(s) à surveiller · "+products.length+" débloquée(s).");
-  for(const {product:p,status} of urgent){
+ const ruptures=urgent.filter(item=>item.status==="RUPTURE").length;
+ const low=urgent.length-ruptures;
+ paragraph("Ruptures : "+ruptures+" · Stocks faibles : "+low+" · Produits débloqués : "+products.length);
+ // V0.16.15 — filtres d'affichage uniquement : aucune modification de stock.
+ const filters=document.createElement("div");
+ Object.assign(filters.style,{display:"flex",flexWrap:"wrap",gap:"5px",marginTop:"10px"});
+ panel.appendChild(filters);
+ const list=document.createElement("div");
+ panel.appendChild(list);
+ function showFilteredStock(filter){
+  list.replaceChildren();
+  for(const entry of filters.children){
+   const selected=entry.dataset.filter===filter;
+   entry.style.background=selected?"#2563eb":"#334155";
+   entry.setAttribute("aria-pressed",String(selected));
+  }
+  const visible=urgent.filter(item=>filter==="all"||item.status===filter);
+  if(!visible.length){
+   const note=document.createElement("p");
+   note.textContent=filter==="all"?"Tous les produits débloqués sont approvisionnés.":"Aucun produit dans cette catégorie.";
+   Object.assign(note.style,{fontSize:"12px",marginTop:"12px",color:"#cbd5e1"});
+   list.appendChild(note);
+  }
+  for(const {product:p,status} of visible){
    const a=state.inventory[p.id];
    const line=document.createElement("div");
    const stored=a.shelf+a.reserve+a.boxes*BOX_UNITS;
@@ -839,9 +858,17 @@ function showStockOverview(){
    Object.assign(line.style,{marginTop:"8px",padding:"10px",borderRadius:"8px",background:"#1e293b",
     borderLeft:"4px solid "+(status==="RUPTURE"?"#f87171":"#fbbf24"),
     fontSize:"12px",lineHeight:"1.5"});
-   panel.appendChild(line);
+   list.appendChild(line);
   }
  }
+ for(const [filter,label] of [["all","Toutes ("+urgent.length+")"],["RUPTURE","Ruptures ("+ruptures+")"],["STOCK FAIBLE","Faibles ("+low+")"]]){
+  const btn=document.createElement("button");
+  btn.type="button";btn.dataset.filter=filter;btn.textContent=label;
+  Object.assign(btn.style,{padding:"8px",borderRadius:"7px",fontSize:"11px",fontWeight:"bold",touchAction:"manipulation",color:"#fff"});
+  btn.addEventListener("click",()=>showFilteredStock(filter));
+  filters.appendChild(btn);
+ }
+ showFilteredStock("all");
  button(panel,"Ouvrir les commandes fournisseurs",showOrders);
 }
 const stockAlertButton=$("stockAlertDetails");
@@ -9288,4 +9315,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.10 !");
+animate();toast("Business Empire Simulator V0.16.15 !");
