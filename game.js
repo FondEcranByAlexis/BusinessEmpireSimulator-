@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.10 — raccourci F de conversation client et indication contextuelle
+// Business Empire Simulator V0.17.15 — dialogues clients contextuels et nouveaux conseils
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -7709,6 +7709,48 @@ function showCustomerConversationChoices(c){
    "Merci, mais je ne vois pas d'autre produit disponible dans cette catégorie.",
    alternative?"happy":"disappointed");
  });
+ // V0.17.15 — conseils contextualisés, sans changer les achats ni les finances.
+ if(product)button(panel,"Quand ce produit sera-t-il réapprovisionné ?",()=>{
+  const a=state.inventory[product.id];
+  const inShelf=a?.shelf||0;
+  const reserve=(a?.reserve||0)+(a?.boxes||0)*BOX_UNITS;
+  const expected=pendingBoxes(product.id);
+  answer(inShelf>0?
+   "Merci, je vois qu'il reste encore des articles en rayon.":
+   reserve>0?
+   "D'accord, il y a du stock en réserve. Je reviendrai voir le rayon plus tard.":
+   expected>0?
+   "Merci, je comprends qu'une livraison est prévue, sans horaire garanti.":
+   "Je comprends, il n'y a pas de réapprovisionnement annoncé pour le moment.",
+   inShelf>0?"happy":"neutral");
+ });
+ if(product)button(panel,"Que pensez-vous du prix ?",()=>{
+  const current=state.inventory[product.id]?.price;
+  const usual=product.price;
+  if(!Number.isFinite(current)||!Number.isFinite(usual)){answer("Je vais vérifier l'étiquette du rayon.");return;}
+  answer(current>usual?
+   "Je trouve ce prix un peu élevé par rapport au tarif habituel.":
+   current<usual?
+   "C'est intéressant, ce produit est moins cher que d'habitude !":
+   "Le prix me semble habituel pour ce produit.",
+   current>usual?"disappointed":current<usual?"happy":"neutral");
+ });
+ button(panel,"Avez-vous trouvé tous vos articles ?",()=>answer(
+  c.missingProducts?
+   "Pas complètement, certains produits que je voulais étaient absents.":
+   product&&(state.inventory[product.id]?.shelf||0)===0?
+   "Je cherche encore "+product.name+", mais le rayon semble vide.":
+   "Pour le moment, j'ai trouvé ce que je cherchais, merci.",
+  c.missingProducts?"disappointed":"happy"));
+ button(panel,"Votre avis sur l'accueil du magasin ?",()=>answer(
+  c.temperament==="exigeant"?
+   "J'apprécie qu'on prenne le temps de me renseigner précisément.":
+   c.temperament==="pressé"?
+   "Un accueil rapide et des indications claires, c'est ce qu'il me faut.":
+   c.temperament==="bavard"?
+   "J'aime bien pouvoir discuter avec l'équipe pendant mes courses !":
+   "Merci de demander, c'est agréable d'être accueilli.",
+  "happy"));
  button(panel,"Demander où se trouvent les caisses",()=>answer(
   c.temperament==="pressé"?
    "Merci ! Je vais rejoindre les caisses dès que j'ai terminé.":
@@ -9934,4 +9976,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.10 !");
+animate();toast("Business Empire Simulator V0.17.15 !");
