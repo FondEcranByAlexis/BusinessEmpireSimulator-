@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.25 — voix françaises sélectionnables et rythme vocal réglable
+// Business Empire Simulator V0.17.30 — carnet de demandes clients et suivi commercial
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1919,6 +1919,7 @@ function showMainMenuSection(section){
   magasin:{title:"MAGASIN · Gestion",actions:[
    ["Stocks",showStocks],["Réserve",showReserve],
    ["Fournisseurs",showOrders],["Prix de vente",showPrices],
+   ["Demandes des clients",showCustomerRequests],
    ["Finances du jour",showCurrentDayFinance],
    ["Indicateurs de caisse",showCheckoutIndicators],
    ["Licences",()=>showUpgrades("licences")],
@@ -2328,10 +2329,49 @@ function updateBakery(){
  }
 }
 
+// V0.17.30 — carnet de demandes : aucune commande ni modification des stocks.
+function customerRequests(){
+ state.management.customerRequests??=[];
+ return state.management.customerRequests;
+}
+function recordCustomerRequest(product,customer){
+ if(!product||!state.inventory[product.id])return false;
+ const records=customerRequests();
+ if(records.some(item=>!item.closed&&item.productId===product.id)){
+  toast("Ce produit figure déjà dans les demandes en cours");return false;
+ }
+ records.unshift({productId:product.id,day:state.day,hour:state.hour,
+  temperament:customer.temperament||"client",closed:false});
+ if(records.length>60)records.length=60;
+ save();toast("Demande enregistrée : "+product.name);return true;
+}
+function showCustomerRequests(){
+ openPanel("CARNET — DEMANDES CLIENTS");
+ const requests=customerRequests();
+ paragraph(requests.filter(item=>!item.closed).length+" demande(s) en cours · "+requests.length+" enregistrée(s).");
+ paragraph("Les demandes sont enregistrées dans la sauvegarde. Aucune commande automatique.");
+ if(!requests.length)paragraph("Aucune demande enregistrée. Utilise F près d'un client pour noter un produit.");
+ for(const request of requests){
+  const product=catalog.find(p=>p.id===request.productId);
+  if(!product)continue;
+  const shelf=state.inventory[product.id]?.shelf||0;
+  paragraph((request.closed?"TERMINÉE":"EN ATTENTE")+" · "+product.name+
+   " · Jour "+request.day+" "+formatHour(request.hour)+
+   " · Rayon : "+shelf+" article(s)"+(shelf>0?" · Disponible":" · Vide"));
+  if(!request.closed){
+   button(panel,"Clôturer · "+product.name,()=>{
+    request.closed=true;save();showCustomerRequests();
+   });
+  }
+ }
+ button(panel,"Actualiser les demandes",showCustomerRequests);
+ button(panel,"← Retour à la gestion",()=>showMainMenuSection("magasin"));
+}
 function showCommercialManagement(){
  openPanel("Gestion commerciale");
  button(panel,"Produits à démarquer",showMarkdowns);
  button(panel,"Remarques des clients",showCustomerFeedback);
+ button(panel,"Carnet des demandes clients",showCustomerRequests);
  if(playerLevel()>=9)button(panel,"Ventes des sept derniers jours",showRecentSales);
  if(playerLevel()>=14)button(panel,"Alertes de rupture",showStockAlerts);
  if(playerLevel()>=18)button(panel,"Commandes récurrentes",showStandingOrders);
@@ -7746,6 +7786,12 @@ function showCustomerConversationChoices(c){
    "J'aime bien pouvoir discuter avec l'équipe pendant mes courses !":
    "Merci de demander, c'est agréable d'être accueilli.",
   "happy"));
+ if(product)button(panel,"Noter la demande de ce client",()=>{
+  const saved=recordCustomerRequest(product,c);
+  answer(saved?
+   "Merci de noter ma demande pour "+product.name+". J'espère le retrouver bientôt !":
+   "Merci, ma demande pour "+product.name+" est déjà enregistrée.","happy");
+ });
  button(panel,"Demander où se trouvent les caisses",()=>answer(
   c.temperament==="pressé"?
    "Merci ! Je vais rejoindre les caisses dès que j'ai terminé.":
@@ -10022,4 +10068,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.25 !");
+animate();toast("Business Empire Simulator V0.17.30 !");
