@@ -1,12 +1,12 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.18.05";
-import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.05";
+import { installStartScreen } from "./start-screen.js?v=0.18.10";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.10";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.05 — enseigne OUVERT / FERMÉ interactive
+// Business Empire Simulator V0.18.10 — objectifs quotidiens toujours visibles sans bloquer les contrôles
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -605,6 +605,34 @@ const DAILY_MISSION_GOALS=[
  {key:"restocks",name:"Effectuer 5 réassorts de rayons",target:5,reward:65},
  {key:"deliveries",name:"Effectuer 1 livraison à domicile",target:1,reward:100}
 ];
+// Mini-affichage permanent : non interactif afin de préserver les actions 3D et le HUD.
+const missionTracker=document.createElement("aside");
+missionTracker.id="bes-mission-tracker";
+missionTracker.setAttribute("aria-label","Missions quotidiennes");
+missionTracker.innerHTML='<div class="bes-mission-title">MISSIONS · <span id="bes-mission-day"></span></div><div id="bes-mission-rows"></div>';
+document.body.appendChild(missionTracker);
+const missionTrackerDay=missionTracker.querySelector("#bes-mission-day");
+const missionTrackerRows=missionTracker.querySelector("#bes-mission-rows");
+const missionTrackerItems=DAILY_MISSION_GOALS.map(goal=>{
+ const item=document.createElement("div");item.className="bes-mission-item";
+ const name=document.createElement("span");name.className="bes-mission-name";
+ const progress=document.createElement("span");progress.className="bes-mission-progress";
+ item.append(name,progress);missionTrackerRows.appendChild(item);
+ return {goal,item,name,progress};
+});
+function refreshMissionTracker(){
+ if(!state.dailyMission||!missionTrackerDay)return;
+ const daily=todayMission();
+ missionTrackerDay.textContent="JOUR "+state.day;
+ for(const {goal,item,name,progress} of missionTrackerItems){
+  const locked=goal.key==="deliveries"&&playerLevel()<2;
+  const done=daily.claimed.includes(goal.key);
+  item.classList.toggle("done",done);
+  item.classList.toggle("locked",locked);
+  name.textContent=(done?"✓ ":"")+goal.name.replace(" dans la journée","").replace("Effectuer ","");
+  progress.textContent=locked?"N2":done?"OK":Math.min(goal.target,daily[goal.key])+"/"+goal.target;
+ }
+}
 function todayMission(){
  if(state.dailyMission.day!==state.day)
   state.dailyMission={day:state.day,served:0,restocks:0,deliveries:0,claimed:[]};
@@ -781,6 +809,7 @@ function changeSatisfaction(amount){
 }
 function hud(){
  updateSatisfactionDisplay();
+ refreshMissionTracker();
  const score=$("pointsHudValue");
  if(score)score.textContent="N"+playerLevel()+" · "+progressionPoints().toLocaleString("fr-FR")+" pts"+
    " · PS "+state.points.ps+" / PL "+state.points.pl+" / PM "+state.points.pm;
