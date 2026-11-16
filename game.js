@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.55 — arrivages, tri, remplissage et filtres persistants
+// Business Empire Simulator V0.16.60 — priorités de mise en rayon et suivi des arrivages
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -875,6 +875,67 @@ function showReserveCapacityOverview(){
  button(panel,"Actualiser les capacités",showReserveCapacityOverview);
  button(panel,"Retour aux alertes de stock",showStockOverview);
 }
+// V0.16.60 — outils de lecture uniquement : aucun stock ou inventaire modifié.
+function showShelfRestockPriorities(){
+ openPanel("PRIORITÉS DE MISE EN RAYON");
+ const entries=unlockedProducts().map(p=>{
+  const a=state.inventory[p.id],capacity=shelfCapacity(p);
+  const missing=Math.max(0,capacity-a.shelf);
+  const reserve=a.reserve+a.boxes*BOX_UNITS;
+  return {p,missing,reserve,canFill:Math.min(missing,reserve),incoming:pendingBoxes(p.id),empty:a.shelf===0};
+ }).filter(item=>item.missing>0).sort((a,b)=>
+  Number(b.empty)-Number(a.empty)||b.missing-a.missing||a.p.name.localeCompare(b.p.name,"fr"));
+ const ready=entries.filter(e=>e.canFill>0),waiting=entries.filter(e=>e.canFill===0&&e.incoming>0),
+  noStock=entries.filter(e=>e.canFill===0&&e.incoming===0);
+ paragraph(entries.length+" rayon(s) incomplet(s) · "+entries.filter(e=>e.empty).length+" vide(s).");
+ paragraph(ready.length+" à compléter depuis la réserve · "+waiting.length+
+  " en attente de cartons · "+noStock.length+" sans réserve ni arrivage.");
+ if(!entries.length)paragraph("Tous les rayons débloqués sont remplis.");
+ for(const e of entries){
+  const row=document.createElement("div");
+  const status=e.canFill>0?"RÉASSORT POSSIBLE":e.incoming>0?"LIVRAISON ATTENDUE":"STOCK À COMMANDER";
+  row.textContent=(e.empty?"RAYON VIDE — ":"")+e.p.name+" · "+storageName(storageKind(e.p))+
+   " · Manque "+e.missing+" article(s) · Réserve "+e.reserve+
+   " · Transférables maintenant "+e.canFill+
+   (e.incoming?" · "+e.incoming+" carton(s) attendu(s)":"")+" · "+status;
+  Object.assign(row.style,{fontSize:"12px",padding:"10px",marginTop:"8px",lineHeight:"1.5",
+   background:"#1e293b",borderLeft:"4px solid "+(e.canFill>0?"#22c55e":e.incoming>0?"#f59e0b":"#f87171"),
+   borderRadius:"7px"});
+  panel.appendChild(row);
+ }
+ button(panel,"Actualiser les priorités",showShelfRestockPriorities);
+ button(panel,"Consulter les arrivages",showIncomingShipmentsOverview);
+ button(panel,"Ouvrir les commandes fournisseurs",showOrders);
+ button(panel,"Retour aux stocks",showStockOverview);
+}
+function showIncomingShipmentsOverview(){
+ openPanel("ARRIVAGES ATTENDUS");
+ const entries=unlockedProducts().map(p=>({p,boxes:pendingBoxes(p.id)}))
+  .filter(entry=>entry.boxes>0).sort((a,b)=>b.boxes-a.boxes||a.p.name.localeCompare(b.p.name,"fr"));
+ const total=entries.reduce((n,e)=>n+e.boxes,0);
+ paragraph(entries.length+" produit(s) attendu(s) · "+total+" carton(s) en commande, au quai ou en transit.");
+ for(const kind of STORAGE_KINDS){
+  const section=entries.filter(entry=>storageKind(entry.p)===kind);
+  if(!section.length)continue;
+  const count=section.reduce((n,e)=>n+e.boxes,0);
+  const heading=document.createElement("h3");
+  heading.textContent=storageName(kind)+" — "+count+" carton(s)";
+  Object.assign(heading.style,{fontSize:"14px",margin:"13px 0 5px"});
+  panel.appendChild(heading);
+  for(const {p,boxes} of section){
+   const line=document.createElement("div");
+   line.textContent=p.name+" · "+boxes+" carton(s) · "+boxes*BOX_UNITS+" articles attendus";
+   Object.assign(line.style,{fontSize:"12px",lineHeight:"1.5",padding:"8px",
+    marginTop:"5px",background:"#1e293b",borderRadius:"7px"});
+   panel.appendChild(line);
+  }
+ }
+ if(!entries.length)paragraph("Aucun carton en commande ou en transit.");
+ paragraph("Les données regroupent les commandes fournisseurs et les cartons en cours de manutention. Aucun délai supplémentaire n'est estimé.");
+ button(panel,"Actualiser les arrivages",showIncomingShipmentsOverview);
+ button(panel,"Voir les priorités de mise en rayon",showShelfRestockPriorities);
+ button(panel,"Retour aux stocks",showStockOverview);
+}
 // V0.16.55 — panneau de stock enrichi, purement consultatif.
 let stockOverviewPreferences={search:"",status:"all",zone:"all",sort:"priority"};
 function showStockOverview(){
@@ -886,6 +947,11 @@ function showStockOverview(){
  const low=urgent.length-ruptures;
  paragraph("Ruptures : "+ruptures+" · Stocks faibles : "+low+" · Produits débloqués : "+products.length);
  paragraph("Produits avec cartons attendus ou en transit : "+arriving);
+ const emptyShelves=products.filter(({product:p})=>state.inventory[p.id].shelf===0).length;
+ const incompleteShelves=products.filter(({product:p})=>state.inventory[p.id].shelf<shelfCapacity(p)).length;
+ paragraph("Rayons vides : "+emptyShelves+" · Rayons incomplets : "+incompleteShelves);
+ button(panel,"Voir les priorités de mise en rayon",showShelfRestockPriorities);
+ button(panel,"Consulter les arrivages attendus",showIncomingShipmentsOverview);
  button(panel,"Consulter les capacités des réserves",showReserveCapacityOverview);
  const search=document.createElement("input");
  search.type="search";search.placeholder="Rechercher un produit";search.value=stockOverviewPreferences.search;
@@ -9443,4 +9509,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.55 !");
+animate();toast("Business Empire Simulator V0.16.60 !");
