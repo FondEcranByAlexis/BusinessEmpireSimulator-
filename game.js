@@ -7848,10 +7848,12 @@ function movePlayer(dt){
  const dz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)/len*speed;
  const {x,z}=camera.position;
  if(!blocked(camera.position.x+dx,camera.position.z)&&
-  !fbaCity.vehicleBlocked(camera.position.x+dx,camera.position.z,.42,camera.position.x,camera.position.z))
+  !fbaCity.vehicleBlocked(camera.position.x+dx,camera.position.z,.42,camera.position.x,camera.position.z)&&
+  !storeParkingTraffic.blocked(camera.position.x+dx,camera.position.z,.42,camera.position.x,camera.position.z))
   camera.position.x+=dx;
  if(!blocked(camera.position.x,camera.position.z+dz)&&
-  !fbaCity.vehicleBlocked(camera.position.x,camera.position.z+dz,.42,camera.position.x,camera.position.z))
+  !fbaCity.vehicleBlocked(camera.position.x,camera.position.z+dz,.42,camera.position.x,camera.position.z)&&
+  !storeParkingTraffic.blocked(camera.position.x,camera.position.z+dz,.42,camera.position.x,camera.position.z))
   camera.position.z+=dz;
  if(cityBuildingAt(camera.position.x,camera.position.z)||cityFloor>0)
   updateCityStairHeight(x,z);
