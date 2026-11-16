@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.20 — variation des voix françaises
+// Business Empire Simulator V0.17.25 — voix françaises sélectionnables et rythme vocal réglable
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -8776,11 +8776,13 @@ function updateSelfHelp(dt){
 }
 const securityChecks=[];
 const AUDIO_SETTINGS_KEY="fba-audio";
-const audioSettings={volume:.65,dialogue:true};
+const audioSettings={volume:.65,dialogue:true,preferredVoice:"auto",speechSpeed:"normal"};
 try{
  const saved=JSON.parse(localStorage.getItem(AUDIO_SETTINGS_KEY));
  if(Number.isFinite(saved?.volume))audioSettings.volume=Math.min(1,Math.max(0,saved.volume));
  if(typeof saved?.dialogue==="boolean")audioSettings.dialogue=saved.dialogue;
+ if(typeof saved?.preferredVoice==="string")audioSettings.preferredVoice=saved.preferredVoice;
+ if(["slow","normal","lively"].includes(saved?.speechSpeed))audioSettings.speechSpeed=saved.speechSpeed;
 }catch{}
 let gameAudio,gameAudioGain,gameNoise,lastDialogue=-Infinity;
 function enableGameAudio(){
@@ -8871,13 +8873,17 @@ function applyCharacterVoice(line,customer=null,role="customer"){
  const person=customer||{};
  if(!Number.isInteger(person.voiceProfile))person.voiceProfile=Math.floor(Math.random()*8);
  const index=person.voiceProfile;
- const voice=choices.length?choices[index%choices.length]:null;
+ // Préférence explicite = même timbre pour tous ; auto = profils distincts.
+ const preferred=choices.find(v=>v.voiceURI===audioSettings.preferredVoice);
+ const voice=preferred||(choices.length?choices[index%choices.length]:null);
  if(voice)line.voice=voice;
  line.lang=voice?.lang||"fr-FR";
- const speeds=[.94,.98,1.01,.96,1.04,.99,1.02,.95];
- const pitches=[.97,1.03,1.08,.94,1.05,1,.96,1.07];
- line.rate=Math.min(1.12,speeds[index%8]+(person.temperament==="pressé"?.05:person.temperament==="bavard"?-.03:0));
- line.pitch=pitches[index%8]-(role==="worker"?.05:0);
+ const speeds=[.97,.99,1.01,.98,1.02,.99,1.0,.98];
+ const factor=audioSettings.speechSpeed==="slow"?.93:audioSettings.speechSpeed==="lively"?1.06:1;
+ line.rate=Math.min(1.10,Math.max(.88,(speeds[index%8]+
+  (person.temperament==="pressé"?.035:person.temperament==="bavard"?-.02:0))*factor));
+ // Un pitch proche de 1 évite la distorsion audible sur les moteurs basiques.
+ line.pitch=role==="worker"?.98:1;
  return line;
 }
 function speakDialogue(message,role,ambient=false,customer=null){
@@ -8911,7 +8917,36 @@ function showAudioSettings(){
  button(panel,"Voix des dialogues · "+(audioSettings.dialogue?"Activées":"Coupées"),()=>{
   audioSettings.dialogue=!audioSettings.dialogue;saveAudioSettings();showAudioSettings();
  });
- paragraph("Voix françaises disponibles : "+frenchVoiceOptions().length+". Si une seule voix est installée, les différences resteront limitées.");
+ const available=frenchVoiceOptions();
+ paragraph("Voix françaises disponibles : "+available.length+". Le naturel dépend du moteur vocal du navigateur ; changer le débit ne transforme pas une voix synthétique en voix humaine.");
+ const voiceLabel=document.createElement("label");voiceLabel.textContent="Voix préférée : ";
+ const voiceSelect=document.createElement("select");
+ Object.assign(voiceSelect.style,{display:"block",width:"100%",padding:"9px",margin:"7px 0",
+  background:"#142336",color:"#fff",border:"1px solid #64748b",borderRadius:"7px"});
+ for(const [value,name] of [["auto","Automatique — voix différentes selon le client"],
+  ...available.map(v=>[v.voiceURI,v.name+" ("+v.lang+")"])]){
+  const option=document.createElement("option");option.value=value;option.textContent=name;
+  voiceSelect.appendChild(option);
+ }
+ voiceSelect.value=available.some(v=>v.voiceURI===audioSettings.preferredVoice)?audioSettings.preferredVoice:"auto";
+ voiceSelect.addEventListener("change",()=>{audioSettings.preferredVoice=voiceSelect.value;saveAudioSettings();});
+ voiceLabel.appendChild(voiceSelect);panel.appendChild(voiceLabel);
+ const speedLabel=document.createElement("label");speedLabel.textContent="Rythme des dialogues : ";
+ const speedSelect=document.createElement("select");
+ Object.assign(speedSelect.style,{display:"block",width:"100%",padding:"9px",margin:"7px 0",
+  background:"#142336",color:"#fff",border:"1px solid #64748b",borderRadius:"7px"});
+ for(const [value,name] of [["slow","Calme"],["normal","Naturel (standard)"],["lively","Dynamique"]]){
+  const option=document.createElement("option");option.value=value;option.textContent=name;speedSelect.appendChild(option);
+ }
+ speedSelect.value=audioSettings.speechSpeed;
+ speedSelect.addEventListener("change",()=>{audioSettings.speechSpeed=speedSelect.value;saveAudioSettings();});
+ speedLabel.appendChild(speedSelect);panel.appendChild(speedLabel);
+ button(panel,"Écouter la voix sélectionnée",()=>{
+  if(!audioSettings.dialogue||!audioSettings.volume){toast("Active les dialogues et le volume");return;}
+  speakDialogue("Bonjour ! Je cherche les produits de ce rayon, s'il vous plaît.","customer");
+ });
+ button(panel,"Actualiser la liste des voix",showAudioSettings);
+ if(!available.length)paragraph("Aucune voix française détectée. Vérifie les voix installées dans les paramètres de synthèse vocale de ton système.");
  button(panel,"Tester le son du scanner",()=>playSound("scan"));
  button(panel,"Tester la voix d’un client",()=>{
   if(!audioSettings.dialogue||!audioSettings.volume){toast("Active les voix et augmente le volume dans Audio");return;}
@@ -9987,4 +10022,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.20 !");
+animate();toast("Business Empire Simulator V0.17.25 !");
