@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.45 — étiquettes des cartons tournées vers les entrées
+// Business Empire Simulator V0.16.50 — tableau des stocks enrichi
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -875,58 +875,88 @@ function showReserveCapacityOverview(){
  button(panel,"Actualiser les capacités",showReserveCapacityOverview);
  button(panel,"Retour aux alertes de stock",showStockOverview);
 }
+// V0.16.50 — tableau détaillé : recherche, filtres de réserve, tous les états, actualisation.
 function showStockOverview(){
  openPanel("ÉTAT DES STOCKS");
  const products=unlockedProducts().map(p=>({product:p,status:stockAlert(p)}));
- const urgent=products.filter(item=>item.status!=="OK")
-  .sort((a,b)=>(a.status==="RUPTURE"?0:1)-(b.status==="RUPTURE"?0:1)||a.product.name.localeCompare(b.product.name,"fr"));
+ const urgent=products.filter(item=>item.status!=="OK");
  const ruptures=urgent.filter(item=>item.status==="RUPTURE").length;
  const low=urgent.length-ruptures;
  paragraph("Ruptures : "+ruptures+" · Stocks faibles : "+low+" · Produits débloqués : "+products.length);
- // V0.16.25 — accès au récapitulatif sans modifier les calculs de capacité.
  button(panel,"Consulter les capacités des réserves",showReserveCapacityOverview);
- // V0.16.15 — filtres d'affichage uniquement : aucune modification de stock.
+ const search=document.createElement("input");
+ search.type="search";search.placeholder="Rechercher un produit";
+ search.setAttribute("aria-label","Rechercher dans les stocks");
+ Object.assign(search.style,{display:"block",width:"100%",marginTop:"10px",padding:"10px",
+  borderRadius:"7px",background:"#1e293b",border:"1px solid #64748b",color:"#fff",fontSize:"12px"});
+ panel.appendChild(search);
  const filters=document.createElement("div");
  Object.assign(filters.style,{display:"flex",flexWrap:"wrap",gap:"5px",marginTop:"10px"});
  panel.appendChild(filters);
- const list=document.createElement("div");
- panel.appendChild(list);
- function showFilteredStock(filter){
+ const zoneLabel=document.createElement("label");
+ zoneLabel.textContent="Réserve : ";
+ Object.assign(zoneLabel.style,{display:"block",marginTop:"10px",fontSize:"12px"});
+ const zone=document.createElement("select");
+ Object.assign(zone.style,{padding:"7px",marginLeft:"6px",maxWidth:"100%",background:"#1e293b",
+  color:"#fff",border:"1px solid #64748b",borderRadius:"7px"});
+ for(const [kind,title] of [["all","Toutes les réserves"],...STORAGE_KINDS.map(k=>[k,storageName(k)])]){
+  const option=document.createElement("option");option.value=kind;option.textContent=title;zone.appendChild(option);
+ }
+ zoneLabel.appendChild(zone);panel.appendChild(zoneLabel);
+ const list=document.createElement("div");panel.appendChild(list);
+ let active="all";
+ function draw(){
   list.replaceChildren();
   for(const entry of filters.children){
-   const selected=entry.dataset.filter===filter;
+   const selected=entry.dataset.filter===active;
    entry.style.background=selected?"#2563eb":"#334155";
    entry.setAttribute("aria-pressed",String(selected));
   }
-  const visible=urgent.filter(item=>filter==="all"||item.status===filter);
+  const term=search.value.trim().toLocaleLowerCase("fr");
+  const visible=products.filter(({product:p,status})=>
+   (active==="all"?status!=="OK":active==="ALL PRODUCTS"||status===active)&&
+   (zone.value==="all"||storageKind(p)===zone.value)&&
+   p.name.toLocaleLowerCase("fr").includes(term))
+   .sort((a,b)=>{
+    const rank={"RUPTURE":0,"STOCK FAIBLE":1,"OK":2};
+    return rank[a.status]-rank[b.status]||a.product.name.localeCompare(b.product.name,"fr");
+   });
+  const count=document.createElement("p");
+  count.textContent=visible.length+" produit(s) affiché(s)";
+  Object.assign(count.style,{fontSize:"11px",marginTop:"10px",color:"#cbd5e1"});
+  list.appendChild(count);
   if(!visible.length){
    const note=document.createElement("p");
-   note.textContent=filter==="all"?"Tous les produits débloqués sont approvisionnés.":"Aucun produit dans cette catégorie.";
-   Object.assign(note.style,{fontSize:"12px",marginTop:"12px",color:"#cbd5e1"});
+   note.textContent="Aucun produit correspondant aux filtres.";
+   Object.assign(note.style,{fontSize:"12px",marginTop:"10px"});
    list.appendChild(note);
   }
   for(const {product:p,status} of visible){
-   const a=state.inventory[p.id];
-   const line=document.createElement("div");
-   const stored=a.shelf+a.reserve+a.boxes*BOX_UNITS;
+   const a=state.inventory[p.id],stored=a.shelf+a.reserve+a.boxes*BOX_UNITS;
    const pending=pendingBoxes(p.id);
-   line.textContent=(status==="RUPTURE"?"RUPTURE — ":"STOCK FAIBLE — ")+p.name+
+   const line=document.createElement("div");
+   line.textContent=status+" — "+p.name+" · "+storageName(storageKind(p))+
     " · Rayon : "+a.shelf+" · Réserve : "+(a.reserve+a.boxes*BOX_UNITS)+
     " · Total : "+stored+(pending?" · En commande/transit : "+pending:"");
    Object.assign(line.style,{marginTop:"8px",padding:"10px",borderRadius:"8px",background:"#1e293b",
-    borderLeft:"4px solid "+(status==="RUPTURE"?"#f87171":"#fbbf24"),
+    borderLeft:"4px solid "+(status==="RUPTURE"?"#f87171":status==="STOCK FAIBLE"?"#fbbf24":"#4ade80"),
     fontSize:"12px",lineHeight:"1.5"});
    list.appendChild(line);
   }
  }
- for(const [filter,label] of [["all","Toutes ("+urgent.length+")"],["RUPTURE","Ruptures ("+ruptures+")"],["STOCK FAIBLE","Faibles ("+low+")"]]){
-  const btn=document.createElement("button");
-  btn.type="button";btn.dataset.filter=filter;btn.textContent=label;
-  Object.assign(btn.style,{padding:"8px",borderRadius:"7px",fontSize:"11px",fontWeight:"bold",touchAction:"manipulation",color:"#fff"});
-  btn.addEventListener("click",()=>showFilteredStock(filter));
+ for(const [filter,label] of [["all","Toutes ("+urgent.length+")"],["RUPTURE","Ruptures ("+ruptures+")"],
+  ["STOCK FAIBLE","Faibles ("+low+")"],["ALL PRODUCTS","Tous les produits ("+products.length+")"]]){
+  const btn=document.createElement("button");btn.type="button";
+  btn.dataset.filter=filter;btn.textContent=label;
+  Object.assign(btn.style,{padding:"8px",borderRadius:"7px",fontSize:"11px",
+   fontWeight:"bold",touchAction:"manipulation",color:"#fff"});
+  btn.addEventListener("click",()=>{active=filter;draw();});
   filters.appendChild(btn);
  }
- showFilteredStock("all");
+ search.addEventListener("input",draw);
+ zone.addEventListener("change",draw);
+ draw();
+ button(panel,"Actualiser le tableau des stocks",showStockOverview);
  button(panel,"Ouvrir les commandes fournisseurs",showOrders);
 }
 const stockAlertButton=$("stockAlertDetails");
@@ -9389,4 +9419,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.45 !");
+animate();toast("Business Empire Simulator V0.16.50 !");
