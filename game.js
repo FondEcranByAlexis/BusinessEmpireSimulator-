@@ -7119,6 +7119,10 @@ function placeHeldArticle(){
 // Sélection précise de l'étiquette regardée, sans remplacer les fonctions E existantes.
 const priceRaycaster=new THREE.Raycaster();
 const priceAim=new THREE.Vector2(0,0);
+const shelfPriceHint=document.createElement("div");
+shelfPriceHint.style.cssText="position:fixed;left:50%;bottom:82px;transform:translateX(-50%);padding:7px 12px;background:#0b2039df;color:white;border:1px solid #38bdf8;border-radius:8px;z-index:20;pointer-events:none;display:none;font:600 12px Arial";
+document.body.appendChild(shelfPriceHint);
+let shelfPriceHintLast=0;
 function aimedPriceProduct(){
  if(!interactivePriceLabels.length||held)return null;
  camera.updateMatrixWorld(true);
@@ -10299,6 +10303,12 @@ function animate(){
   clock.start();
  }
  const dt=Math.min(clock.getDelta(),.05);
+ if(performance.now()-shelfPriceHintLast>170){
+  shelfPriceHintLast=performance.now();
+  const priceTarget=canLookAround()&&!held?aimedPriceProduct():null;
+  shelfPriceHint.style.display=priceTarget?"block":"none";
+  if(priceTarget)shelfPriceHint.textContent="E · Modifier le prix : "+priceTarget.name;
+ }
  const signInReach=near(1.29,10.245,2.25)&&canLookAround()&&!held;
  entranceSignHint.style.display=signInReach?"block":"none";
  if(signInReach)entranceSignHint.textContent="E ou clic sur le panneau · "+(shopOpen?"FERMER":"OUVRIR")+" le magasin";
