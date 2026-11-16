@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.91 — réactions et listes de courses des groupes
+// Business Empire Simulator V0.15.95 — groupes en caisse, enfants et chariots
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6709,6 +6709,55 @@ const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTime
 // V0.15.90 : accompagnants visuels. Un seul panier et une seule transaction
 // par groupe. L'accompagnant suit la trace traversable du client principal.
 let companionsDialogueCooldown=15;
+// V0.15.92–95 : réactions de groupe, enfants et chariots ; aucune transaction ajoutée.
+function createCustomerCart(parent){
+ const cart=new THREE.Group();parent.add(cart);
+ const metal=standardMaterial({color:0x94a3b8,metalness:.5,roughness:.45});
+ const blue=standardMaterial({color:0x2563eb,roughness:.7});
+ const rubber=standardMaterial({color:0x20242a,roughness:.9});
+ const bar=(x,y,z,w,h,d,mat)=>mallPart(cart,x,y,z,w,h,d,mat);
+ bar(0,.64,-.75,.59,.06,.78,metal);
+ for(const x of [-.27,.27])for(const z of [-1.07,-.40]){
+  bar(x,.68,z,.038,.30,.035,metal);bar(x,.33,z,.045,.31,.045,metal);
+  const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.048,10),rubber);
+  wheel.rotation.z=Math.PI/2;wheel.position.set(x,.13,z);cart.add(wheel);
+ }
+ for(const z of [-1.08,-.40])bar(0,.84,z,.59,.045,.035,blue);
+ for(const x of [-.27,.27])bar(x,.82,-.74,.033,.26,.71,metal);
+ bar(0,1.03,-.36,.64,.04,.045,blue);
+ const cargo=[];
+ for(let i=0;i<4;i++){
+  const item=bar(-.16+(i%2)*.32,.86+Math.floor(i/2)*.14,-.94+(i%2)*.17,.16,.14,.14,standardMaterial({color:0xfacc15}));
+  item.visible=false;cargo.push(item);
+ }
+ cart.visible=false;return {group:cart,cargo};
+}
+function updateCustomerCart(c){
+ if(!c.cart)return;
+ c.cart.group.visible=!c.paid&&c.phase!=="leaving"&&c.phase!=="securityCheck";
+ const ids=[];
+ for(const [id,quantity] of Object.entries(c.basket))
+  for(let i=0;i<quantity&&ids.length<c.cart.cargo.length;i++)ids.push(id);
+ c.cart.cargo.forEach((item,i)=>{
+  const id=ids[i];item.visible=!!id;
+  if(id){const product=catalog.find(p=>p.id===id);if(product)item.material.color.setHex(product.color);}
+ });
+}
+function updateCompanionCheckout(c,dt){
+ const mate=c.companion;if(!mate)return;
+ if((c.phase==="queue"||c.phase==="auxQueue")&&c.queueElapsed>12&&!mate.queueCommented){
+  mate.queueCommented=true;mate.queueEmotionTimer=2.8;
+  customerVoice(c,"groupQueue",mate.child?["On va bientôt rentrer ?"]:
+   c.temperament==="pressé"?["On espère que cette file va avancer !"]:
+   ["On va bientôt passer à la caisse.","Plus que quelques instants à attendre."],7);
+ }
+ if(c.paid&&!mate.paymentCommented){
+  mate.paymentCommented=true;mate.queueEmotionTimer=2.8;
+  customerVoice(c,"groupPaid",mate.child?["On peut rentrer maintenant !"]:
+   ["Voilà, on a terminé, bonne journée !","Merci, au revoir !"],7);
+ }
+ if(mate.queueEmotionTimer>0)mate.queueEmotionTimer=Math.max(0,mate.queueEmotionTimer-dt);
+}
 // V0.15.91 : dialogues et gestes de groupe, sans modification des achats.
 function reactCompanion(c,event,product=null){
  const mate=c.companion;
@@ -6749,6 +6798,7 @@ function updateCustomerCompanions(dt){
  for(const c of customers){
   const companion=c.companion;
   if(!companion)continue;
+  updateCompanionCheckout(c,dt);
   const leader=c.group.position,track=companion.trail;
   const last=track[track.length-1];
   if(!last||Math.hypot(last.x-leader.x,last.z-leader.z)>.20)
@@ -6782,6 +6832,22 @@ function updateCustomerCompanions(dt){
   companion.arms[0].rotation.x=moving?-stride*.16:0;
   companion.arms[1].rotation.x=moving?stride*.16:0;
   companion.group.position.y=moving?Math.abs(stride)*.006:0;
+  if(companion.child){
+   companion.head.rotation.y=Math.sin(companion.motion*.35+companion.curiosityPhase)*.36;
+   if(c.phase==="choosing"){
+    companion.head.rotation.x=-.12;
+    companion.arms[0].rotation.x+=.20*Math.sin(companion.motion*.4+companion.curiosityPhase);
+    if(!companion.childAsked&&Math.random()<dt*.45){
+     companion.childAsked=true;
+     customerVoice(c,"childQuestion",["Regarde, on prend celui-là ?","Il est sur notre liste ?","On a bientôt fini les courses ?"],7);
+    }
+   }else companion.head.rotation.x=0;
+  }
+  if(companion.queueEmotionTimer>0){
+   const strength=Math.min(1,companion.queueEmotionTimer/.35);
+   companion.arms[1].rotation.x+=(companion.child?.20:.16)*strength;
+   companion.head.rotation.y+=.12*Math.sin(companion.motion+companion.curiosityPhase)*strength;
+  }
   if(companion.reactionTimer>0){
    companion.reactionTimer=Math.max(0,companion.reactionTimer-dt);
    const strength=Math.min(1,companion.reactionTimer/.4);
@@ -7099,15 +7165,18 @@ function makeCustomer(){
    shirt:pick(shirts),skin:pick(skinTones),hair:pick(hairColors),woman:mateWoman,
    trousers:pick([0x334155,0x475569,0x1e293b]),style:pick(mateWoman?[0,1,2]:[0,2,3])
   });
-  mateGroup.scale.setScalar((mateWoman?.89:.95)+Math.random()*.12);
+  const relation=pick(["couple","amis","famille"]);
+  const child=relation==="famille"&&Math.random()<.70;
+  mateGroup.scale.setScalar(child?.67+Math.random()*.10:(mateWoman?.89:.95)+Math.random()*.12);
   mateGroup.position.set(citySpawnX,0,citySpawnZ+1.3);
   scene.add(mateGroup);
-  companion={group:mateGroup,legs:mate.legs,arms:mate.arms,motion:0,
-   relation:pick(["couple","amis","famille"]),
+  companion={group:mateGroup,legs:mate.legs,arms:mate.arms,head:mate.head,motion:0,
+   relation,child,curiosityPhase:Math.random()*6.28,
    trail:[{x:citySpawnX,z:citySpawnZ+1.3},{x:citySpawnX,z:citySpawnZ}]};
  }
+ const cart=Math.random()<.34?createCustomerCart(group):null;
  customers.push({
-  group,companion,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
+  group,companion,cart,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
   speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,paymentCard,paymentBills,inspectedProduct,paymentPresented:false,priceTolerance:1.12+Math.random()*.33,
   temperament,visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,walkAnimationBlend:0,motionSpeed:0,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
   stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:citySpawnX,lastNavZ:citySpawnZ
@@ -7131,7 +7200,8 @@ function updateCustomerVisual(c,dt){
   item.visible=!!id;
   if(id){const p=catalog.find(product=>product.id===id);if(p)item.material.color.setHex(p.color);}
  }
- c.basketGroup.visible=!c.paid&&c.phase!=="leaving";
+ c.basketGroup.visible=!c.cart&&!c.paid&&c.phase!=="leaving";
+ updateCustomerCart(c);
  c.bagGroup.visible=(c.phase==="leaving"||c.phase==="securityCheck")&&c.paid;
  c.paymentCard.visible=!!c.paymentPresented&&c.paymentMethod==="card"&&!c.paid;
  c.paymentBills.visible=!!c.paymentPresented&&c.paymentMethod==="cash"&&!c.paid;
@@ -7259,6 +7329,10 @@ function updateCustomerVisual(c,dt){
   }
   c.armRight.rotation.x+=.18*Math.sin(c.visualClock*5.5)*strength;
   if(c.socialGestureTimer===0)c.socialPartner=null;
+ }
+ if(c.cart?.group.visible&&c.phase==="shopping"){
+  c.armLeft.rotation.x=.26+.025*Math.sin(c.visualClock*2.3);
+  c.armRight.rotation.x=.26-.025*Math.sin(c.visualClock*2.3);
  }
  // Expressions purement visuelles, sans ralentir le client.
  if(c.discoveryTimer>0){
@@ -9166,4 +9240,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.91 !");
+animate();toast("Business Empire Simulator V0.15.95 !");
