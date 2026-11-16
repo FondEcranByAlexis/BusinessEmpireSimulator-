@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.00 — tableau d'alerte des stocks en temps réel
+// Business Empire Simulator V0.16.05 — détail des alertes et accès fournisseurs
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -818,6 +818,35 @@ function openPanel(title){
 function paragraph(t){
  const p=document.createElement("p");p.textContent=t;p.style.marginTop="12px";p.style.fontSize="13px";panel.appendChild(p);
 }
+// V0.16.05 — fenêtre consultative, sans changer les flux de commandes existants.
+function showStockAlerts(){
+ openPanel("ÉTAT DES STOCKS");
+ const products=unlockedProducts().map(p=>({product:p,status:stockAlert(p)}));
+ const urgent=products.filter(item=>item.status!=="OK")
+  .sort((a,b)=>(a.status==="RUPTURE"?0:1)-(b.status==="RUPTURE"?0:1)||a.product.name.localeCompare(b.product.name,"fr"));
+ if(!urgent.length){
+  paragraph("Tous les produits débloqués sont approvisionnés.");
+ }else{
+  paragraph(urgent.length+" référence(s) à surveiller · "+products.length+" débloquée(s).");
+  for(const {product:p,status} of urgent){
+   const a=state.inventory[p.id];
+   const line=document.createElement("div");
+   const stored=a.shelf+a.reserve+a.boxes*BOX_UNITS;
+   const pending=pendingBoxes(p.id);
+   line.textContent=(status==="RUPTURE"?"RUPTURE — ":"STOCK FAIBLE — ")+p.name+
+    " · Rayon : "+a.shelf+" · Réserve : "+(a.reserve+a.boxes*BOX_UNITS)+
+    " · Total : "+stored+(pending?" · En commande/transit : "+pending:"");
+   Object.assign(line.style,{marginTop:"8px",padding:"10px",borderRadius:"8px",background:"#1e293b",
+    borderLeft:"4px solid "+(status==="RUPTURE"?"#f87171":"#fbbf24"),
+    fontSize:"12px",lineHeight:"1.5"});
+   panel.appendChild(line);
+  }
+ }
+ button(panel,"Ouvrir les commandes fournisseurs",showOrders);
+}
+const stockAlertButton=$("stockAlertDetails");
+if(stockAlertButton)stockAlertButton.addEventListener("click",showStockAlerts);
+
 // V0.10.8 — nouvelles possibilités annoncées une fois par niveau gagné.
 const levelModal=document.createElement("div");
 Object.assign(levelModal.style,{position:"fixed",inset:"0",zIndex:"110",display:"none",
