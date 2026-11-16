@@ -1,6 +1,6 @@
-// Accueil indépendant du gameplay — BES V0.17.65
+// Accueil indépendant du gameplay — BES V0.17.70
 export function installStartScreen(config){
- const {hasSave,onShow,onContinue,onNewGame,getSettings,onGraphics,onVolume,onSensitivity,onFullscreen}=config;
+ const {hasSave,onShow,onContinue,onNewGame,getSettings,onGraphics,onVolume,onSensitivity,onFullscreen,getSlots,activeSlot,onSelectSlot}=config;
  let existing=hasSave;
  const overlay=document.createElement("div");
  overlay.id="bes-start-screen";
@@ -11,7 +11,7 @@ export function installStartScreen(config){
  const title=document.createElement("h1");title.textContent="BUSINESS EMPIRE SIMULATOR";title.style.cssText="font-size:clamp(26px,5vw,36px);line-height:1.1;margin:18px 0 8px";
  const tagline=document.createElement("p");tagline.textContent="Ton supermarché, ta gestion, ton empire.";tagline.style.cssText="color:#cbd5e1;font-size:13px;margin-bottom:24px";
  const buttons=document.createElement("div");
- const footer=document.createElement("p");footer.textContent="V0.17.65 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
+ const footer=document.createElement("p");footer.textContent="V0.17.70 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
  card.append(brand,title,tagline,buttons,footer);overlay.appendChild(card);document.body.appendChild(overlay);
  function add(label,fn,secondary=false){
   const b=document.createElement("button");b.type="button";b.textContent=label;
@@ -24,8 +24,36 @@ export function installStartScreen(config){
   if(subtitle){const p=document.createElement("p");p.textContent=subtitle;p.style.cssText="font-size:13px;color:#cbd5e1;line-height:1.6;margin:12px 0";buttons.appendChild(p);}
  }
  function close(){overlay.style.display="none";existing=true;onContinue();}
- function newGame(){
-  if(!existing){overlay.style.display="none";existing=true;onNewGame(false);return;}
+ function newGame(){showSlots(true);}
+ function slotsLabel(slot){
+  if(!slot.exists)return "Emplacement "+slot.id+" · Vide";
+  return "Emplacement "+slot.id+" · Jour "+slot.day+" · "+slot.store+" · "+slot.money+" €";
+ }
+ function showSlots(creating=false){
+  const slots=getSlots();
+  page(creating?"Créer une nouvelle partie":"Choisir une sauvegarde",creating?
+   "Choisis un emplacement. Une partie existante ne sera remplacée qu’après confirmation.":
+   "Les trois parties sont indépendantes et enregistrées dans ce navigateur.");
+  for(const slot of slots){
+   add(slotsLabel(slot)+(slot.id===activeSlot?" · Actif":""),()=>{
+    if(creating){
+     if(slot.exists)confirmReplace(slot);
+     else onSelectSlot(slot.id,true,false);
+    }else{
+     if(!slot.exists){showSlots(false);return;}
+     if(slot.id===activeSlot){overlay.style.display="none";onContinue();}
+     else onSelectSlot(slot.id,false,false);
+    }
+   },!slot.exists&&!creating);
+  }
+  add("← Retour",home,true);
+ }
+ function confirmReplace(slot){
+  page("Remplacer l’emplacement "+slot.id,"Cette action effacera uniquement cette partie : "+slotsLabel(slot)+". Les autres emplacements seront conservés.");
+  add("Confirmer le remplacement",()=>onSelectSlot(slot.id,true,true));
+  add("Annuler",()=>showSlots(true),true);
+ }
+ function oldNewGameUnused(){
   page("Confirmer la nouvelle partie","Attention : la sauvegarde actuelle sera remplacée. Cette opération est irréversible.");
   add("Confirmer · remplacer ma partie",()=>{onNewGame(true);});
   add("Annuler",home,true);
@@ -52,7 +80,8 @@ export function installStartScreen(config){
  function home(){
   onShow?.();
   overlay.style.display="grid";page("Choisis ta partie",existing?"Sauvegarde disponible dans ce navigateur.":"Aucune ancienne sauvegarde détectée.");
-  if(existing)add("▶ Continuer la partie",close);
+  if(existing)add("▶ Continuer · Emplacement "+activeSlot,close);
+  add("▣ Choisir une sauvegarde",()=>showSlots(false),true);
   add("＋ Nouvelle partie",newGame);
   add("⚙ Paramètres",settings,true);
   add("⌨ Commandes / Aide",help,true);
