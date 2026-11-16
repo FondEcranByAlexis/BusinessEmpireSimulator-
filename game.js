@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.15 — filtres d'alerte des stocks
+// Business Empire Simulator V0.16.20 — consultation des capacités des réserves
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -827,6 +827,13 @@ function showStockOverview(){
  const ruptures=urgent.filter(item=>item.status==="RUPTURE").length;
  const low=urgent.length-ruptures;
  paragraph("Ruptures : "+ruptures+" · Stocks faibles : "+low+" · Produits débloqués : "+products.length);
+ // V0.16.20 — panneau consultatif basé sur la fonction de capacité existante.
+ button(panel,"Consulter les capacités des réserves",()=>{
+  openPanel("CAPACITÉS DES RÉSERVES");
+  paragraph("Places occupées, livraisons attendues et places disponibles par zone.");
+  renderStockCapacity(panel,false);
+  button(panel,"Retour aux alertes de stock",showStockOverview);
+ });
  // V0.16.15 — filtres d'affichage uniquement : aucune modification de stock.
  const filters=document.createElement("div");
  Object.assign(filters.style,{display:"flex",flexWrap:"wrap",gap:"5px",marginTop:"10px"});
@@ -9315,4 +9322,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.15 !");
+animate();toast("Business Empire Simulator V0.16.20 !");
