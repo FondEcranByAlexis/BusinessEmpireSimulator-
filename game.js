@@ -717,7 +717,19 @@ function recordProgressEvent(kind,quantity=1){
    toast("Mission réussie : "+goal.name+" · +"+goal.reward+" PM");
   }
  }
+ recordCareerEvent(kind);
+ refreshMissionTracker();
  save();
+}
+function showCareerMissions(){
+ const tier=CAREER_TIERS[careerTierIndex()];
+ openPanel("Missions de carrière — progression");
+ paragraph("Palier : niveaux "+tier.min+" à "+tier.max+". Les missions sont conservées entre les journées.");
+ for(const goal of careerGoals()){
+  paragraph((goal.claimed?"✓ ":"○ ")+goal.name+" · "+goal.current+"/"+goal.target+
+   " · +"+goal.reward+" PM"+(goal.claimed?" (récompense reçue)":""));
+ }
+ paragraph("Objectifs évolutifs : un nouveau palier devient actif selon ton niveau.");
 }
 function showDailyMissions(){
  const day=todayMission();
@@ -2046,7 +2058,7 @@ function showMainMenuSection(section){
   ]},
   profil:{title:"PROFIL · Paramètres",actions:[
    ["Profil du joueur",showProfile],["Paramètres",showSettings],
-   ["Missions quotidiennes",showDailyMissions],
+   ["Missions quotidiennes",showDailyMissions],["Missions de carrière",showCareerMissions],
    ["Progression des niveaux",showProgression]
   ]}
  };
