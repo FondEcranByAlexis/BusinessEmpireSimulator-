@@ -1,12 +1,12 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.17.95";
-import { createPlayableTutorial } from "./playable-tutorial.js?v=0.17.95";
+import { installStartScreen } from "./start-screen.js?v=0.18.00";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.00";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.95 — réserve, réassort, ouverture et première vente guidés
+// Business Empire Simulator V0.18.00 — tutoriel dégagé et signalétique vitrée OUVERT / FERMÉ
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -4439,6 +4439,7 @@ electronicsStorageBrand.rotation.y=-Math.PI/2;scene.add(electronicsStorageBrand)
 const corridorBrand=brandPanel(state.storeName,"EXTENSION DU MAGASIN",3.75,.72);
 corridorBrand.position.set(0,4.18,-9.78);scene.add(corridorBrand);
 
+let storeEntranceSign=null;
 function buildStoreExterior(){
  const group=new THREE.Group();scene.add(group);
  const asphalt=standardMaterial({color:0x454c52,roughness:1});
@@ -4531,6 +4532,23 @@ function buildStoreExterior(){
  part(0,5.03,10.23,20.25,.25,.52,trim);
  part(0,3.54,10.18,20.1,.12,.14,blue);
  part(0,2.77,10.05,3.92,.10,.18,trim);
+ // V0.18.00 : vitrages transparents fixes encadrant la porte centrale.
+ // Pas de collision supplémentaire : l'entrée existante reste traversable.
+ const clearGlass=standardMaterial({color:0xb7e7f8,transparent:true,opacity:.26,roughness:.09,metalness:.08,depthWrite:false,side:THREE.DoubleSide});
+ for(const x of [-1.38,1.38]){
+  part(x,1.37,10.17,.90,2.54,.035,clearGlass);
+  part(x,1.37,10.19,.035,2.54,.065,trim);
+ }
+ // Enseigne réversible peinte sur une vitre, lisible depuis le parking.
+ const signCanvas=document.createElement("canvas");
+ signCanvas.width=512;signCanvas.height=256;
+ const signTexture=gameTexture(signCanvas);
+ const signPanel=new THREE.Mesh(new THREE.PlaneGeometry(1.22,.61),
+  new THREE.MeshBasicMaterial({map:signTexture,side:THREE.DoubleSide,transparent:true,depthWrite:false}));
+ signPanel.position.set(1.29,1.78,10.245);
+ group.add(signPanel);
+ storeEntranceSign={canvas:signCanvas,texture:signTexture,last:null};
+
  for(const x of [-1.97,1.97]){
   part(x,1.38,10.10,.095,2.76,.19,trim);
   part(x*.89,1.40,10.12,.31,2.69,.055,windowGlass);
@@ -9778,7 +9796,21 @@ function updateCustomers(dt){
 }
 const openButton=$("openShop");
 let dayStarted=false,closing=false;
+function updateEntranceSign(){
+ if(!storeEntranceSign||storeEntranceSign.last===shopOpen)return;
+ storeEntranceSign.last=shopOpen;
+ const ctx=storeEntranceSign.canvas.getContext("2d");
+ const open=shopOpen;
+ ctx.clearRect(0,0,512,256);
+ ctx.fillStyle=open?"#0f6e43":"#991b1b";
+ ctx.fillRect(8,8,496,240);
+ ctx.lineWidth=15;ctx.strokeStyle="#f8fafc";ctx.strokeRect(14,14,484,228);
+ ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="middle";
+ ctx.font="bold 102px Arial";ctx.fillText(open?"OUVERT":"FERMÉ",256,131,456);
+ uploadTexturePixels(storeEntranceSign.texture,storeEntranceSign.canvas);
+}
 function updateOpen(){
+ updateEntranceSign();
  const constructionReady=activeConstructionDay()&&!dayStarted&&!constructionMorningRunning&&state.hour>=CONSTRUCTION_READY_HOUR&&state.hour<OPEN_HOUR;
  const sundayClosed=isSunday()&&state.sundayMode==="closed";
  openButton.textContent=shopOpen?"Fermer le magasin":closing?"Fermeture en cours":
