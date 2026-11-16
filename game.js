@@ -1,12 +1,12 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.17.90";
-import { createPlayableTutorial } from "./playable-tutorial.js?v=0.17.90";
+import { installStartScreen } from "./start-screen.js?v=0.17.95";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.17.95";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.90 — parcours interactif complet et guidage directionnel
+// Business Empire Simulator V0.17.95 — réserve, réassort, ouverture et première vente guidés
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3225,6 +3225,7 @@ function completeCheckoutPayment(c,count,staffed=false){
  trackSale(c.basket,c.prices);
  c.paid=true;
  c.manualCheckout=!staffed;
+ if(!staffed&&count>0)playableTutorial?.notify("sale");
  if(!staffed&&c.paymentMethod==="cash")playSound("close");
  if(count>0){changeSatisfaction(c.waitPenalty?1:3);recordProgressEvent("served");}
  sync();finishCheckout(c,staffed);
@@ -5884,6 +5885,7 @@ function putBack(){
  if(!p||!atStorageFor(p))return;
  if(held.source==="box"&&cartonOpened()){toast("Referme d'abord ton carton");return;}
  const inventory=state.inventory[p.id];
+ const deliveredCarton=held.source==="delivery";
  if(held.source!=="loose"){
   const cartons=Math.min(Math.floor(held.quantity/BOX_UNITS),MAX_BOXES_PER_PRODUCT-inventory.boxes,
    storageLimit(storageKind(p))-storageBoxes(storageKind(p)));
@@ -5893,7 +5895,9 @@ function putBack(){
   }
  }
  inventory.reserve+=held.quantity;
- held=null;sync();refreshCarry();showReserve();
+ held=null;
+ if(deliveredCarton)playableTutorial?.notify("store");
+ sync();refreshCarry();showReserve();
 }
 function takeCarton(p,amount,source="box"){
  const a=state.inventory[p.id];
@@ -5909,6 +5913,7 @@ function takeCarton(p,amount,source="box"){
   const quantity=Math.min(amount,a.reserve);
   a.reserve-=quantity;held={id:p.id,quantity,source:"loose"};
  }else{toast("Aucun produit disponible");return;}
+ playableTutorial?.notify("take");
  sync();refreshCarry();panel.style.display="none";
  toast(p.name+" · "+held.quantity+" articles en main. Va au rayon.");
 }
@@ -6989,7 +6994,7 @@ function placeHeldArticle(){
  const placed=held.source==="box"?1:Math.min(space,held.quantity);
  if(held.source==="box")startPlacementAnimation(p);
  a.shelf+=placed;held.quantity-=placed;
- if(placed>0)recordProgressEvent("restocks",placed);
+ if(placed>0){recordProgressEvent("restocks",placed);playableTutorial?.notify("restock");}
  const remaining=held.quantity;
  if(remaining===0)held=null;
  sync();refreshCarry();
@@ -10321,10 +10326,21 @@ playableTutorial=createPlayableTutorial({
  getPosition:()=>({x:camera.position.x,z:camera.position.z}),
  getHeading:()=>yaw,
  getCartCount:()=>cartCount(),
+ getReserveTarget:()=>{
+  const product=held&&catalog.find(p=>p.id===held.id);
+  const room=product&&rebuiltStorageLayouts[storageKind(product)];
+  return room?{x:room.x,z:room.front+Math.min(6,room.length/2),radius:4}:null;
+ },
+ isStoreOpen:()=>shopOpen,
  isGameplayReady:()=>!paused&&ageOverlay.style.display==="none",
  onFinish:completed=>{
   state.management??={};
   state.management.tutorialStatus=completed?"completed":"skipped";
+  if(completed&&!state.management.tutorialRewardClaimed){
+   state.management.tutorialRewardClaimed=true;
+   state.money+=250;
+   hud();toast("Formation terminée ! Bonus de démarrage : +250 €");
+  }
   save();
  }
 });
