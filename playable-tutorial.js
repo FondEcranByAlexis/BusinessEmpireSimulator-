@@ -1,4 +1,4 @@
-// Business Empire Simulator V0.17.95 — parcours d'initiation guidé dans le vrai magasin.
+// Business Empire Simulator V0.18.00 — parcours d'initiation guidé dans le vrai magasin.
 // Les étapes s'accomplissent avec des événements du jeu, jamais avec un bouton "Valider".
 export function createPlayableTutorial({getPosition,getHeading,getCartCount,getReserveTarget,isStoreOpen,isGameplayReady,onFinish}){
  const steps=[
@@ -25,7 +25,7 @@ export function createPlayableTutorial({getPosition,getHeading,getCartCount,getR
  ];
  const overlay=document.createElement("aside");
  overlay.id="bes-playable-tutorial";overlay.setAttribute("aria-label","Tutoriel interactif");
- overlay.style.cssText="position:fixed;right:12px;top:82px;width:min(330px,calc(100vw - 24px));z-index:180;background:#0c2034f2;border:1px solid #38bdf8;border-radius:12px;box-shadow:0 8px 30px #0009;padding:12px;color:#fff;font:13px/1.45 Arial,sans-serif;pointer-events:auto;display:none;max-height:65vh;overflow:auto";
+ overlay.style.cssText="position:fixed;right:12px;top:195px;width:min(330px,calc(100vw - 24px));z-index:180;background:#0c2034f2;border:1px solid #38bdf8;border-radius:12px;box-shadow:0 8px 30px #0009;padding:12px;color:#fff;font:13px/1.45 Arial,sans-serif;pointer-events:auto;display:none;max-height:calc(100vh - 210px);overflow:auto";
  const header=document.createElement("strong"),title=document.createElement("h2"),instruction=document.createElement("p"),hint=document.createElement("p");
  header.style.color="#7dd3fc";title.style.cssText="font-size:16px;margin:8px 0";hint.style.cssText="color:#cbd5e1;margin-top:7px";
  const arrow=document.createElement("div");arrow.style.cssText="display:none;align-items:center;justify-content:center;gap:15px;margin:10px 0;padding:9px;background:#163b51;border:1px solid #22d3ee;border-radius:10px";
@@ -34,10 +34,22 @@ export function createPlayableTutorial({getPosition,getHeading,getCartCount,getR
  const objectives=document.createElement("div");objectives.style.cssText="margin:9px 0;padding:8px;background:#102b43;border:1px solid #334155;border-radius:8px;max-height:150px;overflow-y:auto";
  const objectiveTitle=document.createElement("strong");objectiveTitle.textContent="OBJECTIFS DE FORMATION";objectiveTitle.style.cssText="font-size:11px;color:#7dd3fc";
  const list=document.createElement("div");list.setAttribute("aria-label","Objectifs à accomplir");objectives.append(objectiveTitle,list);
+ const collapse=document.createElement("button");
+ collapse.type="button";collapse.textContent="Réduire le tutoriel";
+ collapse.style.cssText="padding:6px 9px;margin:7px 0;background:#1e3a5f;color:white;border:1px solid #64748b;border-radius:7px;cursor:pointer";
+ let compact=false;
+ collapse.addEventListener("click",()=>{
+  compact=!compact;
+  collapse.textContent=compact?"Afficher les objectifs":"Réduire le tutoriel";
+  instruction.style.display=compact?"none":"";
+  hint.style.display=compact?"none":"";
+  objectives.style.display=compact?"none":"";
+  overlay.style.maxHeight=compact?"110px":"calc(100vh - 210px)";
+ });
  const controls=document.createElement("div");controls.style.cssText="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap";
  const skip=document.createElement("button");skip.type="button";skip.textContent="Passer le tutoriel";
  skip.style.cssText="padding:8px 12px;background:#334155;color:white;border:1px solid #64748b;border-radius:7px;cursor:pointer";
- overlay.append(header,title,instruction,hint,arrow,objectives,controls);document.body.appendChild(overlay);
+ overlay.append(header,title,collapse,instruction,hint,arrow,objectives,controls);document.body.appendChild(overlay);
  let active=false,step=0,startPosition=null,started=false;
  function draw(){
   overlay.style.display=active?"block":"none";
