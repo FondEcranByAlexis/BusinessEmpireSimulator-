@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.70 — recherche, couverture partielle et bilan logistique par zone
+// Business Empire Simulator V0.16.75 — tableau financier quotidien et indicateurs de caisse
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1736,9 +1736,12 @@ function showMainMenuSection(section){
   magasin:{title:"MAGASIN · Gestion",actions:[
    ["Stocks",showStocks],["Réserve",showReserve],
    ["Fournisseurs",showOrders],["Prix de vente",showPrices],
+   ["Finances du jour",showCurrentDayFinance],
+   ["Indicateurs de caisse",showCheckoutIndicators],
    ["Licences",()=>showUpgrades("licences")],
    ["Améliorations",()=>showUpgrades("extensions")],
    ["Bilan financier",showFinance],
+   ["Dernier bilan quotidien",()=>state.lastDailyReport?showDailyReport():toast("Aucune journée terminée pour le moment")],
    ["Ordinateur de caisse (à proximité)",showComputer]
   ]},
   equipe:{title:"ÉQUIPE · Personnel",actions:[
@@ -1801,6 +1804,49 @@ function showMainMenuAdvanced(){
 
 const RENTS=35, ELECTRICITY=12, OTHER_CHARGES=8, DAILY_CHARGES=RENTS+ELECTRICITY+OTHER_CHARGES;
 function euro(n){return Math.round(n).toLocaleString("fr-FR")+" €";}
+// V0.16.75 : données financières lues sans modifier les comptes ni la sauvegarde.
+function showCurrentDayFinance(){
+ openPanel("FINANCES — JOURNÉE EN COURS");
+ const baseline=state.dayStartStats&&state.dayStartStats.day===state.day?
+  state.dayStartStats:makeDayStartStats();
+ const revenue=finance.revenue-baseline.revenue;
+ const supplies=finance.supplies-baseline.supplies;
+ const charges=finance.charges-baseline.charges;
+ const wages=(state.workerPaidTotal||0)-(baseline.workerPaid||0)+
+  (state.stockerPaidTotal||0)-(baseline.stockerPaid||0);
+ const transactions=Math.max(0,finance.transactions-baseline.transactions);
+ const sales=Math.max(0,state.sales-baseline.sales);
+ const result=revenue-supplies-charges-wages;
+ paragraph("Jour "+state.day+" · "+formatHour(state.hour)+" · Trésorerie actuelle : "+euro(state.money));
+ paragraph("Ventes du jour : "+euro(revenue)+" · "+transactions+" encaissement(s) · "+sales+" article(s) vendu(s).");
+ paragraph("Achats fournisseurs : "+euro(supplies)+" · Charges : "+euro(charges)+" · Salaires payés : "+euro(wages));
+ paragraph("Résultat simplifié provisoire : "+euro(result));
+ paragraph("Variation de trésorerie depuis le début de journée : "+euro(state.money-baseline.money));
+ paragraph("Satisfaction : "+baseline.satisfaction+" % au début · "+state.satisfaction+" % actuellement.");
+ paragraph("Ces données sont provisoires. Le résultat ne valorise pas le stock restant ni les salaires dus.");
+ button(panel,"Actualiser les finances du jour",showCurrentDayFinance);
+ if(state.lastDailyReport)button(panel,"Voir le dernier bilan de fin de journée",()=>showDailyReport());
+ button(panel,"Voir le bilan financier cumulé",showFinance);
+ button(panel,"← Retour à la gestion",()=>showMainMenuSection("magasin"));
+}
+function showCheckoutIndicators(){
+ openPanel("INDICATEURS DE CAISSE");
+ const baseline=state.dayStartStats&&state.dayStartStats.day===state.day?
+  state.dayStartStats:makeDayStartStats();
+ const transactions=Math.max(0,finance.transactions-baseline.transactions);
+ const sales=Math.max(0,state.sales-baseline.sales);
+ const revenue=finance.revenue-baseline.revenue;
+ paragraph("Jour "+state.day+" · "+formatHour(state.hour));
+ paragraph("Encaissements du jour : "+transactions+" · Articles vendus : "+sales);
+ paragraph("Panier moyen (par encaissement) : "+(transactions?euro(revenue/transactions):"—"));
+ paragraph("Articles par encaissement : "+(transactions?(sales/transactions).toLocaleString("fr-FR",{maximumFractionDigits:2}):"—"));
+ paragraph("Chiffre d'affaires par encaissement (cumulé) : "+(finance.transactions?
+  euro(finance.revenue/finance.transactions):"—"));
+ paragraph("Ces moyennes concernent les transactions déjà enregistrées, sans projection sur la journée.");
+ button(panel,"Actualiser les indicateurs",showCheckoutIndicators);
+ button(panel,"Voir les finances du jour",showCurrentDayFinance);
+ button(panel,"← Retour à la gestion",()=>showMainMenuSection("magasin"));
+}
 function showFinance(){
  openPanel("Bilan financier");
  paragraph("Jour "+state.day+" — Heure : "+formatHour(state.hour));
@@ -9614,4 +9660,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.70 !");
+animate();toast("Business Empire Simulator V0.16.75 !");
