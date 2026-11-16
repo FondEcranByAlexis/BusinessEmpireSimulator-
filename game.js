@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.45 — suivi des demandes et version affichée
+// Business Empire Simulator V0.17.50 — filtres de demandes basés sur les stocks réels
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -2350,6 +2350,16 @@ function requestReserveUnits(productId){
  const inventory=state.inventory[productId];
  return (inventory?.reserve||0)+(inventory?.boxes||0)*BOX_UNITS;
 }
+// Les catégories de suivi peuvent se recouper : un produit peut nécessiter
+// un réassort depuis la réserve tout en ayant une livraison fournisseur en cours.
+function requestNeedsRestock(productId){
+ const product=catalog.find(p=>p.id===productId);
+ const stock=state.inventory[productId];
+ return !!product&&!!stock&&stock.shelf<shelfCapacity(product)&&requestReserveUnits(productId)>0;
+}
+function requestHasIncoming(productId){
+ return pendingBoxes(productId)>0;
+}
 let customerRequestView={status:"open",search:"",sort:"priority"};
 function showCustomerRequests(){
  openPanel("CARNET — DEMANDES CLIENTS");
@@ -2357,10 +2367,10 @@ function showCustomerRequests(){
  const open=requests.filter(item=>!item.closed).length;
  const ready=requests.filter(item=>!item.closed&&(state.inventory[item.productId]?.shelf||0)>0).length;
  const urgent=requests.filter(item=>!item.closed&&item.priority).length;
- const inReserve=requests.filter(item=>!item.closed&&(state.inventory[item.productId]?.shelf||0)===0&&requestReserveUnits(item.productId)>0).length;
- const waiting=requests.filter(item=>!item.closed&&(state.inventory[item.productId]?.shelf||0)===0&&requestReserveUnits(item.productId)===0&&pendingBoxes(item.productId)>0).length;
+ const inReserve=requests.filter(item=>!item.closed&&requestNeedsRestock(item.productId)).length;
+ const waiting=requests.filter(item=>!item.closed&&requestHasIncoming(item.productId)).length;
  paragraph(open+" en cours · "+ready+" en rayon · "+inReserve+" à réassortir · "+waiting+" en livraison · "+urgent+" prioritaire(s) · "+requests.length+" au total.");
- paragraph("Les demandes sont sauvegardées. Le traitement et la clôture restent manuels.");
+ paragraph("Les demandes sont sauvegardées. Les catégories peuvent se recouper (réserve et livraison). La clôture reste manuelle.");
  const search=document.createElement("input");search.type="search";
  search.value=customerRequestView.search;search.placeholder="Rechercher un produit demandé";
  search.setAttribute("aria-label","Rechercher dans les demandes des clients");
@@ -2396,8 +2406,8 @@ function showCustomerRequests(){
     customerRequestView.status==="open"&&!item.closed||
     customerRequestView.status==="ready"&&!item.closed&&shelf>0||
     customerRequestView.status==="missing"&&!item.closed&&shelf===0||
-    customerRequestView.status==="reserve"&&!item.closed&&shelf===0&&requestReserveUnits(item.productId)>0||
-    customerRequestView.status==="waiting"&&!item.closed&&shelf===0&&requestReserveUnits(item.productId)===0&&pendingBoxes(item.productId)>0||
+    customerRequestView.status==="reserve"&&!item.closed&&requestNeedsRestock(item.productId)||
+    customerRequestView.status==="waiting"&&!item.closed&&requestHasIncoming(item.productId)||
     customerRequestView.status==="closed"&&!!item.closed||
     customerRequestView.status==="priority"&&!item.closed&&!!item.priority;
   });
@@ -2434,10 +2444,12 @@ function showCustomerRequests(){
    card.append(heading,details);
    if(!request.closed){
     const hint=document.createElement("p");
-    hint.textContent=shelf>0?"Produit disponible : vérifie le rayon avant de clôturer.":
-     reserve>0?"Rayon vide : marchandises présentes en réserve, réassort à effectuer.":
-     incoming>0?"Rayon et réserve vides : livraison fournisseur en attente.":
-     "Rupture complète : consulter les fournisseurs pour commander.";
+    const statusNotes=[];
+    if(shelf>0)statusNotes.push("Produit en rayon : vérifier la disponibilité.");
+    if(requestNeedsRestock(product.id))statusNotes.push("Réassort possible depuis la réserve.");
+    if(requestHasIncoming(product.id))statusNotes.push("Livraison en cours : "+incoming+" carton(s) attendu(s).");
+    if(!shelf&&!reserve&&!incoming)statusNotes.push("Rupture complète : consulter les fournisseurs.");
+    hint.textContent=statusNotes.join(" ");
     Object.assign(hint.style,{fontSize:"12px",lineHeight:"1.5",color:"#fbbf24",margin:"6px 0"});
     card.appendChild(hint);
     button(card,request.priority?"Retirer la priorité · "+product.name:"Marquer prioritaire · "+product.name,()=>{
@@ -10161,4 +10173,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.45 !");
+animate();toast("Business Empire Simulator V0.17.50 !");
