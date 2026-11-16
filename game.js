@@ -10237,11 +10237,10 @@ function collectNearbyGolden(){
 
 spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
-if(!ageProfile)showAgePrompt();
-else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
 animate();
 const startMenu=installStartScreen({
  hasSave:startHasSavedGame,
+ onShow:()=>{paused=true;releaseMouseLook();panel.style.display="none";},
  onContinue:()=>{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();},
  onNewGame:replace=>{
   if(replace){
