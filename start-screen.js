@@ -1,4 +1,4 @@
-// Accueil indépendant du gameplay — BES V0.17.75
+// Accueil indépendant du gameplay — BES V0.17.80
 export function installStartScreen(config){
  const {hasSave,onShow,onContinue,onNewGame,getSettings,onGraphics,onVolume,onSensitivity,onFullscreen,getSlots,activeSlot,onSelectSlot,onDeleteSlot}=config;
  let existing=hasSave;
@@ -11,7 +11,7 @@ export function installStartScreen(config){
  const title=document.createElement("h1");title.textContent="BUSINESS EMPIRE SIMULATOR";title.style.cssText="font-size:clamp(26px,5vw,36px);line-height:1.1;margin:18px 0 8px";
  const tagline=document.createElement("p");tagline.textContent="Ton supermarché, ta gestion, ton empire.";tagline.style.cssText="color:#cbd5e1;font-size:13px;margin-bottom:24px";
  const buttons=document.createElement("div");
- const footer=document.createElement("p");footer.textContent="V0.17.75 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
+ const footer=document.createElement("p");footer.textContent="V0.17.80 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
  card.append(brand,title,tagline,buttons,footer);overlay.appendChild(card);document.body.appendChild(overlay);
  function add(label,fn,secondary=false){
   const b=document.createElement("button");b.type="button";b.textContent=label;
@@ -106,6 +106,19 @@ export function installStartScreen(config){
    if(newPlayer){overlay.style.display="none";existing=true;onNewGame(false);}else home();
   },true);
  }
+ function tutorialIntro(newGame=false){
+  page("Tutoriel interactif","Tu vas apprendre directement dans ton magasin : marcher, ouvrir le menu, consulter les fournisseurs et retrouver les demandes clients. Chaque étape avance uniquement après la bonne action.");
+  add("▶ Commencer le tutoriel",()=>{
+   overlay.style.display="none";
+   existing=true;
+   if(newGame)onNewGame(false,true);
+   else onContinue(true);
+  });
+  add(newGame?"Passer et jouer":"← Retour à l’accueil",()=>{
+   if(newGame){overlay.style.display="none";existing=true;onNewGame(false,false);}
+   else home();
+  },true);
+ }
  function help(){page("Commandes / Aide","ZQSD / WASD / flèches : avancer · Souris : regarder · E : interagir · F : parler aux clients · M : menu · Échap : libérer la souris.");add("← Retour",home,true);}
  function credits(){page("Crédits","BUSINESS EMPIRE SIMULATOR — développé pour FBA GAMES par FondEcranByAlexis.");add("← Retour",home,true);}
  function home(){
@@ -116,9 +129,9 @@ export function installStartScreen(config){
   add("＋ Nouvelle partie",newGame);
   add("⚙ Paramètres",settings,true);
   add("⌨ Commandes / Aide",help,true);
-  add("📘 Tutoriel",()=>tutorial(false),true);
+  add("📘 Tutoriel interactif",()=>tutorialIntro(false),true);
   add("★ Crédits",credits,true);
  }
  home();
- return {show:home,beginNew:()=>tutorial(true)};
+ return {show:home,beginNew:()=>tutorialIntro(true)};
 }
