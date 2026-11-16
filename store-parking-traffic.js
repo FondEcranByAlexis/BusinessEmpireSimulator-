@@ -1,4 +1,4 @@
-// BES V0.18.40 — circulation du parking du supermarché.
+// BES V0.18.41 — sens unique et départs fiables du parking.
 // Trois véhicules légers au maximum, en basse géométrie pour PC et téléphone.
 // Aucune modification des voitures, des feux ou des carrefours de FBA City.
 export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
@@ -39,21 +39,41 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
   return {group,state:"inactive",slot:null,route:[],index:0,stay:0,speed:0,parked:false};
  }
  for(let i=0;i<3;i++)cars.push(makeCar(i));
- let elapsed=0,spawnElapsed=0,sequence=0;
+ let spawnElapsed=0,sequence=0;
+ // Entrée par X=-9, puis circulation vers l'ouest par Z=55.
+ // La sortie contourne la rangée par l'ouest puis emprunte Z=74 vers l'est.
+ // Les deux sens ne se rencontrent jamais sur une même allée.
  const start={x:-9,z:91},junction={x:-9,z:55};
- const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+ const outboundWest={x:-52,z:55},outboundNorth={x:-52,z:74};
+ const outboundEast={x:-9,z:74};
+ const moving=car=>car.state==="arriving"||car.state==="leaving";
+ const trafficBusy=()=>cars.some(moving);
+ // Marquages directionnels sur les deux allées, non collidants.
+ const arrowMaterial=new THREE.MeshBasicMaterial({color:0xf8fafc,side:THREE.DoubleSide,depthWrite:false});
+ function arrow(x,z,west){
+  const sign=new THREE.Group();sign.position.set(x,.039,z);root.add(sign);
+  const shaft=new THREE.Mesh(new THREE.PlaneGeometry(1.3,.13),arrowMaterial);
+  shaft.rotation.x=-Math.PI/2;shaft.rotation.z=0;sign.add(shaft);
+  const triangle=new THREE.Mesh(new THREE.PlaneGeometry(.55,.55),arrowMaterial);
+  triangle.rotation.x=-Math.PI/2;
+  triangle.position.x=west?-.85:.85;sign.add(triangle);
+ }
+ for(const x of [-17,-29,-41]){arrow(x,55,true);arrow(x,74,false);}
+
  function reserved(slot){return cars.some(car=>car.slot===slot&&car.state!=="inactive");}
  function chooseSlot(){
   const free=positions.filter(slot=>!reserved(slot));
   return free.length?free[(sequence*3+1)%free.length]:null;
  }
  function startTrip(car){
-  const slot=chooseSlot();if(!slot)return;
+  if(trafficBusy())return false;
+  const slot=chooseSlot();if(!slot)return false;
   car.slot=slot;car.group.position.set(start.x,0,start.z);
   car.group.visible=true;car.state="arriving";car.index=0;car.stay=35+(sequence%4)*13;
   car.speed=4.5+(sequence%3)*.5;
   car.route=[junction,{x:slot.x,z:55},slot];
   sequence++;
+  return true;
  }
  function moveTo(car,target,dt,player){
   const p=car.group.position,dx=target.x-p.x,dz=target.z-p.z;
@@ -73,20 +93,24 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
   return movement>=distance-.07;
  }
  function update(dt){
-  elapsed+=dt;spawnElapsed+=dt;
-  if(spawnElapsed>18){
-   spawnElapsed=0;
-   const inactive=cars.find(car=>car.state==="inactive");
-   if(inactive)startTrip(inactive);
+  spawnElapsed+=dt;
+  // Une seule voiture effectue une manoeuvre dans les voies communes.
+  // Les véhicules déjà stationnés peuvent attendre sans se mettre en travers.
+  if(!trafficBusy()){
+   const leaving=cars.find(car=>car.state==="parked"&&car.stay<=0);
+   if(leaving){
+    leaving.state="leaving";leaving.index=0;
+    // Tous les départs suivent le sens unique OUEST puis NORD puis EST.
+    leaving.route=[{x:leaving.slot.x,z:55},outboundWest,outboundNorth,outboundEast,start];
+   }else if(spawnElapsed>=18){
+    const inactive=cars.find(car=>car.state==="inactive");
+    if(inactive&&startTrip(inactive))spawnElapsed=0;
+   }
   }
   for(const car of cars){
    if(car.state==="inactive")continue;
    if(car.state==="parked"){
-    car.stay-=dt;
-    if(car.stay<=0){
-     car.state="leaving";car.index=0;
-     car.route=[{x:car.slot.x,z:55},junction,start];
-    }
+    car.stay=Math.max(0,car.stay-dt);
     continue;
    }
    const target=car.route[car.index];if(!target)continue;
@@ -95,7 +119,6 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
     if(car.index===car.route.length){
      if(car.state==="arriving"){
       car.state="parked";car.group.position.set(car.slot.x,0,car.slot.z);
-      // Stationnement dans l'axe des bandes blanches, pas au milieu d'une voie.
       car.group.rotation.y=car.slot.z===48?0:Math.PI;
      }else{
       car.group.visible=false;car.state="inactive";car.slot=null;
