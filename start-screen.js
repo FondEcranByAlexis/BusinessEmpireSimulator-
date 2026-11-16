@@ -1,4 +1,4 @@
-// Accueil indépendant du gameplay — BES V0.18.15
+// Accueil indépendant du gameplay — BES V0.18.20
 export function installStartScreen(config){
  const {hasSave,onShow,onContinue,onNewGame,getSettings,onGraphics,onVolume,onSensitivity,onFullscreen,getSlots,activeSlot,onSelectSlot,onDeleteSlot}=config;
  let existing=hasSave;
@@ -11,7 +11,7 @@ export function installStartScreen(config){
  const title=document.createElement("h1");title.textContent="BUSINESS EMPIRE SIMULATOR";title.style.cssText="font-size:clamp(26px,5vw,36px);line-height:1.1;margin:18px 0 8px";
  const tagline=document.createElement("p");tagline.textContent="Ton supermarché, ta gestion, ton empire.";tagline.style.cssText="color:#cbd5e1;font-size:13px;margin-bottom:24px";
  const buttons=document.createElement("div");
- const footer=document.createElement("p");footer.textContent="V0.18.15 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
+ const footer=document.createElement("p");footer.textContent="V0.18.20 · FBA GAMES · FondEcranByAlexis";footer.style.cssText="font-size:11px;color:#94a3b8;margin-top:24px";
  card.append(brand,title,tagline,buttons,footer);overlay.appendChild(card);document.body.appendChild(overlay);
  function add(label,fn,secondary=false){
   const b=document.createElement("button");b.type="button";b.textContent=label;
