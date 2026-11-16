@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.50 — filtres de demandes basés sur les stocks réels
+// Business Empire Simulator V0.17.55 — filtres de demandes visibles et accessibles
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -2385,6 +2385,29 @@ function showCustomerRequests(){
   const option=document.createElement("option");option.value=key;option.textContent=label;select.appendChild(option);
  }
  select.value=customerRequestView.status;panel.appendChild(select);
+ // Accès direct aux deux filtres logistiques, en conservant le menu déroulant validé.
+ const quickFilters=document.createElement("div");
+ Object.assign(quickFilters.style,{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(155px,1fr))",gap:"8px",margin:"10px 0"});
+ panel.appendChild(quickFilters);
+ const reserveButton=button(quickFilters,"Réassort réserve · "+inReserve,()=>setRequestFilter("reserve"));
+ const deliveryButton=button(quickFilters,"Livraisons attendues · "+waiting,()=>setRequestFilter("waiting"));
+ reserveButton.setAttribute("aria-label","Afficher les demandes à réassortir depuis la réserve");
+ deliveryButton.setAttribute("aria-label","Afficher les demandes avec livraison attendue");
+ function updateQuickFilters(){
+  for(const [control,key] of [[reserveButton,"reserve"],[deliveryButton,"waiting"]]){
+   const active=customerRequestView.status===key;
+   control.style.background=active?"#047857":"#2563eb";
+   control.style.outline=active?"2px solid #6ee7b7":"none";
+   control.setAttribute("aria-pressed",String(active));
+  }
+ }
+ function setRequestFilter(value){
+  customerRequestView.status=value;
+  select.value=value;
+  updateQuickFilters();
+  draw();
+ }
+ updateQuickFilters();
  const sort=document.createElement("select");
  sort.setAttribute("aria-label","Trier les demandes");
  Object.assign(sort.style,{display:"block",width:"100%",margin:"8px 0",padding:"9px",color:"#fff",background:"#142336",border:"1px solid #64748b",borderRadius:"8px"});
@@ -2394,7 +2417,7 @@ function showCustomerRequests(){
  sort.value=customerRequestView.sort;panel.appendChild(sort);
  const list=document.createElement("div");panel.appendChild(list);
  search.addEventListener("input",()=>{customerRequestView.search=search.value;draw();});
- select.addEventListener("change",()=>{customerRequestView.status=select.value;draw();});
+ select.addEventListener("change",()=>{customerRequestView.status=select.value;updateQuickFilters();draw();});
  sort.addEventListener("change",()=>{customerRequestView.sort=sort.value;draw();});
  function draw(){
   list.replaceChildren();
@@ -10173,4 +10196,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.50 !");
+animate();toast("Business Empire Simulator V0.17.55 !");
