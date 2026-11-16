@@ -6,7 +6,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.00 — tutoriel dégagé et signalétique vitrée OUVERT / FERMÉ
+// Business Empire Simulator V0.18.05 — enseigne OUVERT / FERMÉ interactive
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -4547,7 +4547,7 @@ function buildStoreExterior(){
   new THREE.MeshBasicMaterial({map:signTexture,side:THREE.DoubleSide,transparent:true,depthWrite:false}));
  signPanel.position.set(1.29,1.78,10.245);
  group.add(signPanel);
- storeEntranceSign={canvas:signCanvas,texture:signTexture,last:null};
+ storeEntranceSign={canvas:signCanvas,texture:signTexture,mesh:signPanel,last:null};
 
  for(const x of [-1.97,1.97]){
   part(x,1.38,10.10,.095,2.76,.19,trim);
@@ -7021,6 +7021,12 @@ function placeHeldArticle(){
  return true;
 }
 function interact(){
+ // Enseigne extérieure : E à proximité déclenche exactement la même action
+ // que le bouton d’ouverture ; ne modifie jamais directement shopOpen.
+ if(!held&&near(1.29,10.245,2.25)){
+  toggleEntranceSign();
+  return;
+ }
  if(held){
   const p=catalog.find(item=>item.id===held.id);
   if(p&&currentStorageKind()){
@@ -9795,6 +9801,32 @@ function updateCustomers(dt){
  }
 }
 const openButton=$("openShop");
+function toggleEntranceSign(){
+ if(paused||ageOverlay.style.display!=="none"||panel.style.display!=="none")return;
+ if(openButton.disabled){
+  toast(openButton.title||"Ouverture ou fermeture indisponible pour le moment");
+  return;
+ }
+ openButton.click();
+}
+// Clic direct sur l'enseigne 3D, sans créer de nouvelles collisions.
+const entranceSignRaycaster=new THREE.Raycaster();
+const entranceSignPointer=new THREE.Vector2();
+renderer.domElement.addEventListener("click",event=>{
+ if(!storeEntranceSign?.mesh||!canLookAround()||!near(1.29,10.245,2.75))return;
+ const rect=renderer.domElement.getBoundingClientRect();
+ if(!rect.width||!rect.height)return;
+ if(document.pointerLockElement===renderer.domElement){
+  entranceSignPointer.set(0,0);
+ }else{
+  entranceSignPointer.set(((event.clientX-rect.left)/rect.width)*2-1,-((event.clientY-rect.top)/rect.height)*2+1);
+ }
+ camera.updateMatrixWorld(true);
+ entranceSignRaycaster.setFromCamera(entranceSignPointer,camera);
+ if(entranceSignRaycaster.intersectObject(storeEntranceSign.mesh,false).length){
+  toggleEntranceSign();
+ }
+});
 let dayStarted=false,closing=false;
 function updateEntranceSign(){
  if(!storeEntranceSign||storeEntranceSign.last===shopOpen)return;
