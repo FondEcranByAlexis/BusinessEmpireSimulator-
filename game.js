@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.05 — interactions client étendues et conseils contextuels
+// Business Empire Simulator V0.17.10 — raccourci F de conversation client et indication contextuelle
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1648,7 +1648,9 @@ let paused=false;
 const menuButton=button(actions,"☰ Menu",showMainMenu);
 menuButton.style.background="#334155";
 button(actions,"Interagir",interact).style.background="#15803d";
-const talkCustomerButton=button(actions,"Parler au client",showCustomerConversation);
+const talkCustomerButton=button(actions,"Parler au client (F)",showCustomerConversation);
+talkCustomerButton.setAttribute("aria-keyshortcuts","F");
+talkCustomerButton.title="Touche F : parler au client le plus proche, ou répondre à sa demande";
 talkCustomerButton.style.background="#0369a1";
 talkCustomerButton.style.display="none";
 const handtruckButton=button(actions,"Utiliser le diable (T)",useHandtruck);
@@ -7008,6 +7010,11 @@ document.addEventListener("keydown",e=>{
  }
  if(!e.repeat&&panel.style.display==="none"&&checkoutUI.style.display==="none"&&!levelModalShowing){
   if(e.key?.toLowerCase()==="m"){e.preventDefault();showMainMenu();}
+  if(e.code==="KeyF"&&!paused&&canLookAround()){
+   e.preventDefault();
+   showCustomerConversation();
+   return;
+  }
   if(e.code==="KeyE"&&!paused&&(seatedAtCheckout||canLookAround())){e.preventDefault();interact();}
   if(e.code==="KeyR"&&held?.source==="box"&&canLookAround()){e.preventDefault();setCartonOpen(!cartonOpened());}
   if(e.code==="KeyT"&&canUseHandtruck()){e.preventDefault();useHandtruck();}
@@ -7611,7 +7618,7 @@ function updateCustomerHelp(c,dt){
  c.helpAsked=true;c.helpProduct=product.id;c.helpRequest=13;
  activeCustomerHelp=c;customerHelpCooldown=30;
  const message="Excusez-moi, pourriez-vous m’aider à trouver "+product.name+" ?";
- toast("Client : "+message+" · Approche-toi et touche « Répondre au client »");
+ toast("Client : "+message+" · Approche-toi et appuie sur F (ou « Répondre au client »)");
  customerVoice(c,"helpPlayer",[message],9);
  return true;
 }
@@ -9754,7 +9761,7 @@ function animate(){
  if(!paused&&ageOverlay.style.display==="none")updateDeliveryTruck(dt);
  handtruckButton.style.display=canUseHandtruck()?"block":"none";
  const nearbyCustomer=nearestTalkingCustomer();
- talkCustomerButton.textContent=nearbyCustomer?.helpRequest>0?"Répondre au client":"Parler au client";
+ talkCustomerButton.textContent=nearbyCustomer?.helpRequest>0?"Répondre au client (F)":"Parler au client (F)";
  talkCustomerButton.style.display=nearbyCustomer?"block":"none";
  checkoutRushButton.style.display=checkoutRush&&panel.style.display==="none"&&checkoutUI.style.display==="none"?"block":"none";
  surveillance.setDeskVisible(securityOpen());
@@ -9927,4 +9934,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.05 !");
+animate();toast("Business Empire Simulator V0.17.10 !");
