@@ -1,6 +1,6 @@
 // Accueil indépendant du gameplay — BES V0.17.65
 export function installStartScreen(config){
- const {hasSave,onContinue,onNewGame,getSettings,onGraphics,onVolume,onSensitivity,onFullscreen}=config;
+ const {hasSave,onShow,onContinue,onNewGame,getSettings,onGraphics,onVolume,onSensitivity,onFullscreen}=config;
  let existing=hasSave;
  const overlay=document.createElement("div");
  overlay.id="bes-start-screen";
@@ -50,6 +50,7 @@ export function installStartScreen(config){
  function help(){page("Commandes / Aide","ZQSD / WASD / flèches : avancer · Souris : regarder · E : interagir · F : parler aux clients · M : menu · Échap : libérer la souris.");add("← Retour",home,true);}
  function credits(){page("Crédits","BUSINESS EMPIRE SIMULATOR — développé pour FBA GAMES par FondEcranByAlexis.");add("← Retour",home,true);}
  function home(){
+  onShow?.();
   overlay.style.display="grid";page("Choisis ta partie",existing?"Sauvegarde disponible dans ce navigateur.":"Aucune ancienne sauvegarde détectée.");
   if(existing)add("▶ Continuer la partie",close);
   add("＋ Nouvelle partie",newGame);
