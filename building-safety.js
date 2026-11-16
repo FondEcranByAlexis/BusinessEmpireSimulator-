@@ -1,4 +1,4 @@
-// Business Empire Simulator V0.18.37 — corrections d'implantation des équipements de sécurité du bâtiment.
+// Business Empire Simulator V0.18.38 — corrections d'implantation des équipements de sécurité du bâtiment.
 // Accessoires visuels sans collisions : ils n'altèrent ni les chemins des employés,
 // ni les accès aux rayons, ni les points de livraison.
 export function installBuildingSafety({THREE,scene,camera,notify}){
@@ -6,7 +6,7 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
  const mat=(color,extra={})=>new THREE.MeshStandardMaterial({color,roughness:.72,...extra});
  const red=mat(0xc91f27),dark=mat(0x273449),metal=mat(0xcbd5e1,{metalness:.4,roughness:.4});
  const green=mat(0x087c42,{emissive:0x024b26,emissiveIntensity:.35});
- const glow=new THREE.MeshBasicMaterial({color:0x8dffc0});
+ const glow=new THREE.MeshBasicMaterial({color:0xcaffdf, toneMapped:false});
  const white=new THREE.MeshBasicMaterial({color:0xffffff});
  const items=[];
  function block(parent,x,y,z,w,h,d,material){
@@ -51,9 +51,17 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
  }
  function emergencyLight(x,z){
   const g=new THREE.Group();g.position.set(x,0,z);root.add(g);
-  block(g,0,4.68,0,.52,.17,.22,metal);
-  block(g,0,4.63,.12,.40,.09,.025,glow);
-  const marker=label(g,"SECOURS",.47,.11,"#166534");marker.position.set(0,4.39,.135);
+  // Bloc de secours visible depuis le sol : lentille lumineuse et éclairage local.
+  block(g,0,4.62,0,.78,.22,.34,metal);
+  block(g,0,4.49,.19,.65,.13,.045,glow);
+  for(const offset of [-.24,.24]){
+   const bulb=new THREE.Mesh(new THREE.SphereGeometry(.105,10,8),glow);
+   bulb.position.set(offset,4.43,.23);g.add(bulb);
+  }
+  const marker=label(g,"SECOURS",.64,.17,"#087c42");marker.position.set(0,4.20,.22);
+  // Pas d'ombre portée : éclairage léger sur téléphone comme sur PC.
+  const light=new THREE.PointLight(0xbaffdf,1.65,5.5,2);
+  light.position.set(0,4.32,.24);light.castShadow=false;g.add(light);
  }
  function evacuationPlan(x,z,rotation){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotation;root.add(g);
@@ -76,7 +84,10 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
  }
  function staffMark(x,z,rotation){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotation;root.add(g);
-  const s=label(g,"ACCÈS PERSONNEL",1.9,.36,"#1e3a8a");s.position.set(0,2.62,0);
+  // Suspendu dans l'ouverture de la salle de repos : pas derrière un mur.
+  const back=block(g,0,2.99,0,2.16,.44,.09,dark);
+  const s=label(g,"ACCÈS PERSONNEL",2.06,.35,"#1e3a8a");s.position.set(0,2.99,.065);
+  // Contraste constant, même lorsque les lumières du magasin sont éteintes.
   items.push({x,z,name:"Accès réservé au personnel",kind:"staff"});
  }
  // Placement en bordure de circulation. Aucun colliseur ajouté.
@@ -92,8 +103,8 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
  emergencyLight(12,9.3);emergencyLight(25.5,-22.5);
  // Mur de façade permanente côté surface de vente, hors paroi d’extension.
  evacuationPlan(-6.4,9.73,Math.PI);
- // Salle de repos : paroi à côté de son accès x=24, z≈-6, et non sous « ZONE STOCKAGE ».
- staffMark(24.27,-8.05,Math.PI/2);
+ // Salle de repos : au-dessus du passage x=24.16, z=-6, sous le panneau SALLE DE REPOS.
+ staffMark(24.35,-6,Math.PI/2);
  function nearby(maxDistance=1.65){
   let closest=null,best=maxDistance;
   for(const item of items){
