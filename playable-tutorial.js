@@ -1,6 +1,6 @@
-// Business Empire Simulator V0.17.90 — parcours d'initiation guidé dans le vrai magasin.
+// Business Empire Simulator V0.17.95 — parcours d'initiation guidé dans le vrai magasin.
 // Les étapes s'accomplissent avec des événements du jeu, jamais avec un bouton "Valider".
-export function createPlayableTutorial({getPosition,getHeading,getCartCount,isGameplayReady,onFinish}){
+export function createPlayableTutorial({getPosition,getHeading,getCartCount,getReserveTarget,isStoreOpen,isGameplayReady,onFinish}){
  const steps=[
   {title:"Premiers pas",instruction:"Déplace-toi de 3 mètres avec ZQSD / WASD ou les flèches.",event:"walk",hint:"Explore le magasin à ton rythme."},
   {title:"Menu principal",instruction:"Appuie sur M ou sur « ☰ Menu ».",event:"menu",hint:"Tous tes outils de gestion sont regroupés ici."},
@@ -14,7 +14,14 @@ export function createPlayableTutorial({getPosition,getHeading,getCartCount,isGa
   {title:"Inspecter la livraison",instruction:"Approche-toi du quai et ouvre « Zone livraison » avec E.",event:"dock",hint:"Vérifie les cartons reçus avant de les ranger."},
   {title:"Prendre un carton",instruction:"Dans la zone livraison, clique sur « Prendre 1 carton ».",event:"pickup",hint:"Le carton peut ensuite être rangé dans sa réserve correspondante."},
   {title:"Découvrir le recrutement",instruction:"Ouvre ÉQUIPE · Personnel → Recrutement et équipes.",event:"recruitment",hint:"Les postes se débloquent au fil des niveaux. Pas de recrutement obligatoire."},
-  {title:"Voir les demandes clients",instruction:"Ouvre MAGASIN · Gestion → Demandes des clients.",event:"requests",hint:"Tu pourras y suivre les produits demandés et les ruptures."}
+  {title:"Voir les demandes clients",instruction:"Ouvre MAGASIN · Gestion → Demandes des clients.",event:"requests",hint:"Tu pourras y suivre les produits demandés et les ruptures."},
+  {title:"Rejoindre la réserve",instruction:"Avec ton carton en main, suis la flèche jusqu’à la réserve correspondant à son produit.",event:"arrive",target:"reserve",hint:"Chaque type de produit possède sa propre zone de stockage."},
+  {title:"Ranger le carton",instruction:"Dans la bonne réserve, appuie sur E puis sur « Ranger la livraison ».",event:"store",hint:"Le carton doit réellement être enregistré dans la réserve."},
+  {title:"Reprendre un carton",instruction:"Dans la réserve, reprends un carton de produits avec « PRENDRE LE CARTON ».",event:"take",hint:"Tu vas apprendre à remplir les rayons."},
+  {title:"Remplir un rayon",instruction:"Va près du rayon du produit, ouvre le carton si nécessaire puis place au moins un article.",event:"restock",hint:"Suis les repères du rayon ; si celui-ci est déjà plein, choisis un autre produit."},
+  {title:"Ouvrir le supermarché",instruction:"Quand il est 8 h, utilise « Ouvrir le magasin ». Tu peux explorer en attendant.",event:"open",hint:"La première ouverture se fait à 8 h ; elle lance l’arrivée des clients."},
+  {title:"Rejoindre la caisse",instruction:"Suis la flèche jusqu’à la caisse principale.",event:"arrive",target:{x:6.5,z:6.5,radius:3.2},hint:"Installe-toi au poste de caisse pour accueillir le prochain client."},
+  {title:"Encaisser un client",instruction:"Scanne ses articles et termine un paiement par carte ou en espèces.",event:"sale",hint:"La première vente doit être réalisée par toi, pas par un employé."}
  ];
  const overlay=document.createElement("aside");
  overlay.id="bes-playable-tutorial";overlay.setAttribute("aria-label","Tutoriel interactif");
@@ -59,7 +66,10 @@ export function createPlayableTutorial({getPosition,getHeading,getCartCount,isGa
  }
  function updateArrow(){
   if(!active||step>=steps.length)return;
-  const target=steps[step].target;if(!target)return;
+  const setting=steps[step].target;
+  const target=setting==="reserve"?getReserveTarget():setting;
+  if(!target){arrow.style.display="none";return;}
+  arrow.style.display="flex";
   const p=getPosition();const dx=target.x-p.x,dz=target.z-p.z;
   const meters=Math.hypot(dx,dz);
   const desired=Math.atan2(-dx,-dz);
@@ -80,7 +90,9 @@ export function createPlayableTutorial({getPosition,getHeading,getCartCount,isGa
   const current=steps[step],p=getPosition();
   if(current.event==="cart"&&getCartCount()>0)notify("cart");
   if(current.event==="walk"&&startPosition&&Math.hypot(p.x-startPosition.x,p.z-startPosition.z)>=3)notify("walk");
-  if(current.target&&Math.hypot(p.x-current.target.x,p.z-current.target.z)<=current.target.radius)notify("arrive");
+  const target=current.target==="reserve"?getReserveTarget():current.target;
+  if(target&&Math.hypot(p.x-target.x,p.z-target.z)<=target.radius)notify("arrive");
+  if(current.event==="open"&&isStoreOpen())notify("open");
   updateArrow();
  }
  skip.addEventListener("click",()=>stop(false));
