@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.20 — consultation des capacités des réserves
+// Business Empire Simulator V0.16.25 — synthèse d'occupation et rafraîchissement manuel des réserves
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -819,6 +819,23 @@ function paragraph(t){
  const p=document.createElement("p");p.textContent=t;p.style.marginTop="12px";p.style.fontSize="13px";panel.appendChild(p);
 }
 // V0.16.05 — fenêtre consultative, sans changer les flux de commandes existants.
+// V0.16.25 — indicateurs calculés à la demande, sans toucher aux stocks ni aux livraisons.
+function showReserveCapacityOverview(){
+ openPanel("CAPACITÉS DES RÉSERVES");
+ paragraph("Places occupées, livraisons attendues et places disponibles par zone.");
+ const kinds=STORAGE_KINDS.filter(kind=>storageLimit(kind)>0);
+ if(!kinds.length){
+  paragraph("Aucune réserve accessible pour le moment.");
+ }else{
+  const capacity=kinds.reduce((sum,kind)=>sum+stockCapacityStatus(kind,false).limit,0);
+  const reserved=kinds.reduce((sum,kind)=>sum+stockCapacityStatus(kind,false).used,0);
+  const percentage=capacity>0?Math.round(reserved/capacity*100):0;
+  paragraph("Occupation globale : "+reserved+" / "+capacity+" emplacements ("+percentage+" %), livraisons incluses.");
+ }
+ renderStockCapacity(panel,false);
+ button(panel,"Actualiser les capacités",showReserveCapacityOverview);
+ button(panel,"Retour aux alertes de stock",showStockOverview);
+}
 function showStockOverview(){
  openPanel("ÉTAT DES STOCKS");
  const products=unlockedProducts().map(p=>({product:p,status:stockAlert(p)}));
@@ -827,13 +844,8 @@ function showStockOverview(){
  const ruptures=urgent.filter(item=>item.status==="RUPTURE").length;
  const low=urgent.length-ruptures;
  paragraph("Ruptures : "+ruptures+" · Stocks faibles : "+low+" · Produits débloqués : "+products.length);
- // V0.16.20 — panneau consultatif basé sur la fonction de capacité existante.
- button(panel,"Consulter les capacités des réserves",()=>{
-  openPanel("CAPACITÉS DES RÉSERVES");
-  paragraph("Places occupées, livraisons attendues et places disponibles par zone.");
-  renderStockCapacity(panel,false);
-  button(panel,"Retour aux alertes de stock",showStockOverview);
- });
+ // V0.16.25 — accès au récapitulatif sans modifier les calculs de capacité.
+ button(panel,"Consulter les capacités des réserves",showReserveCapacityOverview);
  // V0.16.15 — filtres d'affichage uniquement : aucune modification de stock.
  const filters=document.createElement("div");
  Object.assign(filters.style,{display:"flex",flexWrap:"wrap",gap:"5px",marginTop:"10px"});
@@ -9322,4 +9334,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.20 !");
+animate();toast("Business Empire Simulator V0.16.25 !");
