@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.86 — réactions à la qualité du service
+// Business Empire Simulator V0.15.87 — personnalités et dialogues variés des clients
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6768,6 +6768,8 @@ function showCustomerConversationChoices(c){
  c.playerConversation=true;
  openPanel("DISCUSSION — CLIENT");
  paragraph("Parle au client en sélectionnant une question. Il répond avec la voix française du jeu.");
+ const temperamentLabel={patient:"Patient",pressé:"Pressé",bavard:"Bavard",exigeant:"Exigeant",sympathique:"Sympathique"};
+ paragraph("Attitude du client : "+(temperamentLabel[c.temperament]||"Neutre"));
  const product=c.helpProduct&&catalog.find(p=>p.id===c.helpProduct)||
   c.productId&&catalog.find(p=>p.id===c.productId)||
   c.route.slice(c.waypoint).map(p=>catalog.find(item=>item.id===p.shop)).find(Boolean);
@@ -6782,8 +6784,17 @@ function showCustomerConversationChoices(c){
   button(panel,"Continuer",()=>showCustomerConversationChoices(c));
   button(panel,"Terminer",()=>{c.playerConversation=false;panel.style.display="none";});
  };
- button(panel,"Bonjour, besoin d’aide ?",()=>answer(product?"Bonjour ! Je cherche "+product.name+".":"Bonjour ! Je regarde les articles, merci."));
- button(panel,"Vous cherchez un produit ?",()=>answer(product?"Oui, je cherche "+product.name+".":"Pas de produit précis, merci."));
+ button(panel,"Bonjour, besoin d’aide ?",()=>{
+  const intro=c.temperament==="bavard"?"Bonjour ! C’est gentil de demander. ":
+   c.temperament==="pressé"?"Bonjour, je suis un peu pressé. ":
+   c.temperament==="exigeant"?"Bonjour, j’espère trouver rapidement ce qu’il me faut. ":
+   c.temperament==="sympathique"?"Bonjour ! Merci, c’est très aimable. ":"Bonjour. ";
+  answer(intro+(product?"Je cherche "+product.name+".":"Je regarde les articles, merci."));
+ });
+ button(panel,"Vous cherchez un produit ?",()=>answer(
+  product?(c.temperament==="pressé"?"Oui, rapidement si possible : ":"Oui, je cherche ")+product.name+".":
+   c.temperament==="bavard"?"Je prends mon temps pour découvrir les rayons, merci !":"Pas de produit précis, merci."
+ ));
  if(product)button(panel,"Indiquer le rayon",()=>{
   const stocked=(state.inventory[product.id]?.shelf||0)>0;
   answer(stocked?
@@ -6899,6 +6910,9 @@ function makeCustomer(){
   orderedChoices.push(chosen);
   const [x,z]=customerShelfPosition(chosen);previousShelf={x,z};
  }
+ // V0.15.87 : tempérament uniquement visuel et vocal, sans impact économique.
+ const temperaments=["patient","pressé","bavard","exigeant","sympathique"];
+ const temperament=temperaments[Math.floor(Math.random()*temperaments.length)];
  const speed=1.35+Math.random()*.42;
  // Les clients arrivent depuis des points aléatoires de la ville et rejoignent le magasin à pied.
  const citySpawnX=(Math.random()-.5)*12;
@@ -6921,7 +6935,7 @@ function makeCustomer(){
  customers.push({
   group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
   speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,paymentCard,paymentBills,inspectedProduct,paymentPresented:false,priceTolerance:1.12+Math.random()*.33,
-  visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,walkAnimationBlend:0,motionSpeed:0,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
+  temperament,visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,walkAnimationBlend:0,motionSpeed:0,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
   stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:citySpawnX,lastNavZ:citySpawnZ
  });
 }
@@ -7001,18 +7015,31 @@ function updateCustomerVisual(c,dt){
   c.armLeft.rotation.x=.06*Math.sin(c.visualClock*(1.3+c.personality));
   c.armRight.rotation.x=-.10+.04*Math.sin(c.visualClock*.9+c.glanceOffset);
   // Attente prolongée : observation des autres files et légère impatience.
+  const temperament=c.temperament;
   const impatient=(c.phase==="queue"||c.phase==="auxQueue")&&c.queueElapsed>13;
   if(impatient){
    c.armLeft.rotation.x+=.16*Math.sin(c.visualClock*1.5+c.glanceOffset);
+   c.armRight.rotation.x+=temperament==="patient"?.04:temperament==="pressé"?.25:.12;
+  }
+  // Gestes reconnaissables sans modifier le temps réel en caisse.
+  if(temperament==="pressé"){
+   c.armRight.rotation.x+=.10*Math.sin(c.visualClock*3.2);
+  }else if(temperament==="patient"){
+   c.armLeft.rotation.x*=.5;c.armRight.rotation.x*=.6;
+  }else if(temperament==="bavard"){
+   c.armLeft.rotation.x+=.16*Math.sin(c.visualClock*1.8+c.glanceOffset);
+  }else if(temperament==="exigeant"){
    c.armRight.rotation.x+=.12;
+  }else if(temperament==="sympathique"){
+   c.armLeft.rotation.x+=.05*Math.sin(c.visualClock*1.8);
   }
   // Pauses asymétriques, regard vers l'avant puis sur le côté, respiration légère.
   const idleCycle=c.visualClock*(.37+c.personality*.16)+c.glanceOffset;
   const glance=Math.sin(idleCycle)*Math.pow(Math.abs(Math.sin(idleCycle)),2);
   c.group.rotation.z=.018*Math.sin(idleCycle*.73);
   c.group.rotation.x=.012*Math.sin(idleCycle*.53);
-  c.head.rotation.y=glance*.42;
-  c.head.rotation.x=.055*Math.sin(idleCycle*.81);
+  c.head.rotation.y=glance*(temperament==="patient"?.20:temperament==="pressé"?.60:.42);
+  c.head.rotation.x=(temperament==="exigeant"?-.08:0)+.055*Math.sin(idleCycle*.81);
   c.group.position.y=.003*Math.sin(idleCycle*1.3);
  }else{
   // Mélange progressif de la marche et du repos pour supprimer les mouvements saccadés.
@@ -7026,6 +7053,8 @@ function updateCustomerVisual(c,dt){
   c.r.rotation.x=-Math.sin(phase+.13)*(.31+c.personality*.11)*intensity;
   c.armLeft.rotation.x=(-halfStride*.20-.035)*intensity;
   c.armRight.rotation.x=c.basketGroup.visible?.30:(stride*.19*intensity);
+  if(c.temperament==="bavard"&&c.phase==="shopping")c.head.rotation.y+=.11*Math.sin(c.visualClock*2+c.glanceOffset);
+  if(c.temperament==="pressé"&&c.phase==="shopping")c.head.rotation.y+=.14*Math.sin(c.visualClock*3.1+c.glanceOffset);
   c.group.rotation.z=.013*Math.sin(phase*.48)*intensity;
   c.group.rotation.x=.009*Math.sin(phase*.51)*intensity;
   c.head.rotation.x=.025*Math.sin(phase*.44)*intensity;
@@ -8260,7 +8289,16 @@ function updateCustomers(dt){
   if(inLine||c.phase==="checkout"||c.phase==="auxCheckout"){
    c.queueElapsed+=dt;
    if(!inLine)c.checkoutElapsed+=dt;
-   if(inLine&&c.queueElapsed>13)customerVoice(c,"queueWait",["J’espère que la file va avancer.","Il y a du monde à cette caisse !","C’est un peu long aujourd’hui."],8);
+   if(inLine&&c.queueElapsed>13){
+    const lines={
+     patient:["Ça va, je peux patienter.","Je vais attendre tranquillement."],
+     pressé:["J’espère que ça va avancer vite !","Je suis vraiment pressé aujourd’hui !"],
+     bavard:["Il y a du monde aujourd’hui, vous ne trouvez pas ?","Quelle journée animée dans ce magasin !"],
+     exigeant:["Cette file devrait avancer plus rapidement.","J’espère que le service sera efficace."],
+     sympathique:["Bon courage à l’équipe !","Pas de souci, je vais patienter."]
+    };
+    customerVoice(c,"queueWait",lines[c.temperament]||["J’espère que la file va avancer."],8);
+   }
    if(!c.waitPenalty&&(inLine?c.queueElapsed>25:c.checkoutElapsed>40)){
     c.waitPenalty=true;customerComplaint(c,"wait",inLine?"C’est long, cette file n’avance pas !":"Ça fait un moment que j’attends pour payer.",-3);
    }
@@ -8888,4 +8926,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.86 !");
+animate();toast("Business Empire Simulator V0.15.87 !");
