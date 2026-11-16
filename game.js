@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.80 — analyse financière comparative et navigation
+// Business Empire Simulator V0.16.85 — ratios financiers et trésorerie prévisionnelle
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1828,7 +1828,25 @@ function showCurrentDayFinance(){
   const costShare=amount=>(amount/costTotal*100).toLocaleString("fr-FR",{maximumFractionDigits:1})+" %";
   paragraph("Répartition des dépenses : fournisseurs "+costShare(supplies)+
    " · Charges "+costShare(charges)+" · Salaires payés "+costShare(wages));
+  // V0.16.85 — barres de dépenses, non interactives et sans écriture dans la sauvegarde.
+  const chart=document.createElement("section");
+  Object.assign(chart.style,{padding:"10px",background:"#142336",borderRadius:"9px",margin:"10px 0"});
+  for(const [label,value,color] of [["Fournisseurs",supplies,"#60a5fa"],["Charges",charges,"#fbbf24"],["Salaires",wages,"#a78bfa"]]){
+   const line=document.createElement("p");
+   line.textContent=label+" — "+euro(value)+" ("+costShare(value)+")";
+   Object.assign(line.style,{fontSize:"12px",margin:"8px 0 5px"});
+   const track=document.createElement("div");
+   Object.assign(track.style,{background:"#334155",height:"9px",borderRadius:"6px",overflow:"hidden"});
+   const fill=document.createElement("div");
+   Object.assign(fill.style,{height:"100%",width:Math.max(0,Math.min(100,value/costTotal*100))+"%",background:color});
+   track.appendChild(fill);chart.append(line,track);
+  }
+  panel.appendChild(chart);
  }
+ paragraph("Dépenses comptabilisées / chiffre d'affaires : "+
+  (revenue>0?(costTotal/revenue*100).toLocaleString("fr-FR",{maximumFractionDigits:1})+" %":"— (aucune vente enregistrée)"));
+ paragraph("Marge simplifiée sur le chiffre d'affaires : "+
+  (revenue>0?(result/revenue*100).toLocaleString("fr-FR",{maximumFractionDigits:1})+" %":"— (aucune vente enregistrée)"));
  if(result<0)paragraph("Écart indicatif pour atteindre un résultat nul : "+euro(-result)+" de ventes supplémentaires, à dépenses inchangées.");
  else paragraph("Résultat simplifié non déficitaire à cet instant.");
  if(state.lastDailyReport){
@@ -1839,6 +1857,9 @@ function showCurrentDayFinance(){
    " · Résultat "+euro(result-(previous.revenue-previous.supplies-previous.charges-previous.wagePayments))+
    " d'écart (journée actuelle incomplète).");
  }
+ const unpaidWages=Math.max(0,(state.workerWageDue||0)+(state.stockerWageDue||0));
+ paragraph("Salaires dus : "+euro(unpaidWages)+" · Trésorerie après paiement hypothétique : "+
+  euro(state.money-unpaidWages));
  paragraph("Variation de trésorerie depuis le début de journée : "+euro(state.money-baseline.money));
  paragraph("Satisfaction : "+baseline.satisfaction+" % au début · "+state.satisfaction+" % actuellement.");
  paragraph("Ces données sont provisoires. Le résultat ne valorise pas le stock restant ni les salaires dus.");
@@ -1911,6 +1932,8 @@ function showComputer(){
  if(activeRegisters().length)button(panel,"Caisses supplémentaires",showAuxiliaryRegisters);
  button(panel,"Fournisseurs — commander des cartons",showComputerOrders);
  button(panel,"Stocks du magasin",showStocks);
+ button(panel,"Finances du jour",showCurrentDayFinance);
+ button(panel,"Indicateurs de caisse",showCheckoutIndicators);
  button(panel,"Bilan financier",showFinance);
  button(panel,"Améliorations",showUpgrades);
  button(panel,"Progression des niveaux",showProgression);
@@ -9687,4 +9710,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.80 !");
+animate();toast("Business Empire Simulator V0.16.85 !");
