@@ -1,10 +1,11 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
+import { installStartScreen } from "./start-screen.js?v=0.17.65";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.60 — suivi manuel des demandes : notes, ruptures et réouverture
+// Business Empire Simulator V0.17.65 — écran d’accueil
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -19,6 +20,8 @@ const DEV_MODE=DEV_AUTHORIZED&&localStorage.getItem("fba-dev-enabled")==="true";
 if(DEV_MODE)document.body.classList.add("fba-dev-layout");
 if(DEV_ACTIVATION==="activer")history.replaceState(null,"",location.pathname);
 const SAVE=DEV_MODE?DEV_SAVE:NORMAL_SAVE;
+let startHasSavedGame=false;
+try{startHasSavedGame=!!JSON.parse(localStorage.getItem(SAVE))?.inventory;}catch(error){}
 const PLAYTIME_KEY="fba-dev-playtime-v1";
 let playtime={ms:0,running:false,splits:[],startLevel:1};
 try{const d=JSON.parse(localStorage.getItem(PLAYTIME_KEY));if(d&&Number.isFinite(d.ms))playtime={ms:Math.max(0,d.ms),running:false,splits:Array.isArray(d.splits)?d.splits:[],startLevel:d.startLevel||1};}catch(e){}
@@ -1900,6 +1903,7 @@ function showDevelopmentProgress(){
 }
 function showMainMenu(){
  openPanel("☰ Menu principal");
+ button(panel,"⌂ Retour à l’accueil",()=>startMenu.show());
  paragraph("Choisis une rubrique pour afficher seulement les actions utiles.");
  const sections=[
   ["JOUER · Reprendre",()=>panel.style.display="none"],
