@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.90 — groupes de clients accompagnés
+// Business Empire Simulator V0.15.91 — réactions et listes de courses des groupes
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6709,6 +6709,41 @@ const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTime
 // V0.15.90 : accompagnants visuels. Un seul panier et une seule transaction
 // par groupe. L'accompagnant suit la trace traversable du client principal.
 let companionsDialogueCooldown=15;
+// V0.15.91 : dialogues et gestes de groupe, sans modification des achats.
+function reactCompanion(c,event,product=null){
+ const mate=c.companion;
+ if(!mate||mate.reactions?.has(event))return;
+ mate.reactions??=new Set();mate.reactions.add(event);
+ mate.reactionTimer=2.4;mate.reactionKind=event;
+ const remaining=c.route.slice(c.waypoint).filter(point=>point.shop).length;
+ let first,second;
+ if(event==="list"){
+  first=mate.relation==="famille"?"Il nous reste encore des produits sur la liste.":
+   mate.relation==="amis"?"On vérifie notre liste avant de continuer ?":"On n’oublie rien sur la liste ?";
+  second=remaining>1?"Oui, il nous reste "+remaining+" rayons à visiter.":"Oui, on a presque terminé.";
+ }else if(event==="choice"){
+  first=mate.relation==="couple"?"Bonne idée, on prend "+product.name+".":
+   mate.relation==="amis"?"Pas mal, "+product.name+", ça me va !":
+   "Parfait, on avait besoin de "+product.name+".";
+  second=c.temperament==="exigeant"?"J’ai bien vérifié, celui-ci convient.":
+   c.temperament==="pressé"?"Très bien, passons à la suite.":"Oui, je le mets dans le panier.";
+ }else if(event==="finished"){
+  first=c.missingProducts?"On n’a pas tout trouvé, mais on peut passer en caisse.":
+   mate.relation==="famille"?"C’est bon, on a terminé la liste !":"Voilà, on a terminé nos achats !";
+  second=c.temperament==="pressé"?"Oui, direction la caisse !":"Super, on passe en caisse ensemble.";
+ }else return;
+ const d=Math.hypot(camera.position.x-c.group.position.x,camera.position.z-c.group.position.z);
+ const synth=window.speechSynthesis,Utterance=window.SpeechSynthesisUtterance,now=performance.now();
+ if(companionsDialogueCooldown>0||d>8||!audioSettings.dialogue||!audioSettings.volume||
+    !synth||!Utterance||document.hidden||synth.speaking||synth.pending||now-lastDialogue<6000)return;
+ const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith("fr")&&v.localService);
+ for(const [i,msg] of [first,second].entries()){
+  const line=new Utterance(msg);line.lang="fr-FR";if(voice)line.voice=voice;
+  line.volume=audioSettings.volume*Math.max(.18,.52*(1-d/10));
+  line.rate=i?1.02:.96;line.pitch=i?1.04:.94;synth.speak(line);
+ }
+ companionsDialogueCooldown=19;lastDialogue=now;
+}
 function updateCustomerCompanions(dt){
  companionsDialogueCooldown=Math.max(0,companionsDialogueCooldown-dt);
  for(const c of customers){
@@ -6747,6 +6782,12 @@ function updateCustomerCompanions(dt){
   companion.arms[0].rotation.x=moving?-stride*.16:0;
   companion.arms[1].rotation.x=moving?stride*.16:0;
   companion.group.position.y=moving?Math.abs(stride)*.006:0;
+  if(companion.reactionTimer>0){
+   companion.reactionTimer=Math.max(0,companion.reactionTimer-dt);
+   const strength=Math.min(1,companion.reactionTimer/.4);
+   companion.arms[0].rotation.x+=(companion.reactionKind==="choice"?.32:.16)*strength;
+   companion.arms[1].rotation.x+=(companion.reactionKind==="finished"?.28:.11)*strength;
+  }
   // Un commentaire spontané au rayon, sans immobiliser les deux personnages.
   if(c.phase==="choosing"&&!companion.talked&&companionsDialogueCooldown<=0&&
     dist<2.25&&c.group.position.z<10&&Math.random()<dt*.7){
@@ -8349,6 +8390,7 @@ function sendToQueue(c){
  if(c.phase==="waitingRegister"||c.phase==="approachingQueue"||c.phase==="queue"||c.phase==="checkout"||c.phase==="auxQueue"||c.phase==="auxCheckout")return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(count===0){sendToExit(c);return;}
+ reactCompanion(c,"finished");
  // Fin des courses : bref geste avant le passage en caisse.
  if(!c.shoppingFinishedExpression){
   c.shoppingFinishedExpression=true;c.finishedShoppingTimer=2;
@@ -8507,6 +8549,7 @@ function updateCustomers(dt){
      c.timer=1.1+c.personality*1.5+Math.random()*2.1;
      c.selectionDuration=c.timer;
      c.productId=t.shop;
+     if(c.companion&&c.waypoint<c.route.length-1)reactCompanion(c,"list");
      maybeCustomerAsksEmployee(c);
     }
     else{
@@ -8542,6 +8585,7 @@ function updateCustomers(dt){
       }
       a.shelf-=quantity;c.basket[c.productId]=(c.basket[c.productId]||0)+quantity;
       c.prices[c.productId]=a.price;c.total+=quantity*a.price;sync();
+      if(product)reactCompanion(c,"choice",product);
      }else{
       c.missingProducts++;
       customerComplaint(c,"stock","Je ne trouve plus de "+product.name.toLowerCase()+".",-2);
@@ -9122,4 +9166,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.90 !");
+animate();toast("Business Empire Simulator V0.15.91 !");
