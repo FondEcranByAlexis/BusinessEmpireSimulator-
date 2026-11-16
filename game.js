@@ -1,6 +1,6 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.18.00";
-import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.00";
+import { installStartScreen } from "./start-screen.js?v=0.18.05";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.05";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
