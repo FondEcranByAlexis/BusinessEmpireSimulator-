@@ -496,3 +496,44 @@ body.fba-dev-layout #actions{top:64px}
 @media(max-width:700px),(max-height:550px){
  #bes-mission-tracker .bes-career-heading{font-size:9px;margin-top:5px;padding-top:5px}
 }
+
+/* BES V0.18.30 — HUD adaptatif, zones tactiles non superposées */
+#bes-quick-toggle{background:#1e40af!important;border:1px solid #93c5fd;font-weight:800}
+#bes-quick-items{display:flex;flex-direction:column;gap:6px}
+#bes-target-label{display:none;position:fixed;left:50%;top:calc(50% + 27px);transform:translateX(-50%);z-index:11;max-width:42vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;background:#0f172ade;border:1px solid #facc15;padding:5px 9px;border-radius:7px;color:#fde68a;font:700 11px Arial,sans-serif}
+#crosshair.bes-interactive{color:#facc15;text-shadow:0 0 8px #facc15}
+#bes-mobile-help{display:none;position:fixed;bottom:8px;left:50%;transform:translateX(-50%);color:#cbd5e1;background:#0f172a99;border-radius:5px;padding:3px 8px;font:10px Arial;pointer-events:none;z-index:8}
+@media(pointer:coarse){
+  #desktopControls{display:none!important}
+  #controls{left:max(8px,env(safe-area-inset-left))!important;right:auto!important;bottom:max(9px,env(safe-area-inset-bottom))!important;width:auto!important}
+  #controls .hint{display:none!important}
+  #joystick{width:clamp(74px,19vh,112px)!important;height:clamp(74px,19vh,112px)!important}
+  #hud{left:max(6px,env(safe-area-inset-left))!important;top:5px!important;padding:6px 8px!important;max-width:min(170px,25vw)!important;max-height:43vh;overflow:hidden}
+  #hud h1{font-size:11px!important;letter-spacing:0!important}
+  #hud .stats{font-size:10px!important;gap:2px!important;margin-top:4px!important}
+  #hud #stockAlertDetails{padding:4px!important;font-size:9px!important;min-height:24px!important}
+  #hud #pointsHud{font-size:9px!important}
+  #actions{position:fixed!important;top:6px!important;right:max(6px,env(safe-area-inset-right))!important;bottom:auto!important;display:block!important;max-width:clamp(90px,17vw,140px)!important;z-index:20}
+  #actions #bes-quick-toggle{min-height:39px;padding:6px 9px!important;font-size:11px!important}
+  #bes-quick-items{display:none!important;position:absolute;top:44px;right:0;background:#0f172af2;border:1px solid #64748b;border-radius:10px;padding:6px;width:min(185px,34vw);max-height:60vh;overflow:auto}
+  #bes-quick-items.is-open{display:flex!important}
+  #bes-quick-items button{font-size:11px!important;padding:8px 6px!important;min-height:38px}
+  #bes-mobile-help{display:block}
+  #bes-mission-tracker{display:none!important}
+  #fullscreenLandscape{right:6px!important;bottom:5px!important;font-size:9px!important;padding:5px!important}
+  #satisfactionHud{max-width:clamp(110px,23vw,190px)!important;font-size:10px!important;pointer-events:none}
+  #bes-target-label{max-width:34vw}
+}
+@media(pointer:coarse) and (orientation:landscape){
+  #hud{max-height:57vh}
+  #bes-mobile-help{display:none}
+  #actions{right:max(5px,env(safe-area-inset-right))!important}
+  #constructionHud{top:42px!important}
+}
+@media(pointer:coarse) and (max-height:420px){
+  #hud .stock-alert-line{display:none}
+  #hud #pointsHud{margin-top:2px!important}
+  #hud{max-height:50vh}
+}
+
+@media(pointer:coarse){#bes-action-dock>button{min-height:39px;padding:8px 5px!important;font-size:10px!important;margin-top:5px!important}#bes-action-dock>button:not(#bes-context-action):not(:first-child){display:none!important}#bes-context-action{background:#15803d!important;min-height:48px!important}#seatButton{right:clamp(115px,24vw,180px)!important;bottom:max(8px,env(safe-area-inset-bottom))!important;max-width:110px;padding:7px!important;font-size:10px!important}}
