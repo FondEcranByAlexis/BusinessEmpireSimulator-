@@ -53,11 +53,6 @@ export function installStartScreen(config){
   add("Confirmer le remplacement",()=>onSelectSlot(slot.id,true,true));
   add("Annuler",()=>showSlots(true),true);
  }
- function oldNewGameUnused(){
-  page("Confirmer la nouvelle partie","Attention : la sauvegarde actuelle sera remplacée. Cette opération est irréversible.");
-  add("Confirmer · remplacer ma partie",()=>{onNewGame(true);});
-  add("Annuler",home,true);
- }
  function slider(label,value,cb){
   const wrapper=document.createElement("label");wrapper.style.cssText="display:block;text-align:left;font-size:13px;margin:12px 0";
   const labelText=document.createElement("span");
