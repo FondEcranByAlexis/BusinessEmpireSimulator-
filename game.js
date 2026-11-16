@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.90 — suivi estimatif des chantiers du développement
+// Business Empire Simulator V0.16.95 — filtres, priorisation et feuille de route des chantiers
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1734,32 +1734,97 @@ const BES_DEVELOPMENT_WORKSTREAMS=[
  ["Interface et ergonomie",80,"Améliorer la lisibilité et les parcours de navigation"],
  ["Tests et optimisation PC",45,"Tester les performances, sauvegardes et longues sessions"]
 ];
+// V0.16.95 — affichage uniquement. Aucun pourcentage du référentiel n'est augmenté.
+let developmentView={filter:"all",sort:"low",search:""};
 function showDevelopmentProgress(){
  openPanel("FBA GAMES — AVANCEMENT DU DÉVELOPPEMENT");
- paragraph("Business Empire Simulator V0.16.90 · Objectif : version PC 1.0, niveau 100.");
- paragraph("Pourcentages indicatifs de planification, définis par chantier. Ils ne mesurent pas automatiquement le code terminé et ne remplacent pas les tests validés.");
+ paragraph("Business Empire Simulator V0.16.95 · Objectif : version PC 1.0, niveau 100.");
+ paragraph("Estimations de planification, pas des mesures automatiques ni des résultats QA.");
  const overall=Math.round(BES_DEVELOPMENT_WORKSTREAMS.reduce((sum,item)=>sum+item[1],0)/BES_DEVELOPMENT_WORKSTREAMS.length);
- paragraph("Avancement général estimé (moyenne non pondérée) : "+overall+" %.");
- paragraph("Dernière base validée par les tests : V0.16.85 — 11/11 points réussis.");
- for(const [name,progress,next] of BES_DEVELOPMENT_WORKSTREAMS){
-  const card=document.createElement("section");
-  Object.assign(card.style,{padding:"11px",marginTop:"10px",borderRadius:"9px",background:"#142336",border:"1px solid #334155"});
-  const heading=document.createElement("div");
-  Object.assign(heading.style,{display:"flex",justifyContent:"space-between",gap:"10px",fontSize:"12px",fontWeight:"bold"});
-  const title=document.createElement("span");title.textContent=name;
-  const percentage=document.createElement("span");percentage.textContent=progress+" %";
-  heading.append(title,percentage);
-  const track=document.createElement("div");
-  Object.assign(track.style,{marginTop:"8px",height:"10px",background:"#334155",borderRadius:"6px",overflow:"hidden"});
-  const fill=document.createElement("div");
-  Object.assign(fill.style,{height:"100%",width:progress+"%",background:"#38bdf8"});
-  track.appendChild(fill);
-  const remaining=document.createElement("p");
-  remaining.textContent="À poursuivre : "+next;
-  Object.assign(remaining.style,{fontSize:"11px",margin:"7px 0 0",color:"#cbd5e1",lineHeight:"1.5"});
-  card.append(heading,track,remaining);panel.appendChild(card);
+ paragraph("Avancement global estimé (moyenne non pondérée) : "+overall+" %. Aucun pourcentage modifié depuis V0.16.90.");
+ paragraph("Dernière base validée : V0.16.90 — 7/7 tests réussis.");
+ const priorities=[...BES_DEVELOPMENT_WORKSTREAMS].sort((a,b)=>a[1]-b[1]).slice(0,3);
+ const focus=document.createElement("section");
+ Object.assign(focus.style,{padding:"11px",margin:"12px 0",background:"#17263c",border:"1px solid #64748b",borderRadius:"9px"});
+ const headline=document.createElement("strong");
+ headline.textContent="Chantiers les moins avancés (indicatif)";
+ focus.appendChild(headline);
+ for(const [name,pct,next] of priorities){
+  const entry=document.createElement("p");
+  entry.textContent=name+" — "+pct+" % · "+next;
+  Object.assign(entry.style,{fontSize:"12px",lineHeight:"1.5",margin:"8px 0 0"});
+  focus.appendChild(entry);
  }
- paragraph("Ces estimations sont un état de travail daté de V0.16.90. Elles seront réévaluées lors des prochains jalons, sans augmentation automatique à chaque version.");
+ panel.appendChild(focus);
+ const query=document.createElement("input");query.type="search";
+ query.placeholder="Rechercher un chantier";query.value=developmentView.search;
+ Object.assign(query.style,{display:"block",width:"100%",padding:"10px",margin:"10px 0",
+  background:"#142336",color:"#fff",border:"1px solid #64748b",borderRadius:"7px"});
+ panel.appendChild(query);
+ const selectors=document.createElement("div");
+ Object.assign(selectors.style,{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:"7px"});
+ panel.appendChild(selectors);
+ function makeSelector(choices,current,callback){
+  const select=document.createElement("select");
+  Object.assign(select.style,{width:"100%",minWidth:"0",padding:"8px",color:"#fff",
+   background:"#142336",border:"1px solid #64748b",borderRadius:"7px"});
+  for(const [value,label] of choices){
+   const option=document.createElement("option");option.value=value;option.textContent=label;select.appendChild(option);
+  }
+  select.value=current;select.addEventListener("change",()=>callback(select.value));
+  selectors.appendChild(select);return select;
+ }
+ const filter=makeSelector([["all","Tous les chantiers"],["low","Moins de 70 %"],
+  ["middle","De 70 à 84 %"],["high","85 % et plus"]],developmentView.filter,v=>{developmentView.filter=v;draw();});
+ filter.setAttribute("aria-label","Filtrer les chantiers par avancement");
+ const sort=makeSelector([["low","Moins avancés d'abord"],["high","Plus avancés d'abord"],
+  ["name","Nom A–Z"]],developmentView.sort,v=>{developmentView.sort=v;draw();});
+ sort.setAttribute("aria-label","Trier les chantiers");
+ const list=document.createElement("div");panel.appendChild(list);
+ query.addEventListener("input",()=>{developmentView.search=query.value;draw();});
+ function draw(){
+  list.replaceChildren();
+  const selected=BES_DEVELOPMENT_WORKSTREAMS.filter(([name,pct])=>
+   name.toLocaleLowerCase("fr").includes(developmentView.search.trim().toLocaleLowerCase("fr"))&&
+   (developmentView.filter==="all"||
+    developmentView.filter==="low"&&pct<70||
+    developmentView.filter==="middle"&&pct>=70&&pct<85||
+    developmentView.filter==="high"&&pct>=85));
+  selected.sort((a,b)=>developmentView.sort==="name"?a[0].localeCompare(b[0],"fr"):
+   developmentView.sort==="high"?b[1]-a[1]||a[0].localeCompare(b[0],"fr"):
+   a[1]-b[1]||a[0].localeCompare(b[0],"fr"));
+  const summary=document.createElement("p");
+  summary.textContent=selected.length+" chantier(s) affiché(s) sur "+BES_DEVELOPMENT_WORKSTREAMS.length+".";
+  Object.assign(summary.style,{fontSize:"12px"});list.appendChild(summary);
+  if(!selected.length){
+   const empty=document.createElement("p");empty.textContent="Aucun chantier ne correspond aux filtres.";list.appendChild(empty);
+  }
+  for(const [name,progress,next] of selected){
+   const card=document.createElement("section");
+   Object.assign(card.style,{padding:"11px",marginTop:"10px",borderRadius:"9px",
+    background:"#142336",border:"1px solid #334155"});
+   const heading=document.createElement("div");
+   Object.assign(heading.style,{display:"flex",justifyContent:"space-between",gap:"10px",
+    fontSize:"12px",fontWeight:"bold"});
+   const title=document.createElement("span");title.textContent=name;
+   const percentage=document.createElement("span");percentage.textContent=progress+" %";
+   heading.append(title,percentage);
+   const track=document.createElement("div");
+   Object.assign(track.style,{marginTop:"8px",height:"10px",background:"#334155",
+    borderRadius:"6px",overflow:"hidden"});
+   const fill=document.createElement("div");
+   Object.assign(fill.style,{height:"100%",width:progress+"%",background:"#38bdf8"});
+   track.appendChild(fill);
+   const remaining=document.createElement("p");remaining.textContent="À poursuivre : "+next;
+   Object.assign(remaining.style,{fontSize:"11px",margin:"7px 0 0",color:"#cbd5e1",lineHeight:"1.5"});
+   card.append(heading,track,remaining);list.appendChild(card);
+  }
+ }
+ draw();
+ button(panel,"Réinitialiser les filtres",()=>{
+  developmentView={filter:"all",sort:"low",search:""};showDevelopmentProgress();
+ });
+ paragraph("Les priorités présentées découlent seulement des estimations actuelles. Elles ne définissent pas automatiquement l'ordre des prochaines versions.");
  button(panel,"Retour au menu principal",showMainMenu);
 }
 function showMainMenu(){
@@ -9759,4 +9824,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.90 !");
+animate();toast("Business Empire Simulator V0.16.95 !");
