@@ -1,4 +1,4 @@
-// Business Empire Simulator V0.18.35 — équipements de sécurité du bâtiment.
+// Business Empire Simulator V0.18.36 — corrections d'implantation des équipements de sécurité du bâtiment.
 // Accessoires visuels sans collisions : ils n'altèrent ni les chemins des employés,
 // ni les accès aux rayons, ni les points de livraison.
 export function installBuildingSafety({THREE,scene,camera,notify}){
@@ -27,14 +27,14 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
  }
  function extinguisher(x,z,rotation,name){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotation;root.add(g);
-  block(g,0,1.15,-.025,.39,.67,.09,dark); // panneau support mural
+  block(g,0,1.37,-.025,.39,.86,.09,dark); // panneau support mural
   const body=new THREE.Mesh(new THREE.CylinderGeometry(.105,.11,.52,12),red);
-  body.position.set(0,.96,.12);g.add(body);
-  block(g,0,1.24,.12,.18,.09,.13,red);
-  block(g,0,1.34,.12,.055,.12,.07,metal);
+  body.position.set(0,1.17,.15);g.add(body);
+  block(g,0,1.45,.15,.18,.09,.13,red);
+  block(g,0,1.55,.15,.055,.12,.07,metal);
   const hose=new THREE.Mesh(new THREE.TorusGeometry(.085,.013,5,12,Math.PI),dark);
-  hose.position.set(.105,1.16,.21);hose.rotation.z=Math.PI/2;g.add(hose);
-  const sign=label(g,"EXTINCTEUR",.62,.18,"#b91c1c");sign.position.set(0,1.63,.1);
+  hose.position.set(.105,1.37,.24);hose.rotation.z=Math.PI/2;g.add(hose);
+  const sign=label(g,"EXTINCTEUR",.70,.21,"#b91c1c");sign.position.set(0,1.82,.14);
   items.push({x,z,name:"Extincteur — "+name,kind:"ext"});
  }
  function exitSign(x,z,rotation,title){
@@ -48,6 +48,7 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
   const g=new THREE.Group();g.position.set(x,0,z);root.add(g);
   block(g,0,3.25,0,.52,.17,.22,metal);
   block(g,0,3.25,.12,.40,.09,.025,glow);
+  const marker=label(g,"SECOURS",.47,.11,"#166534");marker.position.set(0,3.02,.135);
  }
  function evacuationPlan(x,z,rotation){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotation;root.add(g);
@@ -74,16 +75,17 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
   items.push({x,z,name:"Accès réservé au personnel",kind:"staff"});
  }
  // Placement en bordure de circulation. Aucun colliseur ajouté.
- extinguisher(-9.2,5.0,Math.PI/2,"surface de vente");
- extinguisher(9.2,-5.2,-Math.PI/2,"rayons");
- extinguisher(10.5,12.0,Math.PI/2,"réserve sèche");
- extinguisher(24.1,-19.2,-Math.PI/2,"zone de livraison");
- exitSign(0,9.02,0,"SORTIE  →");
+ extinguisher(-9.18,8.15,Math.PI/2,"entrée de la surface de vente");
+ extinguisher(9.18,7.75,-Math.PI/2,"près de l’entrée du magasin");
+ extinguisher(10.48,4.25,Math.PI/2,"accès à la réserve sèche");
+ extinguisher(24.1,-18.2,-Math.PI/2,"zone de livraison");
+ exitSign(0,9.02,Math.PI,"SORTIE  →");
  exitSign(25.5,-23.7,0,"ISSUE / QUAI");
  emergencyLight(-6,7.3);emergencyLight(6,7.3);
  emergencyLight(12,9.3);emergencyLight(25.5,-22.5);
- evacuationPlan(-9.25,7.35,Math.PI/2);
- staffMark(12.8,2.0,Math.PI);
+ evacuationPlan(-9.22,3.4,Math.PI/2);
+ // Repère sur l’entrée effective de la réserve, côté surface de vente (normal vers -X).
+ staffMark(9.76,5.5,-Math.PI/2);
  function nearby(maxDistance=1.65){
   let closest=null,best=maxDistance;
   for(const item of items){
