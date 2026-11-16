@@ -1,12 +1,12 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.18.20";
-import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.20";
+import { installStartScreen } from "./start-screen.js?v=0.18.25";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.25";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.20 — édition directe des prix des étiquettes
+// Business Empire Simulator V0.18.25 — toucher directement les objets interactifs sur écran tactile
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -7344,6 +7344,54 @@ function pointsAtHandtruck(event){
  pointInteractionRay(event);
  return interactionRaycaster.intersectObjects(model.children.filter(part=>part.visible)).length>0;
 }
+// Sélection tactile directe : uniquement de vrais taps, pas les glissements caméra.
+// Les contrôles souris/clavier et les clics sur le diable/la caisse sont conservés.
+const directTouchStart=new Map();
+const directTouchRaycaster=new THREE.Raycaster();
+const directTouchPoint=new THREE.Vector2();
+function touchedObject(event,objects,maxDistance=3.4){
+ const rect=canvas.getBoundingClientRect();
+ if(!rect.width||!rect.height)return null;
+ directTouchPoint.set(((event.clientX-rect.left)/rect.width)*2-1,-((event.clientY-rect.top)/rect.height)*2+1);
+ camera.updateMatrixWorld(true);
+ scene.updateMatrixWorld(true);
+ directTouchRaycaster.setFromCamera(directTouchPoint,camera);
+ directTouchRaycaster.far=maxDistance;
+ return directTouchRaycaster.intersectObjects(objects,false).find(hit=>{
+  let node=hit.object;
+  while(node){if(!node.visible)return false;node=node.parent;}
+  return true;
+ })||null;
+}
+canvas.addEventListener("pointerdown",e=>{
+ if(e.pointerType==="touch")directTouchStart.set(e.pointerId,{x:e.clientX,y:e.clientY,time:performance.now()});
+});
+canvas.addEventListener("pointerup",e=>{
+ if(e.pointerType!=="touch")return;
+ const start=directTouchStart.get(e.pointerId);
+ directTouchStart.delete(e.pointerId);
+ if(!start||Math.hypot(e.clientX-start.x,e.clientY-start.y)>13||performance.now()-start.time>650)return;
+ if(!canLookAround())return;
+ // Le panneau OUVERT/FERMÉ et le diable disposent déjà de leur propre clic.
+ if(!held){
+  const hit=touchedObject(e,interactivePriceLabels);
+  const product=hit&&catalog.find(p=>p.id===hit.object.userData.priceProductId);
+  if(product&&productAvailable(product)){
+   e.preventDefault();
+   showShelfPriceEditor(product);
+   return;
+  }
+ }else{
+  const guides=Object.values(shelfGuides).filter(g=>g.highlight.visible&&g.group.visible&&g.p.id===held.id);
+  const hit=touchedObject(e,guides.flatMap(g=>g.highlight.children.filter(m=>m.isMesh)),3.8);
+  if(hit){
+   e.preventDefault();
+   placeHeldArticle();
+  }
+ }
+});
+for(const type of ["pointercancel","lostpointercapture"])
+ canvas.addEventListener(type,e=>{if(e.pointerType==="touch")directTouchStart.delete(e.pointerId);});
 let handtruckTapStart=null,handtruckTapDragged=false;
 canvas.addEventListener("click",e=>{
  if(e.button!==0||document.pointerLockElement===canvas)return;
