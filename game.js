@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.89 — échanges sociaux occasionnels entre clients
+// Business Empire Simulator V0.15.90 — groupes de clients accompagnés
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6706,6 +6706,75 @@ function movePlayer(dt){
 }
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
+// V0.15.90 : accompagnants visuels. Un seul panier et une seule transaction
+// par groupe. L'accompagnant suit la trace traversable du client principal.
+let companionsDialogueCooldown=15;
+function updateCustomerCompanions(dt){
+ companionsDialogueCooldown=Math.max(0,companionsDialogueCooldown-dt);
+ for(const c of customers){
+  const companion=c.companion;
+  if(!companion)continue;
+  const leader=c.group.position,track=companion.trail;
+  const last=track[track.length-1];
+  if(!last||Math.hypot(last.x-leader.x,last.z-leader.z)>.20)
+   track.push({x:leader.x,z:leader.z});
+  if(track.length>180)track.splice(0,track.length-180);
+  let remaining=1.30,target=track[0];
+  for(let i=track.length-1;i>0;i--){
+   const a=track[i],b=track[i-1],length=Math.hypot(a.x-b.x,a.z-b.z);
+   if(length>=remaining){
+    const ratio=length>0?remaining/length:0;
+    target={x:a.x+(b.x-a.x)*ratio,z:a.z+(b.z-a.z)*ratio};break;
+   }
+   remaining-=length;target=b;
+  }
+  const pos=companion.group.position;
+  const dx=target.x-pos.x,dz=target.z-pos.z,dist=Math.hypot(dx,dz);
+  const step=Math.min(dist,(c.speed+.16)*dt);
+  if(dist>.04){
+   const nx=pos.x+dx/dist*step,nz=pos.z+dz/dist*step;
+   // Les points ciblés proviennent du chemin déjà emprunté par le client.
+   if(!blocked(nx,nz,.20)){pos.x=nx;pos.z=nz;}
+   const angle=Math.atan2(-dx,-dz);
+   const delta=Math.atan2(Math.sin(angle-companion.group.rotation.y),Math.cos(angle-companion.group.rotation.y));
+   companion.group.rotation.y+=delta*(1-Math.exp(-5*dt));
+   companion.motion+=step*7;
+  }
+  const moving=dist>.09;
+  const stride=Math.sin(companion.motion);
+  companion.legs[0].rotation.x=moving?stride*.31:0;
+  companion.legs[1].rotation.x=moving?-stride*.31:0;
+  companion.arms[0].rotation.x=moving?-stride*.16:0;
+  companion.arms[1].rotation.x=moving?stride*.16:0;
+  companion.group.position.y=moving?Math.abs(stride)*.006:0;
+  // Un commentaire spontané au rayon, sans immobiliser les deux personnages.
+  if(c.phase==="choosing"&&!companion.talked&&companionsDialogueCooldown<=0&&
+    dist<2.25&&c.group.position.z<10&&Math.random()<dt*.7){
+   companion.talked=true;companionsDialogueCooldown=24;
+   const product=catalog.find(p=>p.id===c.productId);
+   if(product){
+    const phrase=companion.relation==="couple"?"Tu penses qu’on devrait prendre "+product.name+" ?":
+      companion.relation==="amis"?"Regarde, il y a "+product.name+" !":
+      "On a bien "+product.name+" sur la liste ?";
+    const reply=c.temperament==="pressé"?"Oui, on continue après !":
+      c.temperament==="exigeant"?"Attends, je vérifie celui-ci.":"Oui, regardons ça.";
+    const synth=window.speechSynthesis,Utterance=window.SpeechSynthesisUtterance;
+    const now=performance.now();
+    if(synth&&Utterance&&audioSettings.dialogue&&audioSettings.volume&&!document.hidden&&
+       !synth.speaking&&!synth.pending&&now-lastDialogue>6000&&
+       near(c.group.position.x,c.group.position.z,8)){
+     const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith("fr")&&v.localService);
+     for(const [i,message] of [phrase,reply].entries()){
+      const line=new Utterance(message);line.lang="fr-FR";if(voice)line.voice=voice;
+      line.volume=audioSettings.volume*.48;line.rate=i?1.0:.94;line.pitch=i?1.04:.93;
+      synth.speak(line);
+     }
+     lastDialogue=now;
+    }
+   }
+  }
+ }
+}
 // V0.15.89 : interactions sociales facultatives, jamais intégrées aux trajets
 // ni aux caisses et sans impact sur l'économie ou la satisfaction.
 let socialCustomerCooldown=11;
@@ -6979,8 +7048,25 @@ function makeCustomer(){
  },0);
  group.scale.setScalar((woman?.89:.95)+Math.random()*.15);
  group.position.set(citySpawnX,0,citySpawnZ);scene.add(group);
+ // 30 % des clients viennent accompagnés : couple, amis ou famille.
+ // L'accompagnant n'entre ni dans customers, ni dans la file de caisse.
+ let companion=null;
+ if(Math.random()<.30){
+  const mateGroup=new THREE.Group();
+  const mateWoman=Math.random()<.5;
+  const mate=personModel(mateGroup,{
+   shirt:pick(shirts),skin:pick(skinTones),hair:pick(hairColors),woman:mateWoman,
+   trousers:pick([0x334155,0x475569,0x1e293b]),style:pick(mateWoman?[0,1,2]:[0,2,3])
+  });
+  mateGroup.scale.setScalar((mateWoman?.89:.95)+Math.random()*.12);
+  mateGroup.position.set(citySpawnX,0,citySpawnZ+1.3);
+  scene.add(mateGroup);
+  companion={group:mateGroup,legs:mate.legs,arms:mate.arms,motion:0,
+   relation:pick(["couple","amis","famille"]),
+   trail:[{x:citySpawnX,z:citySpawnZ+1.3},{x:citySpawnX,z:citySpawnZ}]};
+ }
  customers.push({
-  group,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
+  group,companion,route,waypoint:0,phase:"shopping",timer:0,basket:{},prices:{},total:0,scanned:0,
   speed,l,r,armLeft,armRight,head,basketGroup,basketCargo,bagGroup,paymentCard,paymentBills,inspectedProduct,paymentPresented:false,priceTolerance:1.12+Math.random()*.33,
   temperament,visualClock:Math.random()*6,personality:Math.random(),glanceOffset:Math.random()*6.28,reachStyle:.7+Math.random()*.5,walkAnimationBlend:0,motionSpeed:0,paid:false,walkTime:0,paymentMethod:Math.random()<.7?"cash":"card",
   stuckTime:0,shoppingTime:0,shoppingTimeLimit:Math.max(42,30+distance*1.85/speed),queueElapsed:0,checkoutElapsed:0,waitPenalty:false,missingProducts:0,lastNavX:citySpawnX,lastNavZ:citySpawnZ
@@ -7329,7 +7415,14 @@ function removeCustomer(c){
  if(activeCustomerHelp===c)activeCustomerHelp=null;
  for(const other of customers)if(other.socialPartner===c)other.socialPartner=null;
  scene.remove(c.group);
+ if(c.companion)scene.remove(c.companion.group);
  const resources=new Set();
+ const collectResources=group=>group.traverse(o=>{
+  if(o.isInstancedMesh)o.dispose();
+  if(o.geometry)resources.add(o.geometry);
+  if(o.material)resources.add(o.material);
+ });
+ collectResources(c.companion?.group||c.group);
  c.group.traverse(o=>{
   if(o.isInstancedMesh)o.dispose();
   if(o.geometry)resources.add(o.geometry);
@@ -8847,7 +8940,7 @@ function animate(){
  yaw+=(targetYaw-yaw)*smooth;pitch+=(targetPitch-pitch)*smooth;
  camera.rotation.y=yaw;camera.rotation.x=pitch;
  if(!paused&&ageOverlay.style.display==="none"){
-  movePlayer(dt);fbaCity.update(camera.position,performance.now());updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateWorker(dt);updateStocker(dt);
+  movePlayer(dt);fbaCity.update(camera.position,performance.now());updateConstruction(dt);business(dt);updateBakery();updateCustomers(dt);updateCustomerCompanions(dt);updateWorker(dt);updateStocker(dt);
   updateExpandedTeam(dt);updateSelfHelp(dt);updateSecurityDesk(dt);updateTheftPolice(dt);updateRegisterIndicators();updateCheckoutRush(dt);
  }
  homeDeliveryService.refresh();
@@ -9029,4 +9122,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.89 !");
+animate();toast("Business Empire Simulator V0.15.90 !");
