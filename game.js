@@ -20,6 +20,8 @@ const DEV_MODE=DEV_AUTHORIZED&&localStorage.getItem("fba-dev-enabled")==="true";
 if(DEV_MODE)document.body.classList.add("fba-dev-layout");
 if(DEV_ACTIVATION==="activer")history.replaceState(null,"",location.pathname);
 const SAVE=DEV_MODE?DEV_SAVE:NORMAL_SAVE;
+const confirmedFreshStart=sessionStorage.getItem("bes-new-game-confirmed")==="1";
+if(confirmedFreshStart)sessionStorage.removeItem("bes-new-game-confirmed");
 let startHasSavedGame=false;
 try{startHasSavedGame=!!JSON.parse(localStorage.getItem(SAVE))?.inventory;}catch(error){}
 const PLAYTIME_KEY="fba-dev-playtime-v1";
@@ -10240,11 +10242,11 @@ sync();updateStoreSigns();updateOpen();updateConstructionUI();
 animate();
 const startMenu=installStartScreen({
  hasSave:startHasSavedGame,
- onShow:()=>{paused=true;releaseMouseLook();panel.style.display="none";},
+ onShow:()=>{paused=true;releaseMouseLook();panel.style.display="none";save();},
  onContinue:()=>{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();},
  onNewGame:replace=>{
   if(replace){
-   try{localStorage.removeItem(SAVE);location.reload();}catch(error){console.warn(error);toast("Impossible de remplacer la sauvegarde.");}
+   try{sessionStorage.setItem("bes-new-game-confirmed","1");localStorage.removeItem(SAVE);location.reload();}catch(error){console.warn(error);toast("Impossible de remplacer la sauvegarde.");}
   }else{paused=false;if(!ageProfile)showAgePrompt();else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();}
  },
  getSettings:()=>({graphics:graphicsMode,volume:Math.round(audioSettings.volume*100),sensitivity:mouseSensitivity}),
@@ -10254,3 +10256,4 @@ const startMenu=installStartScreen({
  onFullscreen:()=>{document.documentElement.requestFullscreen?.().catch(()=>{});}
 });
 paused=true;
+if(confirmedFreshStart)startMenu.beginNew();
