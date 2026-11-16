@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.85 — ratios financiers et trésorerie prévisionnelle
+// Business Empire Simulator V0.16.90 — suivi estimatif des chantiers du développement
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1715,6 +1715,53 @@ function showGoldenCollection(){
  button(panel,"Retour",showMainMenu);
 }
 // Menu d'interaction compact ; toutes les anciennes fonctions restent disponibles.
+// V0.16.90 — planification éditoriale, non calculée sur la partie du joueur.
+// Les pourcentages correspondent à une estimation d'avancement de chaque chantier
+// par rapport à la cible PC 1.0, pas à une mesure automatisée ni une validation QA.
+const BES_DEVELOPMENT_WORKSTREAMS=[
+ ["Supermarché et rayons",85,"Compléter les niveaux avancés et tester les extensions"],
+ ["Réserves et stockage",90,"Vérifier les capacités et les grands volumes de produits"],
+ ["Fournisseurs et livraisons",90,"Confirmer la ponctualité express et les cas limites"],
+ ["Employés et IA",75,"Améliorer les comportements et vérifier les postes aux niveaux élevés"],
+ ["Caisses et paiements",85,"Tester l'affluence élevée et les caisses supplémentaires"],
+ ["Finances et gestion",85,"Affiner les rapports et les tests économiques longue durée"],
+ ["Clients et satisfaction",70,"Enrichir les interactions et tester les situations difficiles"],
+ ["Ville et circulation",65,"Compléter les interactions urbaines et les parcours"],
+ ["Niveaux et déblocages",55,"Finaliser et équilibrer la progression jusqu'au niveau 100"],
+ ["Missions et récompenses",70,"Vérifier les objectifs et les récompenses aux niveaux avancés"],
+ ["Sécurité et surveillance",55,"Tester les événements de sécurité et les équipements prévus"],
+ ["Audio et immersion",60,"Compléter les sons et dialogues contextuels"],
+ ["Interface et ergonomie",80,"Améliorer la lisibilité et les parcours de navigation"],
+ ["Tests et optimisation PC",45,"Tester les performances, sauvegardes et longues sessions"]
+];
+function showDevelopmentProgress(){
+ openPanel("FBA GAMES — AVANCEMENT DU DÉVELOPPEMENT");
+ paragraph("Business Empire Simulator V0.16.90 · Objectif : version PC 1.0, niveau 100.");
+ paragraph("Pourcentages indicatifs de planification, définis par chantier. Ils ne mesurent pas automatiquement le code terminé et ne remplacent pas les tests validés.");
+ const overall=Math.round(BES_DEVELOPMENT_WORKSTREAMS.reduce((sum,item)=>sum+item[1],0)/BES_DEVELOPMENT_WORKSTREAMS.length);
+ paragraph("Avancement général estimé (moyenne non pondérée) : "+overall+" %.");
+ paragraph("Dernière base validée par les tests : V0.16.85 — 11/11 points réussis.");
+ for(const [name,progress,next] of BES_DEVELOPMENT_WORKSTREAMS){
+  const card=document.createElement("section");
+  Object.assign(card.style,{padding:"11px",marginTop:"10px",borderRadius:"9px",background:"#142336",border:"1px solid #334155"});
+  const heading=document.createElement("div");
+  Object.assign(heading.style,{display:"flex",justifyContent:"space-between",gap:"10px",fontSize:"12px",fontWeight:"bold"});
+  const title=document.createElement("span");title.textContent=name;
+  const percentage=document.createElement("span");percentage.textContent=progress+" %";
+  heading.append(title,percentage);
+  const track=document.createElement("div");
+  Object.assign(track.style,{marginTop:"8px",height:"10px",background:"#334155",borderRadius:"6px",overflow:"hidden"});
+  const fill=document.createElement("div");
+  Object.assign(fill.style,{height:"100%",width:progress+"%",background:"#38bdf8"});
+  track.appendChild(fill);
+  const remaining=document.createElement("p");
+  remaining.textContent="À poursuivre : "+next;
+  Object.assign(remaining.style,{fontSize:"11px",margin:"7px 0 0",color:"#cbd5e1",lineHeight:"1.5"});
+  card.append(heading,track,remaining);panel.appendChild(card);
+ }
+ paragraph("Ces estimations sont un état de travail daté de V0.16.90. Elles seront réévaluées lors des prochains jalons, sans augmentation automatique à chaque version.");
+ button(panel,"Retour au menu principal",showMainMenu);
+}
 function showMainMenu(){
  openPanel("☰ Menu principal");
  paragraph("Choisis une rubrique pour afficher seulement les actions utiles.");
@@ -1724,6 +1771,7 @@ function showMainMenu(){
    paused=!paused;toast(paused?"Simulation en pause":"Simulation reprise");showMainMenu();
   }],
   ["MAGASIN · Gestion",()=>showMainMenuSection("magasin")],
+  ["FBA GAMES · Avancement du développement",showDevelopmentProgress],
   ["ÉQUIPE · Personnel",()=>showMainMenuSection("equipe")],
   ["VILLE · Exploration",()=>showMainMenuSection("ville")],
   ["PROFIL · Paramètres",()=>showMainMenuSection("profil")],
@@ -1776,6 +1824,7 @@ function showMainMenuAdvanced(){
  });
  button(panel,"Paramètres",showSettings);
  button(panel,"Profil",showProfile);
+ button(panel,"Avancement du développement (%)",showDevelopmentProgress);
  if(state.lastDailyReport)button(panel,"Dernier bilan de fin de journée",()=>showDailyReport());
  button(panel,"Figurines dorées : "+state.goldenCollection.found.length+"/100",showGoldenCollection);
  button(panel,"Carte interactive 2 × 2 km",showCityMap);
@@ -9710,4 +9759,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.85 !");
+animate();toast("Business Empire Simulator V0.16.90 !");
