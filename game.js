@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.88 — expressions des clients pendant leurs achats
+// Business Empire Simulator V0.15.89 — échanges sociaux occasionnels entre clients
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6706,6 +6706,53 @@ function movePlayer(dt){
 }
 // V0.5 — panier multi-produits, caisse manuelle et horaires 08h-20h
 const customers=[],queue=[];let cashier=null,shopOpen=false,spawnTimer=0,dayTimer=0;
+// V0.15.89 : interactions sociales facultatives, jamais intégrées aux trajets
+// ni aux caisses et sans impact sur l'économie ou la satisfaction.
+let socialCustomerCooldown=11;
+function updateCustomerSocial(dt){
+ socialCustomerCooldown=Math.max(0,socialCustomerCooldown-dt);
+ if(socialCustomerCooldown>0||!shopOpen||document.hidden)return;
+ const eligible=customers.filter(c=>
+  c.group.visible&&!c.paid&&!c.playerConversation&&!c.helpRequest&&!c.staffPause&&
+  !c.socialGestureTimer&&!c.socialMet&&
+  (c.phase==="shopping"||c.phase==="choosing")&&
+  c.group.position.z<8.8&&c.group.position.z>-32&&Math.abs(c.group.position.x)<21);
+ for(let i=0;i<eligible.length;i++){
+  const a=eligible[i];
+  for(let j=i+1;j<eligible.length;j++){
+   const b=eligible[j];
+   const distance=Math.hypot(a.group.position.x-b.group.position.x,a.group.position.z-b.group.position.z);
+   if(distance>1.8||distance<.40)continue;
+   // Un seul échange par visite et un délai global évitent les répétitions.
+   a.socialMet=true;b.socialMet=true;
+   a.socialGestureTimer=2.4;b.socialGestureTimer=2.4;
+   a.socialPartner=b;b.socialPartner=a;
+   const atShelf=a.phase==="choosing"||b.phase==="choosing";
+   const first=atShelf?
+    (a.temperament==="bavard"?"Bonjour ! Vous avez trouvé ce que vous cherchez ?":"Bonjour, vous regardez aussi ce rayon ?"):
+    (a.temperament==="sympathique"?"Bonjour, bonnes courses !":"Bonjour !");
+   const second=atShelf?
+    (b.temperament==="exigeant"?"Oui, je compare les produits, merci.":"Oui, merci ! Bonne journée.") :
+    (b.temperament==="pressé"?"Bonjour ! Je dois filer, bonne journée !":"Bonjour, à vous aussi !");
+   socialCustomerCooldown=22;
+   const midX=(a.group.position.x+b.group.position.x)/2,midZ=(a.group.position.z+b.group.position.z)/2;
+   const playerDistance=Math.hypot(camera.position.x-midX,camera.position.z-midZ);
+   const synth=window.speechSynthesis,Utterance=window.SpeechSynthesisUtterance;
+   const now=performance.now();
+   if(!audioSettings.dialogue||!audioSettings.volume||!synth||!Utterance||
+      synth.speaking||synth.pending||now-lastDialogue<6000||playerDistance>9)return;
+   const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith("fr")&&v.localService);
+   const speak=(message,c)=>{
+    const line=new Utterance(message);line.lang="fr-FR";if(voice)line.voice=voice;
+    line.volume=audioSettings.volume*Math.max(.16,.56*(1-playerDistance/10));
+    line.rate=.95+c.personality*.14;line.pitch=.9+c.personality*.28;
+    synth.speak(line);
+   };
+   lastDialogue=now;speak(first,a);speak(second,b);
+   return;
+  }
+ }
+}
 // Pause temporaire d'échange : aucune commande d'employé n'est effacée.
 const staffCustomerChat={stocker:0,worker:0};
 // V0.15.85 : une seule demande spontanée active, avec expiration automatique.
@@ -7071,6 +7118,21 @@ function updateCustomerVisual(c,dt){
   c.group.rotation.z*=Math.exp(-3*dt);
   if(c.phase!=="shopping")c.group.rotation.x*=Math.exp(-3*dt);
  }
+ // Échanges sociaux : regard vers l'autre client et petit salut.
+ // Aucune pause de navigation ni modification de l'état d'achat.
+ if(c.socialGestureTimer>0){
+  c.socialGestureTimer=Math.max(0,c.socialGestureTimer-dt);
+  const strength=Math.min(1,c.socialGestureTimer/.45);
+  const partner=c.socialPartner;
+  if(partner&&customers.includes(partner)){
+   const dx=partner.group.position.x-c.group.position.x;
+   const dz=partner.group.position.z-c.group.position.z;
+   const target=Math.atan2(dx,dz)-c.group.rotation.y;
+   c.head.rotation.y+=Math.max(-.35,Math.min(.35,Math.atan2(Math.sin(target),Math.cos(target))))*strength;
+  }
+  c.armRight.rotation.x+=.18*Math.sin(c.visualClock*5.5)*strength;
+  if(c.socialGestureTimer===0)c.socialPartner=null;
+ }
  // Expressions purement visuelles, sans ralentir le client.
  if(c.discoveryTimer>0){
   c.discoveryTimer=Math.max(0,c.discoveryTimer-dt);
@@ -7265,6 +7327,7 @@ function walk(c,t,dt){
 }
 function removeCustomer(c){
  if(activeCustomerHelp===c)activeCustomerHelp=null;
+ for(const other of customers)if(other.socialPartner===c)other.socialPartner=null;
  scene.remove(c.group);
  const resources=new Set();
  c.group.traverse(o=>{
@@ -8295,6 +8358,7 @@ function sendToExit(c){
  c.route=[{x:0,z:8.5},EXIT_GATE,{x:0,z:12.5}];
 }
 function updateCustomers(dt){
+ updateCustomerSocial(dt);
  customerHelpCooldown=Math.max(0,customerHelpCooldown-dt);
  for(const c of [...customers]){
   if(c.playerConversation&&panel.style.display==="none")c.playerConversation=false;
@@ -8965,4 +9029,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.88 !");
+animate();toast("Business Empire Simulator V0.15.89 !");
