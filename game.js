@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.40 — retrait des collisions héritées dans l'allée sèche
+// Business Empire Simulator V0.16.45 — étiquettes des cartons tournées vers les entrées
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3453,6 +3453,12 @@ for(const def of rebuiltStorageDefinitions){
   rebuiltStorageShelves.push({rack,p,kind:def.kind,access,stockCanvas,stockTexture,lastStockLabel:null});
   // Racks dédiés : les cartons sauvegardés sont affichés dans les nouvelles réserves.
   addStorageRack(def.kind,x,z,[.65,1.6,2.55],1.35,0,{newStorageRoom:true,rebuiltProductId:p.id});
+  // V0.16.45 : la face étiquetée des cartons doit regarder l'entrée
+  // des trois réserves (z décroissant), sans modifier leurs positions.
+  // Uniquement les racks reconstruits : la logistique validée reste intacte.
+  const rebuiltCartonRack=storageRacks[def.kind][storageRacks[def.kind].length-1];
+  for(const slot of [...rebuiltCartonRack.slots,...rebuiltCartonRack.overflow])
+   slot.angle=Math.PI;
   const hit={minX:x-.84,maxX:x+.84,minZ:z-.75,maxZ:z+.75};
   colliders.push(hit);rebuiltStorageRooms.push(hit);
  }
@@ -9383,4 +9389,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.40 !");
+animate();toast("Business Empire Simulator V0.16.45 !");
