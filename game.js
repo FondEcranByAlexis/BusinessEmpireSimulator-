@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.15.87 — personnalités et dialogues variés des clients
+// Business Empire Simulator V0.15.88 — expressions des clients pendant leurs achats
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -6980,9 +6980,16 @@ function updateCustomerVisual(c,dt){
   const inspect=smooth((progress-.07)/.30);
   c.armLeft.rotation.x=.10+1.10*reach*c.reachStyle;
   c.armRight.rotation.x=.02+.11*reach;
+  // V0.15.88 : hésitations individuelles, sans impact sur la décision d'achat.
+  const hesitation=Math.sin(Math.PI*progress*3+c.glanceOffset)*Math.sin(Math.PI*progress);
+  c.armRight.rotation.x+=(c.temperament==="bavard"?.17:c.temperament==="exigeant"?.15:.09)*hesitation;
+  if(c.temperament==="patient")c.armLeft.rotation.x*=.94;
+  if(c.temperament==="pressé")c.armRight.rotation.x+=.09*Math.sin(Math.PI*progress*2);
   c.armLeft.rotation.z=-.10*reach;
   c.head.rotation.y=(1-inspect)*(.26*Math.sin(c.visualClock*1.6+c.glanceOffset))+.07*inspect;
   c.head.rotation.x=.03+.13*inspect;
+  if(c.temperament==="exigeant")c.head.rotation.x+=.07*Math.sin(Math.PI*progress);
+  if(c.temperament==="sympathique")c.head.rotation.y+=.07*Math.sin(Math.PI*progress);
   const onShelf=product&&(state.inventory[product.id]?.shelf||0)>0;
   if(onShelf&&progress>.48&&progress<.96){
    c.inspectedProduct.visible=true;
@@ -7063,6 +7070,19 @@ function updateCustomerVisual(c,dt){
  if(c.phase!=="queue"&&c.phase!=="auxQueue"&&c.phase!=="waitingRegister"){
   c.group.rotation.z*=Math.exp(-3*dt);
   if(c.phase!=="shopping")c.group.rotation.x*=Math.exp(-3*dt);
+ }
+ // Expressions purement visuelles, sans ralentir le client.
+ if(c.discoveryTimer>0){
+  c.discoveryTimer=Math.max(0,c.discoveryTimer-dt);
+  const strength=Math.min(1,c.discoveryTimer/.3);
+  c.head.rotation.x+=(c.discoveryKind==="inspect"?.11:-.08)*strength;
+  c.armRight.rotation.x+=.10*Math.sin(c.visualClock*5)*strength;
+ }
+ if(c.finishedShoppingTimer>0){
+  c.finishedShoppingTimer=Math.max(0,c.finishedShoppingTimer-dt);
+  const strength=Math.min(1,c.finishedShoppingTimer/.35);
+  c.head.rotation.x+=.12*Math.sin(c.visualClock*4.4)*strength;
+  c.armLeft.rotation.x+=.13*strength;
  }
  // Animation temporaire superposée aux déplacements existants.
  if(c.serviceMoodTimer>0){
@@ -8173,6 +8193,15 @@ function sendToQueue(c){
  if(c.phase==="waitingRegister"||c.phase==="approachingQueue"||c.phase==="queue"||c.phase==="checkout"||c.phase==="auxQueue"||c.phase==="auxCheckout")return;
  const count=Object.values(c.basket).reduce((n,q)=>n+q,0);
  if(count===0){sendToExit(c);return;}
+ // Fin des courses : bref geste avant le passage en caisse.
+ if(!c.shoppingFinishedExpression){
+  c.shoppingFinishedExpression=true;c.finishedShoppingTimer=2;
+  customerVoice(c,"finishedShopping",c.missingProducts?
+   ["Bon, je vais passer en caisse avec ce que j’ai trouvé."]:
+   c.temperament==="pressé"?["Parfait, direction la caisse !"]:
+   c.temperament==="bavard"?["Voilà, je pense que j’ai tout ce qu’il me faut !"]:
+   ["J’ai terminé mes courses !","Tout est bon, je passe en caisse."],8);
+ }
  c.phase="waitingRegister";c.registerWait=0;
  assignOpenRegister(c,count);
 }
@@ -8344,6 +8373,16 @@ function updateCustomers(dt){
       c.reactionKind="price";c.reactionTimer=2.2+c.personality*.55;
       customerVoice(c,"price",["C’est beaucoup trop cher !","À ce prix-là, je préfère laisser.","Non merci, c’est hors de prix !"]);
      }else if(quantity>0){
+      // Petit geste d'appréciation après une prise de produit effective.
+      c.discoveryTimer=1.55+c.personality*.55;
+      c.discoveryKind=c.temperament==="exigeant"?"inspect":"pleased";
+      if(!c.discoverySpoken&&Math.random()<.42){
+       const lines=c.temperament==="pressé"?["Parfait, je continue !","Voilà ce qu’il me fallait !"]:
+        c.temperament==="bavard"?["Ah, c’est exactement ce que je cherchais !","Ce produit a l’air intéressant !"]:
+        c.temperament==="exigeant"?["Bon, celui-ci me convient.","Je vais prendre celui-là."]:
+        ["Super, j’ai trouvé !","Voilà, parfait !"];
+       c.discoverySpoken=customerVoice(c,"discovery",lines,7);
+      }
       a.shelf-=quantity;c.basket[c.productId]=(c.basket[c.productId]||0)+quantity;
       c.prices[c.productId]=a.price;c.total+=quantity*a.price;sync();
      }else{
@@ -8926,4 +8965,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.15.87 !");
+animate();toast("Business Empire Simulator V0.15.88 !");
