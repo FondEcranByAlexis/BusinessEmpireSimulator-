@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.00 — gestion des prix et filtres commerciaux
+// Business Empire Simulator V0.17.05 — interactions client étendues et conseils contextuels
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -7676,6 +7676,42 @@ function showCustomerConversationChoices(c){
    "Ah d’accord, il n’y en a plus en rayon. Merci de m’avoir prévenu.",
    stocked?"happy":"disappointed");
  });
+ // V0.17.05 : nouvelles réponses liées aux stocks et aux tarifs réellement affichés.
+ if(product)button(panel,"Quel est le prix de ce produit ?",()=>{
+  const price=state.inventory[product.id]?.price;
+  answer(Number.isFinite(price)?
+   "Merci, je vois que "+product.name+" coûte "+euro(price)+".":
+   "Merci, je vais regarder l'étiquette en rayon.");
+ });
+ if(product)button(panel,"Vérifier si le produit est disponible",()=>{
+  const inventory=state.inventory[product.id];
+  const available=inventory?.shelf||0;
+  const reserve=(inventory?.reserve||0)+(inventory?.boxes||0)*BOX_UNITS;
+  answer(available>0?
+   "Parfait, il reste "+available+" article(s) en rayon. Merci !":
+   reserve>0?
+   "Merci, le rayon est vide mais il reste du stock en réserve. Je repasserai plus tard.":
+   "Je comprends, ce produit est actuellement indisponible. Merci pour l'information.",
+   available>0?"happy":"disappointed");
+ });
+ if(product)button(panel,"Proposer un produit similaire",()=>{
+  const alternative=unlockedProducts().find(p=>p.id!==product.id&&
+   storageKind(p)===storageKind(product)&&(state.inventory[p.id]?.shelf||0)>0);
+  answer(alternative?
+   "Merci pour l'idée ! Je vais regarder "+alternative.name+" à "+euro(state.inventory[alternative.id].price)+".":
+   "Merci, mais je ne vois pas d'autre produit disponible dans cette catégorie.",
+   alternative?"happy":"disappointed");
+ });
+ button(panel,"Demander où se trouvent les caisses",()=>answer(
+  c.temperament==="pressé"?
+   "Merci ! Je vais rejoindre les caisses dès que j'ai terminé.":
+   "D'accord, je vais suivre les indications vers les caisses. Merci !","happy"));
+ button(panel,"Demander un avis sur l'attente",()=>answer(
+  c.temperament==="pressé"||c.temperament==="exigeant"?
+   "J'espère que l'encaissement sera rapide, je suis un peu pressé.":
+   c.temperament==="bavard"?
+   "Je préfère prendre mon temps pour faire les courses, mais pas trop attendre à la caisse !":
+   "Pour le moment tout va bien, merci de demander."));
  button(panel,"Tout se passe bien ?",()=>answer(
   c.missingProducts?"Je n’ai pas trouvé tout ce que je voulais.":"Oui, tout va bien, merci !",
   c.missingProducts?"disappointed":"happy"));
@@ -9891,4 +9927,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.17.00 !");
+animate();toast("Business Empire Simulator V0.17.05 !");
