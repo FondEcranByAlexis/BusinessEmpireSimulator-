@@ -1,4 +1,4 @@
-// Business Empire Simulator V0.18.38 — corrections d'implantation des équipements de sécurité du bâtiment.
+// Business Empire Simulator V0.18.39 — correction du panneau d'accès réservé d'implantation des équipements de sécurité du bâtiment.
 // Accessoires visuels sans collisions : ils n'altèrent ni les chemins des employés,
 // ni les accès aux rayons, ni les points de livraison.
 export function installBuildingSafety({THREE,scene,camera,notify}){
@@ -84,9 +84,9 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
  }
  function staffMark(x,z,rotation){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotation;root.add(g);
-  // Suspendu dans l'ouverture de la salle de repos : pas derrière un mur.
-  const back=block(g,0,2.99,0,2.16,.44,.09,dark);
-  const s=label(g,"ACCÈS PERSONNEL",2.06,.35,"#1e3a8a");s.position.set(0,2.99,.065);
+  // Fixé à hauteur de regard sur le mur permanent juste avant l'entrée de la réserve (côté magasin).
+  const back=block(g,0,2.28,0,2.16,.44,.09,dark);
+  const s=label(g,"ACCÈS PERSONNEL",2.06,.35,"#1e3a8a");s.position.set(0,2.28,.065);
   // Contraste constant, même lorsque les lumières du magasin sont éteintes.
   items.push({x,z,name:"Accès réservé au personnel",kind:"staff"});
  }
@@ -103,8 +103,9 @@ export function installBuildingSafety({THREE,scene,camera,notify}){
  emergencyLight(12,9.3);emergencyLight(25.5,-22.5);
  // Mur de façade permanente côté surface de vente, hors paroi d’extension.
  evacuationPlan(-6.4,9.73,Math.PI);
- // Salle de repos : au-dessus du passage x=24.16, z=-6, sous le panneau SALLE DE REPOS.
- staffMark(24.35,-6,Math.PI/2);
+ // Entrée de zone réservée : mur côté vente x=9.78, avant la baie vers la réserve z≈4..7.
+ // Décalé du panneau ZONE STOCKAGE situé au-dessus de la baie et de l'extincteur près de l'entrée.
+ staffMark(9.76,2.72,-Math.PI/2);
  function nearby(maxDistance=1.65){
   let closest=null,best=maxDistance;
   for(const item of items){
