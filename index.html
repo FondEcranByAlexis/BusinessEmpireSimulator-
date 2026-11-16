@@ -7,9 +7,9 @@
         content="width=device-width, initial-scale=1,
         maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#101820">
-  <title>Business Empire Simulator V0.16.05</title>
+  <title>Business Empire Simulator V0.16.10</title>
 
-  <link rel="stylesheet" href="style.css?v=0.16.05">
+  <link rel="stylesheet" href="style.css?v=0.16.10">
 </head>
 
 <body>
@@ -27,7 +27,8 @@
 
   <div id="hud">
     <h1>BUSINESS EMPIRE</h1>
-    <span id="storeName">FBA Supermarket</span>
+    <span id="storeName">FBA Supermarket · V0.16.10</span>
+    <button id="stockAlertDetails" class="stock-alert-details" type="button">Voir les stocks</button>
 
     <div class="stats">
       <div>Argent : <b id="money">5 000 €</b></div>
@@ -36,7 +37,6 @@
       <div>Magasin : <b id="shopStatus">FERMÉ</b></div>
       <div>Stock : <b id="stock">30</b></div>
       <div class="stock-alert-line">Alertes : <b id="stockAlerts" class="stock-alert-ok" aria-live="polite">Stocks sous contrôle</b></div>
-      <button id="stockAlertDetails" class="stock-alert-details" type="button">Voir les stocks</button>
     </div>
     <div id="pointsHud" aria-label="Points de progression">
       <span id="pointsHudValue">N1 · 0 pts · PS 0 / PL 0 / PM 0</span>
@@ -90,7 +90,7 @@
     document.getElementById("startLandscape").addEventListener("click",requestLandscape);
     document.getElementById("fullscreenLandscape").addEventListener("click",requestLandscape);
   </script>
-  <script type="module" src="game.js?v=0.16.05"></script>
+  <script type="module" src="game.js?v=0.16.10"></script>
 
 </body>
 </html>
