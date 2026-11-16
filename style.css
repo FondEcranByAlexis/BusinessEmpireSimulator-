@@ -480,3 +480,19 @@ body.fba-dev-layout #actions{top:64px}
  }
  .bes-mission-title{font-size:9px}
 }
+
+/* BES V0.18.15 — une seule mission de carrière visible sous les quotidiennes. */
+#bes-mission-tracker .bes-career-heading{
+ margin-top:7px;
+ padding-top:6px;
+ border-top:1px solid rgba(148,163,184,.45);
+ color:#facc15;
+ font-size:10px;
+ font-weight:800;
+ letter-spacing:.5px;
+}
+#bes-mission-tracker #bes-career-name{color:#fef3c7}
+#bes-mission-tracker #bes-career-progress{color:#facc15}
+@media(max-width:700px),(max-height:550px){
+ #bes-mission-tracker .bes-career-heading{font-size:9px;margin-top:5px;padding-top:5px}
+}
