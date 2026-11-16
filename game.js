@@ -1,12 +1,12 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import { installStartScreen } from "./start-screen.js?v=0.17.85";
-import { createPlayableTutorial } from "./playable-tutorial.js?v=0.17.85";
+import { installStartScreen } from "./start-screen.js?v=0.17.90";
+import { createPlayableTutorial } from "./playable-tutorial.js?v=0.17.90";
 import { installCity, CITY_BOUNDS, cityBuildingAt, cityBuildingsForBlock } from "./city.js?v=0.15.35";
 import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.17.85 — objectifs guidés et retour au menu général
+// Business Empire Simulator V0.17.90 — parcours interactif complet et guidage directionnel
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1472,7 +1472,7 @@ function processSupplierOrders(){
   state.supplierOrders.splice(state.supplierOrders.indexOf(order),1);
   changed=true;
  }
- if(changed){sync();startTruckArrival();refreshDeliveryDock();toast("Livraison reçue au quai — camion en approche !");}
+ if(changed){sync();startTruckArrival();refreshDeliveryDock();playableTutorial?.notify("delivered");toast("Livraison reçue au quai — camion en approche !");}
 }
 setInterval(processSupplierOrders,1000);
 function checkoutSupplier(express){
@@ -1490,6 +1490,7 @@ function checkoutSupplier(express){
  if(state.money<totalCost){toast("Trésorerie insuffisante : "+euro(totalCost));return;}
  state.money-=totalCost;finance.supplies+=totalCost;
  state.supplierOrders.push({items,due:Date.now()+(express?5000:30000),express,paid:totalCost});
+ playableTutorial?.notify("order");
  for(const k of Object.keys(supplierCart))delete supplierCart[k];
  sync();showOrders();toast("Commande payée — livraison dans "+(express?5:30)+" secondes");
 }
@@ -6792,6 +6793,7 @@ function refreshDeliveryDock(){
 }
 function showDeliveryDock(){
  if(!near(25.65,-24.3,3.2)){toast("Approche-toi de la zone livraison");return;}
+ playableTutorial?.notify("dock");
  openPanel("ZONE LIVRAISON — Déchargement");
  if(state.upgrades.handtruck){
   paragraph("DIABLE DE MANUTENTION — "+trolleyLoadLabel()+" chargés.");
@@ -6826,6 +6828,7 @@ function showDeliveryDock(){
    const quantity=takeDockCartons(p,Math.min(count,handCapacity()));
    if(!quantity)return;
    held={id:p.id,quantity,source:"delivery"};
+   playableTutorial?.notify("pickup");
    sync();refreshDeliveryDock();refreshCarry();panel.style.display="none";
    toast(p.name+" · à ranger dans "+storageName(storageKind(p)));
   };
@@ -8589,6 +8592,7 @@ function markTeamWorked(role,id,wage){
  if(worked[key]?.day!==state.day){worked[key]={day:state.day,wage};save();}
 }
 function showTeamManagement(role="shelf"){
+ playableTutorial?.notify("recruitment");
  openPanel("Recrutement et équipes");
  for(const [id,label] of [["shelf","Mise en rayon"],["dock","Manutention"],["checkout","Caissiers"],["security","Sécurité"]]){
   button(panel,label,()=>showTeamManagement(id));
@@ -10315,6 +10319,8 @@ const startMenu=installStartScreen({
 });
 playableTutorial=createPlayableTutorial({
  getPosition:()=>({x:camera.position.x,z:camera.position.z}),
+ getHeading:()=>yaw,
+ getCartCount:()=>cartCount(),
  isGameplayReady:()=>!paused&&ageOverlay.style.display==="none",
  onFinish:completed=>{
   state.management??={};
