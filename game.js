@@ -4,7 +4,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.16.75 — tableau financier quotidien et indicateurs de caisse
+// Business Empire Simulator V0.16.80 — analyse financière comparative et navigation
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -1821,12 +1821,31 @@ function showCurrentDayFinance(){
  paragraph("Ventes du jour : "+euro(revenue)+" · "+transactions+" encaissement(s) · "+sales+" article(s) vendu(s).");
  paragraph("Achats fournisseurs : "+euro(supplies)+" · Charges : "+euro(charges)+" · Salaires payés : "+euro(wages));
  paragraph("Résultat simplifié provisoire : "+euro(result));
+ // V0.16.80 : analyse de coûts calculée à la demande, sans toucher aux données financières.
+ const costTotal=supplies+charges+wages;
+ paragraph("Total des dépenses comptabilisées aujourd'hui : "+euro(costTotal));
+ if(costTotal>0){
+  const costShare=amount=>(amount/costTotal*100).toLocaleString("fr-FR",{maximumFractionDigits:1})+" %";
+  paragraph("Répartition des dépenses : fournisseurs "+costShare(supplies)+
+   " · Charges "+costShare(charges)+" · Salaires payés "+costShare(wages));
+ }
+ if(result<0)paragraph("Écart indicatif pour atteindre un résultat nul : "+euro(-result)+" de ventes supplémentaires, à dépenses inchangées.");
+ else paragraph("Résultat simplifié non déficitaire à cet instant.");
+ if(state.lastDailyReport){
+  const previous=state.lastDailyReport;
+  paragraph("Comparaison au dernier jour terminé (jour "+previous.day+") : ventes "+
+   (revenue-previous.revenue>=0?"+":"")+euro(revenue-previous.revenue)+
+   " · Encaissements "+(transactions-previous.transactions>=0?"+":"")+(transactions-previous.transactions)+
+   " · Résultat "+euro(result-(previous.revenue-previous.supplies-previous.charges-previous.wagePayments))+
+   " d'écart (journée actuelle incomplète).");
+ }
  paragraph("Variation de trésorerie depuis le début de journée : "+euro(state.money-baseline.money));
  paragraph("Satisfaction : "+baseline.satisfaction+" % au début · "+state.satisfaction+" % actuellement.");
  paragraph("Ces données sont provisoires. Le résultat ne valorise pas le stock restant ni les salaires dus.");
  button(panel,"Actualiser les finances du jour",showCurrentDayFinance);
  if(state.lastDailyReport)button(panel,"Voir le dernier bilan de fin de journée",()=>showDailyReport());
  button(panel,"Voir le bilan financier cumulé",showFinance);
+ button(panel,"Voir les indicateurs de caisse",showCheckoutIndicators);
  button(panel,"← Retour à la gestion",()=>showMainMenuSection("magasin"));
 }
 function showCheckoutIndicators(){
@@ -1842,6 +1861,10 @@ function showCheckoutIndicators(){
  paragraph("Articles par encaissement : "+(transactions?(sales/transactions).toLocaleString("fr-FR",{maximumFractionDigits:2}):"—"));
  paragraph("Chiffre d'affaires par encaissement (cumulé) : "+(finance.transactions?
   euro(finance.revenue/finance.transactions):"—"));
+ if(state.lastDailyReport&&state.lastDailyReport.transactions>0){
+  paragraph("Panier moyen du dernier jour terminé (jour "+state.lastDailyReport.day+") : "+
+   euro(state.lastDailyReport.revenue/state.lastDailyReport.transactions));
+ }
  paragraph("Ces moyennes concernent les transactions déjà enregistrées, sans projection sur la journée.");
  button(panel,"Actualiser les indicateurs",showCheckoutIndicators);
  button(panel,"Voir les finances du jour",showCurrentDayFinance);
@@ -1858,6 +1881,10 @@ function showFinance(){
  paragraph("Charges journalières : loyer "+euro(RENTS)+", électricité "+euro(ELECTRICITY)+", autres "+euro(OTHER_CHARGES)+".");
  paragraph("Salaires versés : "+euro(state.workerPaidTotal+state.stockerPaidTotal)+" | Salaires dus : "+euro(state.workerWageDue+state.stockerWageDue));
  paragraph("Le bilan est cumulatif et ne valorise pas le stock restant.");
+ button(panel,"Voir les finances de la journée",showCurrentDayFinance);
+ button(panel,"Voir les indicateurs de caisse",showCheckoutIndicators);
+ if(state.lastDailyReport)button(panel,"Consulter le dernier bilan quotidien",()=>showDailyReport());
+ button(panel,"← Retour à la gestion",()=>showMainMenuSection("magasin"));
 }
 function formatHour(hour){
  const h=Math.floor(hour),m=Math.floor((hour-h)*60);
@@ -9660,4 +9687,4 @@ spawnGoldenFigures();save();
 sync();updateStoreSigns();updateOpen();updateConstructionUI();
 if(!ageProfile)showAgePrompt();
 else if(adultContentAllowed()&&!ageProfile.noticeSeen)showAdultNotice();
-animate();toast("Business Empire Simulator V0.16.75 !");
+animate();toast("Business Empire Simulator V0.16.80 !");
