@@ -57,6 +57,23 @@ export function installCity({THREE,scene}){
  const geometry=new THREE.BoxGeometry(1,1,1),cylinder=new THREE.CylinderGeometry(1,1,1,8),
   cone=new THREE.ConeGeometry(1,1,8),sphere=new THREE.SphereGeometry(1,10,8);
  const active=new Map(),traffic=[];
+ // Silhouettes piétonnes légères : uniquement sur les trottoirs des quartiers proches.
+ const pedestrianClothes=[0x1e40af,0x9a3412,0x047857,0x6b21a8].map(color=>new THREE.MeshLambertMaterial({color}));
+ const pedestrianSkin=new THREE.MeshLambertMaterial({color:0xdcb697});
+ function createPedestrian(parent,x,z,alongZ,seed){
+  const g=new THREE.Group();parent.add(g);
+  const clothes=pedestrianClothes[seed%pedestrianClothes.length];
+  make(g,clothes,0,1.08,0,.46,.9,.34);
+  make(g,pedestrianSkin,0,1.76,0,.33,.35,.32,sphere);
+  const legs=[];
+  for(const side of [-.14,.14]){
+   const leg=make(g,materials.steel,side,.40,0,.14,.7,.19);
+   legs.push(leg);
+  }
+  g.position.set(x,0,z);
+  return {g,legs,alongZ,originX:x,originZ:z,phase:seed*1.8,seed};
+ }
+
  const make=(parent,material,x,y,z,w,h,d,geo=geometry)=>{
   const m=new THREE.Mesh(geo,material);m.position.set(x,y,z);m.scale.set(w,h,d);parent.add(m);return m;
  };
@@ -189,7 +206,7 @@ export function installCity({THREE,scene}){
  function chunk(cx,cz,detail){
   const group=new THREE.Group();group.name="Quartier "+cx+","+cz;root.add(group);
   const x0=CITY_BOUNDS.minX+cx*CHUNK,z0=CITY_BOUNDS.minZ+cz*CHUNK;
-  const localTraffic=[],lights=[];
+  const localTraffic=[],lights=[],pedestrians=[];
   for(let bx=0;bx<2;bx++)for(let bz=0;bz<2;bz++){
    const x=x0+bx*100,z=z0+bz*100;
    make(group,materials.asphalt,x+.7,.01,z+50,10,.06,100);
@@ -229,9 +246,14 @@ export function installCity({THREE,scene}){
    if(detail){
     localTraffic.push(car(group,x+25,z+4.3,"x",bx+bz*4+cx*7+cz*17,x,z,0));
     localTraffic.push(car(group,x+4.3,z+55,"z",bx+bz*4+cx*9+cz*11+2,x,z,1));
+    // Deux piétons sur les segments de trottoir dégagés entre bâtiments.
+    // Petites allées de 6 m : aucune traversée de route ou de stationnement.
+    const seed=(bx+bz*2+cx*3+cz*7);
+    pedestrians.push(createPedestrian(group,x+13,z+50,true,seed));
+    pedestrians.push(createPedestrian(group,x+50,z+13,false,seed+1));
    }
   }
-  active.set(cx+","+cz,{group,traffic:localTraffic,lights,cx,cz,detail});
+  active.set(cx+","+cz,{group,traffic:localTraffic,lights,pedestrians,cx,cz,detail});
  }
  const visibleRadius=1;
  let lastKey="",lastTrafficTime=null;
@@ -265,6 +287,17 @@ export function installCity({THREE,scene}){
   const trafficDt=lastTrafficTime===null?0:Math.max(0,Math.min(.1,(time-lastTrafficTime)/1000));
   lastTrafficTime=time;
   for(const item of active.values()){
+   // Animation procédurale réversible, sans colliseurs ni interactions.
+   for(const p of item.pedestrians){
+    const tick=phase*.72+p.phase;
+    const offset=Math.sin(tick)*2.8;
+    p.g.position.x=p.originX+(p.alongZ?0:offset);
+    p.g.position.z=p.originZ+(p.alongZ?offset:0);
+    const forward=Math.cos(tick)>0;
+    p.g.rotation.y=p.alongZ?(forward?0:Math.PI):(forward?-Math.PI/2:Math.PI/2);
+    p.legs[0].rotation.x=Math.sin(tick*6)*.18;
+    p.legs[1].rotation.x=-p.legs[0].rotation.x;
+   }
    for(const light of item.lights){
     const cycle=phase%30;
     const green=light.axis==="x"?cycle>=15&&cycle<27:cycle<12;
