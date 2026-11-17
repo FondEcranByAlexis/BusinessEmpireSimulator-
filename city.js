@@ -1,4 +1,4 @@
-// FBA City V0.15.01 — 2 km × 2 km, generation deterministe par quartiers.
+// FBA City V0.18.55 — piétons, mobilier urbain et détails de circulation.
 // Tous les placements de logements et routes sont reproductibles et independants du niveau.
 export const CITY_BOUNDS={minX:-1000,maxX:1000,minZ:75,maxZ:2075,size:2000};
 const BLOCK=100,CHUNK=200;
@@ -65,13 +65,16 @@ export function installCity({THREE,scene}){
   const clothes=pedestrianClothes[seed%pedestrianClothes.length];
   make(g,clothes,0,1.08,0,.46,.9,.34);
   make(g,pedestrianSkin,0,1.76,0,.33,.35,.32,sphere);
-  const legs=[];
-  for(const side of [-.14,.14]){
-   const leg=make(g,materials.steel,side,.40,0,.14,.7,.19);
+  const legs=[],arms=[];
+  for(const side of [-1,1]){
+   const leg=make(g,materials.steel,side*.14,.40,0,.14,.7,.19);
    legs.push(leg);
+   const arm=new THREE.Group();arm.position.set(side*.29,1.42,0);g.add(arm);
+   make(arm,clothes,side*.04,-.30,0,.15,.62,.19);
+   arms.push(arm);
   }
   g.position.set(x,0,z);
-  return {g,legs,alongZ,originX:x,originZ:z,phase:seed*1.8,seed};
+  return {g,legs,arms,alongZ,originX:x,originZ:z,phase:seed*1.8,seed};
  }
 
  const make=(parent,material,x,y,z,w,h,d,geo=geometry)=>{
@@ -241,6 +244,19 @@ export function installCity({THREE,scene}){
     make(group,materials.trunk,tx,1.15,tz,.37,2.3,.37,cylinder);
     make(group,materials.tree,tx,3.20,tz,2.3,3.1,2.3,cone);
    }
+   // Banc et corbeille sur une petite placette entre les façades, hors route,
+   // hors trottoir piéton (X=13), sans colliseur et sans interaction.
+   if(detail){
+    const benchX=x+17.6,benchZ=z+50;
+    make(group,materials.door,benchX,.55,benchZ,1.70,.16,.65);
+    make(group,materials.door,benchX,1.02,benchZ+.33,1.70,.93,.12);
+    for(const dx of [-.63,.63])make(group,materials.steel,benchX+dx,.29,benchZ,.10,.58,.12);
+    make(group,materials.steel,x+18.8,.52,z+52.8,.49,1.0,.49,cylinder);
+    // Petite jardinière en retrait : reste dans l'espace dégagé entre les immeubles.
+    make(group,materials.steel,x+19,.25,z+47.2,1.15,.50,1.15);
+    make(group,materials.grass,x+19,.53,z+47.2,1.0,.10,1.0);
+    make(group,materials.tree,x+19,1.08,z+47.2,.85,1.1,.85,sphere);
+   }
    // Deux voitures par sous-bloc, sans collision physique: elles ne coincent
    // pas le joueur. Mouvement local sur les axes, avec arret aux feux.
    if(detail){
@@ -289,14 +305,21 @@ export function installCity({THREE,scene}){
   for(const item of active.values()){
    // Animation procédurale réversible, sans colliseurs ni interactions.
    for(const p of item.pedestrians){
-    const tick=phase*.72+p.phase;
-    const offset=Math.sin(tick)*2.8;
+    // Déplacement borné sur 5.6 m avec pauses aux extrémités :
+    // marche, arrêt, demi-tour, puis reprise (sans traverser la route).
+    const cycle=phase*(.52+(p.seed%3)*.075)+p.phase;
+    const travel=Math.sin(cycle);
+    const waiting=Math.abs(Math.cos(cycle))<.22;
+    const offset=travel*2.8;
     p.g.position.x=p.originX+(p.alongZ?0:offset);
     p.g.position.z=p.originZ+(p.alongZ?offset:0);
-    const forward=Math.cos(tick)>0;
-    p.g.rotation.y=p.alongZ?(forward?0:Math.PI):(forward?-Math.PI/2:Math.PI/2);
-    p.legs[0].rotation.x=Math.sin(tick*6)*.18;
-    p.legs[1].rotation.x=-p.legs[0].rotation.x;
+    const forward=Math.cos(cycle)>0;
+    p.g.rotation.y=p.alongZ?(forward?Math.PI:0):(forward?Math.PI/2:-Math.PI/2);
+    const stride=waiting?0:Math.sin(phase*5.6+p.phase)*.26;
+    p.legs[0].rotation.x=stride;
+    p.legs[1].rotation.x=-stride;
+    p.arms[0].rotation.x=-stride*.75;
+    p.arms[1].rotation.x=stride*.75;
    }
    for(const light of item.lights){
     const cycle=phase%30;
