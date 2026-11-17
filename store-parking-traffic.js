@@ -1,7 +1,7 @@
-// BES V0.18.47 — accès direct au parking, sans traversée des bordures urbaines.
-// Trois véhicules légers au maximum, en basse géométrie pour PC et téléphone.
+// BES V0.18.50 — fréquentation du parking liée aux horaires du magasin.
+// Jusqu'à sept voitures clientes, avec une seule manœuvre simultanée pour préserver PC et mobile.
 // Aucune modification des voitures, des feux ou des carrefours de FBA City.
-export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
+export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan,getStoreTraffic}){
  const root=new THREE.Group();root.name="Voitures clients — parking magasin";scene.add(root);
  const bodyMats=[0x2563eb,0xb45309,0x0f766e,0x831843,0x64748b].map(color=>new THREE.MeshLambertMaterial({color}));
  const glass=new THREE.MeshLambertMaterial({color:0x334e64});
@@ -38,8 +38,21 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
   group.visible=false;
   return {group,state:"inactive",slot:null,route:[],index:0,stay:0,speed:0,parked:false};
  }
- for(let i=0;i<3;i++)cars.push(makeCar(i));
+ for(let i=0;i<7;i++)cars.push(makeCar(i));
  let spawnElapsed=0,sequence=0;
+ // Trafic lié à l'heure DU JEU et à l'ouverture réelle du magasin.
+ function activity(){
+  const status=getStoreTraffic?.()??{open:false,hour:0};
+  const hour=Number(status.hour)||0;
+  const open=!!status.open&&hour>=8&&hour<20;
+  if(!open)return {open:false,target:0,interval:999};
+  if(hour<9)return {open:true,target:4,interval:9};
+  if(hour>=11&&hour<14)return {open:true,target:7,interval:4};
+  if(hour>=16&&hour<19)return {open:true,target:7,interval:4};
+  if(hour>=19)return {open:true,target:4,interval:9};
+  return {open:true,target:6,interval:6};
+ }
+
  // Raccordement à la voie d'accès asphaltée (largeur 19.6 m, X=-9.8..9.8).
  // Pour éviter le trottoir et les arbres à Z≈75, aucun virage ni déplacement
  // transversal n'est effectué dans la ville : la voiture descend en ligne
@@ -76,7 +89,7 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
   if(trafficBusy())return false;
   const slot=chooseSlot();if(!slot)return false;
   car.slot=slot;car.group.position.set(start.x,0,start.z);
-  car.group.visible=true;car.state="arriving";car.index=0;car.stay=35+(sequence%4)*13;
+  car.group.visible=true;car.state="arriving";car.index=0;car.stay=125+(sequence%4)*28;
   car.speed=4.5+(sequence%3)*.5;
   car.route=[entryTurn,junction,{x:slot.x,z:55},slot];
   sequence++;
@@ -100,6 +113,7 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
   return movement>=distance-.07;
  }
  function update(dt){
+  const density=activity();
   spawnElapsed+=dt;
   // Une seule voiture effectue une manoeuvre dans les voies communes.
   // Les véhicules déjà stationnés peuvent attendre sans se mettre en travers.
@@ -109,15 +123,17 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
     leaving.state="leaving";leaving.index=0;
     // Tous les départs suivent le sens unique OUEST puis NORD puis EST.
     leaving.route=[{x:leaving.slot.x,z:55},outboundWest,outboundNorth,outboundEast,exitTurn,exitRoad];
-   }else if(spawnElapsed>=18){
+   }else if(density.open&&spawnElapsed>=density.interval){
+    const occupied=cars.filter(car=>car.state!=="inactive").length;
     const inactive=cars.find(car=>car.state==="inactive");
-    if(inactive&&startTrip(inactive))spawnElapsed=0;
+    if(occupied<density.target&&inactive&&startTrip(inactive))spawnElapsed=0;
    }
   }
   for(const car of cars){
    if(car.state==="inactive")continue;
    if(car.state==="parked"){
-    car.stay=Math.max(0,car.stay-dt);
+    // Après fermeture, les voitures garées repartent progressivement.
+    car.stay=Math.max(0,car.stay-dt*(density.open?1:5));
     continue;
    }
    const target=car.route[car.index];if(!target)continue;
