@@ -1,4 +1,4 @@
-// BES V0.18.45 — accès direct au parking, sans traversée des bordures urbaines.
+// BES V0.18.46 — accès direct au parking, sans traversée des bordures urbaines.
 // Trois véhicules légers au maximum, en basse géométrie pour PC et téléphone.
 // Aucune modification des voitures, des feux ou des carrefours de FBA City.
 export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
@@ -44,13 +44,13 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
  // Pour éviter le trottoir et les arbres à Z≈75, aucun virage ni déplacement
  // transversal n'est effectué dans la ville : la voiture descend en ligne
  // droite sur sa voie jusqu'au coeur du parking (Z=55).
- // Entrée X=3.5 demandée par le testeur ; sortie X=4.3 inchangée (trajet validé).
+ // Entrée X=3.5 validée ; sortie raccordée à la voie Z=79 demandée par le testeur.
  // Sens unique, places, accès du fourgon et comportement interne inchangés.
  const start={x:3.5,z:95},entryTurn={x:3.5,z:55};
  const junction={x:-9,z:55};
- const outboundWest={x:-52,z:55},outboundNorth={x:-52,z:72.1};
- const outboundEast={x:-9,z:72.1};
- const exitTurn={x:4.3,z:72.1},exitRoad={x:4.3,z:95};
+ const outboundWest={x:-52,z:55},outboundNorth={x:-52,z:79};
+ const outboundEast={x:-9,z:79};
+ const exitTurn={x:4.3,z:79},exitRoad={x:4.3,z:95};
  const moving=car=>car.state==="arriving"||car.state==="leaving";
  const trafficBusy=()=>cars.some(moving);
  // Marquages directionnels sur les deux allées, non collidants.
