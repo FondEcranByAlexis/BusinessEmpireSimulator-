@@ -194,8 +194,10 @@ export function installCity({THREE,scene}){
    const x=x0+bx*100,z=z0+bz*100;
    make(group,materials.asphalt,x+.7,.01,z+50,10,.06,100);
    make(group,materials.asphalt,x+50,.01,z+.7,100,.06,10);
-   make(group,materials.paving,x+13,.04,z+50,3,.09,98);
-   make(group,materials.paving,x+50,.04,z+13,98,.09,3);
+   // Les trottoirs restent dans l'îlot, sans déborder sur les chaussées
+   // transversales : ancien segment de 98 m empiétait sur les voies urbaines.
+   make(group,materials.paving,x+13,.04,z+50,3,.09,68);
+   make(group,materials.paving,x+50,.04,z+13,68,.09,3);
    for(const dx of [20,40,60,80]){
     make(group,materials.marking,x+dx,.09,z+1.2,2.8,.016,.12);
     make(group,materials.marking,x+1.2,.09,z+dx,.12,.016,2.8);
