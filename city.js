@@ -194,9 +194,12 @@ export function installCity({THREE,scene}){
   for(const side of [-1,1])for(const front of [-1,1]){
    const wheel=make(group,materials.tire,side*.78,.27,front*1.12,.24,.45,.45,sphere);
   }
+  const brakeLights=[];
   for(const side of [-.55,.55]){
    make(group,materials.marking,side,.65,-1.66,.32,.19,.05);
    make(group,materials.rear,side,.65,1.66,.32,.18,.05);
+   const brake=make(group,materials.red,side,.65,1.70,.25,.12,.03);
+   brake.visible=false;brakeLights.push(brake);
   }
   // Deux voitures par îlot : même allure et espacement d'un demi-tour de
   // circuit. Elles ne peuvent donc pas se dépasser ou se superposer.
@@ -204,7 +207,7 @@ export function installCity({THREE,scene}){
   const circuitLength=4*((95.7-4.3-2*3.2)+Math.PI*3.2/2);
   const phase=hash(Math.round(blockX),Math.round(blockZ),31)*circuitLength+
    carIndex*circuitLength/2;
-  return {group,axis,speed,phase,originX:x,originZ:z,blockX,blockZ,lights:[]};
+  return {group,axis,speed,phase,originX:x,originZ:z,blockX,blockZ,lights:[],brakeLights};
  }
  function chunk(cx,cz,detail){
   const group=new THREE.Group();group.name="Quartier "+cx+","+cz;root.add(group);
@@ -364,6 +367,7 @@ export function installCity({THREE,scene}){
     // en direction de la voiture. Aucune exception si elle était déjà proche.
     const safetyRadius=2.55;
     const nearPlayer=Math.hypot(nextX-px,nextZ-pz)<safetyRadius;
+    for(const lamp of c.brakeLights)lamp.visible=nearPlayer;
     if(!nearPlayer){
      c.distance=nextDistance;
      c.group.position.x=nextX;
