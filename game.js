@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
-import {installStoreParkingTraffic} from "./store-parking-traffic.js?v=0.18.47";
+import {installStoreParkingTraffic} from "./store-parking-traffic.js?v=0.18.50";
 import {installBuildingSafety} from "./building-safety.js?v=0.18.39";
 import { installStartScreen } from "./start-screen.js?v=0.18.25";
 import { createPlayableTutorial } from "./playable-tutorial.js?v=0.18.25";
@@ -8,7 +8,7 @@ import { installHomeDeliveries } from "./home-deliveries.js?v=0.15.35";
 import { installSurveillance } from "./surveillance.js?v=0.15.35";
 import { LEVEL_REWARDS, LEVEL_PHASES, MAX_LEVEL, EDITION_LIMITS, revenueThreshold, levelForRevenue, remapLegacyRevenue, pointThreshold, levelForPoints } from "./progression.js?v=0.15.35";
 import { EARLY_PRODUCTS, DEPARTMENTS, ANNEX_ENTRY, MALL_ROOM, MALL_GRID, MALL_MIN_Z, MALL_HALF_WIDTH, MALL_PLAZA_Z, departmentLocation } from "./departments.js?v=0.15.35";
-// Business Empire Simulator V0.18.47 — toucher directement les objets interactifs sur écran tactile
+// Business Empire Simulator V0.18.50 — toucher directement les objets interactifs sur écran tactile
 const $=id=>document.getElementById(id);
 const requestedEdition=new URLSearchParams(location.search).get("edition");
 const GAME_EDITION=["demo","early"].includes(requestedEdition)?requestedEdition:"full";
@@ -3502,7 +3502,8 @@ const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,165);
 camera.position.set(0,1.7,7.5);camera.rotation.order="YXZ";
 // Trafic propre au parking. Les véhicules de FBA City ne sont pas modifiés.
 const storeParkingTraffic=installStoreParkingTraffic({
- THREE,scene,camera,getDeliveryVan:()=>homeDeliveryService?.van?.position
+ THREE,scene,camera,getDeliveryVan:()=>homeDeliveryService?.van?.position,
+ getStoreTraffic:()=>({open:shopOpen,hour:state.hour})
 });
 const buildingSafety=installBuildingSafety({THREE,scene,camera,notify:toast});
 const homeDeliveryService=installHomeDeliveries({
