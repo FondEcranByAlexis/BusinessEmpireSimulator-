@@ -1,4 +1,4 @@
-// BES V0.18.42 — raccordement correct aux voies urbaines, sans circulation sur trottoir.
+// BES V0.18.43 — voie d'arrivée cohérente et trajet hors des trottoirs.
 // Trois véhicules légers au maximum, en basse géométrie pour PC et téléphone.
 // Aucune modification des voitures, des feux ou des carrefours de FBA City.
 export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
@@ -41,11 +41,11 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
  for(let i=0;i<3;i++)cars.push(makeCar(i));
  let spawnElapsed=0,sequence=0;
  // Route urbaine à X≈0.7 (largeur 10 m), deux voies de 3.6 m :
- // X=-2.9 vers le magasin (sud), X=4.3 vers la ville (nord).
+ // X=4.3 est la voie descendante du trafic FBA City ; X=-2.9 est l'autre voie.
  // Rue transversale de FBA City à Z≈75.7 : entrée par Z=79.3,
  // sortie par Z=72.1. Aucun point sur les trottoirs bordant les rues.
  // La boucle interne du parking, déjà validée, reste intacte.
- const start={x:-2.9,z:95},entryTurn={x:-2.9,z:79.3};
+ const start={x:4.3,z:95},entryTurn={x:4.3,z:79.3};
  const entryCross={x:-9,z:79.3},junction={x:-9,z:55};
  const outboundWest={x:-52,z:55},outboundNorth={x:-52,z:72.1};
  const outboundEast={x:-9,z:72.1};
