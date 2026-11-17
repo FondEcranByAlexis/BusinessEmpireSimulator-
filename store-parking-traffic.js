@@ -1,4 +1,4 @@
-// BES V0.18.44 — accès direct au parking, sans traversée des bordures urbaines.
+// BES V0.18.45 — accès direct au parking, sans traversée des bordures urbaines.
 // Trois véhicules légers au maximum, en basse géométrie pour PC et téléphone.
 // Aucune modification des voitures, des feux ou des carrefours de FBA City.
 export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
@@ -44,9 +44,9 @@ export function installStoreParkingTraffic({THREE,scene,camera,getDeliveryVan}){
  // Pour éviter le trottoir et les arbres à Z≈75, aucun virage ni déplacement
  // transversal n'est effectué dans la ville : la voiture descend en ligne
  // droite sur sa voie jusqu'au coeur du parking (Z=55).
- // Entrée X=-2.9, sortie distincte X=4.3 (trajet de sortie V0.18.42 conservé).
+ // Entrée X=3.5 demandée par le testeur ; sortie X=4.3 inchangée (trajet validé).
  // Sens unique, places, accès du fourgon et comportement interne inchangés.
- const start={x:-2.9,z:95},entryTurn={x:-2.9,z:55};
+ const start={x:3.5,z:95},entryTurn={x:3.5,z:55};
  const junction={x:-9,z:55};
  const outboundWest={x:-52,z:55},outboundNorth={x:-52,z:72.1};
  const outboundEast={x:-9,z:72.1};
