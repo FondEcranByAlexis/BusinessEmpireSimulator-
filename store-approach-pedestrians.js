@@ -1,4 +1,4 @@
-// BES V0.18.62 — accès piéton extérieur sans traversée des murs du magasin.
+// BES V0.18.63 — contournement des arbres sur l'approche urbaine.
 // Leurs déplacements ne modifient ni les clients/caisse, ni les collisions,
 // ni le trafic et le stationnement validés.
 export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehicleNear,isWalkable,getPlayerPosition}){
@@ -7,16 +7,18 @@ export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehi
  const skin=new THREE.MeshLambertMaterial({color:0xd9ae8d});
  const pants=new THREE.MeshLambertMaterial({color:0x303b4b});
  const floor=new THREE.BoxGeometry(1,1,1);
- // X=13 traversait l'aile de réserve (X=10.35..15.05 ; Z=1.8..23.45)
- // et certains volumes construits. L'accès longe désormais le bord
- // extérieur de la chaussée (X=9.2, hors façade), avant d'atteindre
- // le parvis libre au nord de l'entrée du magasin (Z>10.38).
- // Départ plus éloigné de la traversée urbaine pour éviter l'apparition
- // juste devant le passage piétons.
- const APPROACH_X=9.2;
+ // Dans FBA City, les arbres longent X=8.5 (Z=105, 150, 205...).
+ // L'ancien couloir X=9.2 passait directement sur leurs troncs.
+ // Le couloir piéton urbain passe en X=6.3, hors de leurs emprises,
+ // puis retrouve X=9.2 APRES la traversée, au Z=72.
+ // Les coordonnées à proximité du magasin et le comportement d'entrée
+ // validés précédemment restent strictement inchangés.
+ const CITY_WALK_X=6.3,APPROACH_X=9.2;
  const route=[
-  {x:APPROACH_X,z:205},{x:APPROACH_X,z:165},{x:APPROACH_X,z:130},{x:APPROACH_X,z:105},
-  {x:APPROACH_X,z:84.5},{x:APPROACH_X,z:72},
+  {x:CITY_WALK_X,z:205},{x:CITY_WALK_X,z:165},
+  {x:CITY_WALK_X,z:130},{x:CITY_WALK_X,z:105},
+  {x:CITY_WALK_X,z:84.5},{x:CITY_WALK_X,z:72},
+  {x:APPROACH_X,z:72},
   {x:APPROACH_X,z:50},{x:APPROACH_X,z:30},
   {x:APPROACH_X,z:15.5},{x:4,z:12.2},{x:1.7,z:12.2}
  ];
@@ -87,7 +89,7 @@ export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehi
    }
    // Attendre avant de traverser Z=79 dans les deux sens.
    const crossing=(pos.z>=72&&pos.z<=85)&&(target.z>=72&&target.z<=85);
-   if(crossing&&vehicleNear?.(APPROACH_X,79,7)){
+   if(crossing&&vehicleNear?.(CITY_WALK_X,79,7)){
     p.legs[0].rotation.x=p.legs[1].rotation.x=0;
     p.arms[0].rotation.x=p.arms[1].rotation.x=0;
     continue;
