@@ -1,4 +1,4 @@
-// BES V0.18.60 — passants visuels entre la ville et l'entrée du supermarché.
+// BES V0.18.61 — accès piéton extérieur sans traversée des murs du magasin.
 // Leurs déplacements ne modifient ni les clients/caisse, ni les collisions,
 // ni le trafic et le stationnement validés.
 export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehicleNear}){
@@ -7,12 +7,18 @@ export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehi
  const skin=new THREE.MeshLambertMaterial({color:0xd9ae8d});
  const pants=new THREE.MeshLambertMaterial({color:0x303b4b});
  const floor=new THREE.BoxGeometry(1,1,1);
- // Bord du trottoir est / allée piétonne (X≈13) puis approche de l'entrée.
- // Traversée de la route transversale à Z=79 après contrôle des voitures.
+ // X=13 traversait l'aile de réserve (X=10.35..15.05 ; Z=1.8..23.45)
+ // et certains volumes construits. L'accès longe désormais le bord
+ // extérieur de la chaussée (X=9.2, hors façade), avant d'atteindre
+ // le parvis libre au nord de l'entrée du magasin (Z>10.38).
+ // Départ plus éloigné de la traversée urbaine pour éviter l'apparition
+ // juste devant le passage piétons.
+ const APPROACH_X=9.2;
  const route=[
-  {x:13,z:99},{x:13,z:84.5},{x:13,z:72},
-  {x:13,z:47},{x:13,z:24},{x:12,z:14},
-  {x:4,z:12.2},{x:1.7,z:12.2}
+  {x:APPROACH_X,z:130},{x:APPROACH_X,z:105},
+  {x:APPROACH_X,z:84.5},{x:APPROACH_X,z:72},
+  {x:APPROACH_X,z:50},{x:APPROACH_X,z:30},
+  {x:APPROACH_X,z:15.5},{x:4,z:12.2},{x:1.7,z:12.2}
  ];
  const walkers=[];
  const part=(group,material,x,y,z,w,h,d)=>{
@@ -75,7 +81,7 @@ export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehi
    }
    // Attendre avant de traverser Z=79 dans les deux sens.
    const crossing=(pos.z>=72&&pos.z<=85)&&(target.z>=72&&target.z<=85);
-   if(crossing&&vehicleNear?.(13,79,7)){
+   if(crossing&&vehicleNear?.(APPROACH_X,79,7)){
     p.legs[0].rotation.x=p.legs[1].rotation.x=0;
     p.arms[0].rotation.x=p.arms[1].rotation.x=0;
     continue;
