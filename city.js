@@ -1,4 +1,4 @@
-// FBA City V0.18.56 — mobilier visible et feux stop renforcés.
+// FBA City V0.18.57 — feux stop persistants pendant les arrêts.
 // Tous les placements de logements et routes sont reproductibles et independants du niveau.
 export const CITY_BOUNDS={minX:-1000,maxX:1000,minZ:75,maxZ:2075,size:2000};
 const BLOCK=100,CHUNK=200;
@@ -52,8 +52,8 @@ export function installCity({THREE,scene}){
   trunk:new THREE.MeshLambertMaterial({color:0x624d35}),
   vehicle:[0x2563eb,0xc2410c,0x0f766e,0xe2e8f0,0x881337].map(color=>new THREE.MeshLambertMaterial({color})),
   tire:new THREE.MeshLambertMaterial({color:0x151a21}),
-  rear:new THREE.MeshBasicMaterial({color:0xef4444}),
-  brake:new THREE.MeshBasicMaterial({color:0xff1313,toneMapped:false,depthTest:true})
+  rear:new THREE.MeshBasicMaterial({color:0x9f1515}),
+  brake:new THREE.MeshBasicMaterial({color:0xff3030,toneMapped:false,depthTest:false,depthWrite:false})
  };
  const geometry=new THREE.BoxGeometry(1,1,1),cylinder=new THREE.CylinderGeometry(1,1,1,8),
   cone=new THREE.ConeGeometry(1,1,8),sphere=new THREE.SphereGeometry(1,10,8);
@@ -200,10 +200,10 @@ export function installCity({THREE,scene}){
   for(const side of [-.55,.55]){
    make(group,materials.marking,side,.65,-1.66,.32,.19,.05);
    make(group,materials.rear,side,.65,1.66,.32,.18,.05);
-   const brake=make(group,materials.brake,side,.67,1.77,.43,.28,.09);
+   const brake=make(group,materials.brake,side,.67,1.83,.48,.31,.10);
    brake.visible=false;brakeLights.push(brake);
   }
-  const centerBrake=make(group,materials.brake,0,1.24,1.12,.66,.13,.12);
+  const centerBrake=make(group,materials.brake,0,1.29,1.13,.74,.15,.15);
   centerBrake.visible=false;brakeLights.push(centerBrake);
   // Deux voitures par îlot : même allure et espacement d'un demi-tour de
   // circuit. Elles ne peuvent donc pas se dépasser ou se superposer.
@@ -211,7 +211,7 @@ export function installCity({THREE,scene}){
   const circuitLength=4*((95.7-4.3-2*3.2)+Math.PI*3.2/2);
   const phase=hash(Math.round(blockX),Math.round(blockZ),31)*circuitLength+
    carIndex*circuitLength/2;
-  return {group,axis,speed,phase,originX:x,originZ:z,blockX,blockZ,lights:[],brakeLights};
+  return {group,axis,speed,phase,originX:x,originZ:z,blockX,blockZ,lights:[],brakeLights,braking:false};
  }
  function chunk(cx,cz,detail){
   const group=new THREE.Group();group.name="Quartier "+cx+","+cz;root.add(group);
@@ -377,8 +377,14 @@ export function installCity({THREE,scene}){
     // Toujours céder le passage au joueur, même lorsqu'il avance
     // en direction de la voiture. Aucune exception si elle était déjà proche.
     const safetyRadius=2.55;
-    const nearPlayer=Math.hypot(nextX-px,nextZ-pz)<safetyRadius;
-    for(const lamp of c.brakeLights)lamp.visible=nearPlayer;
+    // Tenir compte de la carrosserie déjà arrêtée et de la prochaine position.
+    // Sinon le seuil peut osciller à chaque image et laisser les feux éteints.
+    const nearPlayer=Math.min(
+     Math.hypot(nextX-px,nextZ-pz),
+     Math.hypot(c.group.position.x-px,c.group.position.z-pz)
+    )<safetyRadius;
+    c.braking=nearPlayer;
+    for(const lamp of c.brakeLights)lamp.visible=c.braking;
     if(!nearPlayer){
      c.distance=nextDistance;
      c.group.position.x=nextX;
