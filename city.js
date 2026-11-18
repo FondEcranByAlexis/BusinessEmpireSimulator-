@@ -1,4 +1,4 @@
-// FBA City V0.18.55 — piétons, mobilier urbain et détails de circulation.
+// FBA City V0.18.56 — mobilier visible et feux stop renforcés.
 // Tous les placements de logements et routes sont reproductibles et independants du niveau.
 export const CITY_BOUNDS={minX:-1000,maxX:1000,minZ:75,maxZ:2075,size:2000};
 const BLOCK=100,CHUNK=200;
@@ -52,7 +52,8 @@ export function installCity({THREE,scene}){
   trunk:new THREE.MeshLambertMaterial({color:0x624d35}),
   vehicle:[0x2563eb,0xc2410c,0x0f766e,0xe2e8f0,0x881337].map(color=>new THREE.MeshLambertMaterial({color})),
   tire:new THREE.MeshLambertMaterial({color:0x151a21}),
-  rear:new THREE.MeshBasicMaterial({color:0xef4444})
+  rear:new THREE.MeshBasicMaterial({color:0xef4444}),
+  brake:new THREE.MeshBasicMaterial({color:0xff1313,toneMapped:false,depthTest:true})
  };
  const geometry=new THREE.BoxGeometry(1,1,1),cylinder=new THREE.CylinderGeometry(1,1,1,8),
   cone=new THREE.ConeGeometry(1,1,8),sphere=new THREE.SphereGeometry(1,10,8);
@@ -194,13 +195,16 @@ export function installCity({THREE,scene}){
   for(const side of [-1,1])for(const front of [-1,1]){
    const wheel=make(group,materials.tire,side*.78,.27,front*1.12,.24,.45,.45,sphere);
   }
+  // Feux stop distincts, visibles depuis l'arrière et les côtés.
   const brakeLights=[];
   for(const side of [-.55,.55]){
    make(group,materials.marking,side,.65,-1.66,.32,.19,.05);
    make(group,materials.rear,side,.65,1.66,.32,.18,.05);
-   const brake=make(group,materials.red,side,.65,1.70,.25,.12,.03);
+   const brake=make(group,materials.brake,side,.67,1.77,.43,.28,.09);
    brake.visible=false;brakeLights.push(brake);
   }
+  const centerBrake=make(group,materials.brake,0,1.24,1.12,.66,.13,.12);
+  centerBrake.visible=false;brakeLights.push(centerBrake);
   // Deux voitures par îlot : même allure et espacement d'un demi-tour de
   // circuit. Elles ne peuvent donc pas se dépasser ou se superposer.
   const speed=5+hash(Math.round(blockX),Math.round(blockZ))*2.5;
@@ -247,18 +251,25 @@ export function installCity({THREE,scene}){
     make(group,materials.trunk,tx,1.15,tz,.37,2.3,.37,cylinder);
     make(group,materials.tree,tx,3.20,tz,2.3,3.1,2.3,cone);
    }
-   // Banc et corbeille sur une petite placette entre les façades, hors route,
-   // hors trottoir piéton (X=13), sans colliseur et sans interaction.
+   // Mobilier rehaussé au bord du chemin piéton vertical (X=13),
+   // dans la percée entre les façades (Z=40..60), entièrement hors route.
+   // Deux implantations par sous-bloc, dont une près du trottoir.
    if(detail){
-    const benchX=x+17.6,benchZ=z+50;
-    make(group,materials.door,benchX,.55,benchZ,1.70,.16,.65);
-    make(group,materials.door,benchX,1.02,benchZ+.33,1.70,.93,.12);
-    for(const dx of [-.63,.63])make(group,materials.steel,benchX+dx,.29,benchZ,.10,.58,.12);
-    make(group,materials.steel,x+18.8,.52,z+52.8,.49,1.0,.49,cylinder);
-    // Petite jardinière en retrait : reste dans l'espace dégagé entre les immeubles.
-    make(group,materials.steel,x+19,.25,z+47.2,1.15,.50,1.15);
-    make(group,materials.grass,x+19,.53,z+47.2,1.0,.10,1.0);
-    make(group,materials.tree,x+19,1.08,z+47.2,.85,1.1,.85,sphere);
+    const benchX=x+16.2,benchZ=z+48;
+    // Banquette en bois contrasté : dossier, assise et quatre pieds.
+    make(group,materials.door,benchX,.68,benchZ,2.0,.18,.74);
+    make(group,materials.door,benchX,1.12,benchZ+.32,2.0,.92,.13);
+    for(const dx of [-.77,.77])for(const dz of [-.24,.24])
+     make(group,materials.steel,benchX+dx,.33,benchZ+dz,.12,.66,.12);
+    // Corbeille avec couvercle sombre, facilement reconnaissable.
+    const binX=x+16.2,binZ=z+53.2;
+    make(group,materials.steel,binX,.53,binZ,.68,1.06,.68,cylinder);
+    make(group,materials.roof,binX,1.1,binZ,.84,.12,.84,cylinder);
+    // Jardinière visible avec végétation haute, en dehors de l'allée.
+    const potX=x+17.3,potZ=z+44.5;
+    make(group,materials.facadeAlt,potX,.40,potZ,1.65,.80,1.65);
+    make(group,materials.grass,potX,.85,potZ,1.42,.12,1.42);
+    make(group,materials.tree,potX,1.72,potZ,1.40,1.85,1.40,sphere);
    }
    // Deux voitures par sous-bloc, sans collision physique: elles ne coincent
    // pas le joueur. Mouvement local sur les axes, avec arret aux feux.
