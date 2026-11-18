@@ -1,7 +1,7 @@
-// BES V0.18.61 — accès piéton extérieur sans traversée des murs du magasin.
+// BES V0.18.62 — accès piéton extérieur sans traversée des murs du magasin.
 // Leurs déplacements ne modifient ni les clients/caisse, ni les collisions,
 // ni le trafic et le stationnement validés.
-export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehicleNear}){
+export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehicleNear,isWalkable,getPlayerPosition}){
  const root=new THREE.Group();root.name="Passants — ville vers supermarché";scene.add(root);
  const colors=[0x375a89,0x9a5834,0x357866,0x805789];
  const skin=new THREE.MeshLambertMaterial({color:0xd9ae8d});
@@ -15,7 +15,7 @@ export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehi
  // juste devant le passage piétons.
  const APPROACH_X=9.2;
  const route=[
-  {x:APPROACH_X,z:130},{x:APPROACH_X,z:105},
+  {x:APPROACH_X,z:205},{x:APPROACH_X,z:165},{x:APPROACH_X,z:130},{x:APPROACH_X,z:105},
   {x:APPROACH_X,z:84.5},{x:APPROACH_X,z:72},
   {x:APPROACH_X,z:50},{x:APPROACH_X,z:30},
   {x:APPROACH_X,z:15.5},{x:4,z:12.2},{x:1.7,z:12.2}
@@ -48,7 +48,13 @@ export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehi
  function spawn(){
   const p=walkers.find(w=>w.state==="inactive");
   if(!p)return;
-  const start=route[0];p.group.position.set(start.x,0,start.z);
+  const start=route[0];
+  // Apparition véritablement en ville, hors de la vue immédiate du joueur.
+  // Si le joueur s'y trouve, reporter l'apparition plutôt que téléporter un PNJ.
+  const player=getPlayerPosition?.();
+  if(player&&Math.hypot(player.x-start.x,player.z-start.z)<48)return;
+  if(isWalkable&&!isWalkable(start.x,start.z,.48))return;
+  p.group.position.set(start.x,0,start.z);
   p.group.visible=true;p.state="walking";p.returning=false;p.routeIndex=1;p.wait=0;
  }
  function tick(dt){
@@ -87,7 +93,15 @@ export function installStoreApproachPedestrians({THREE,scene,getStoreStatus,vehi
     continue;
    }
    const step=Math.min(d,p.speed*dt);
-   pos.x+=dx/d*step;pos.z+=dz/d*step;
+   const nx=pos.x+dx/d*step,nz=pos.z+dz/d*step;
+   // Utiliser les MÊMES volumes de collision que le joueur.
+   // Ne plus traverser un mur en suivant uniquement des coordonnées visuelles.
+   if(isWalkable&&!isWalkable(nx,nz,.48)){
+    p.legs[0].rotation.x=p.legs[1].rotation.x=0;
+    p.arms[0].rotation.x=p.arms[1].rotation.x=0;
+    continue;
+   }
+   pos.x=nx;pos.z=nz;
    // Modèle orienté vers -Z au repos.
    p.group.rotation.y=Math.atan2(-dx,-dz);
    p.step+=dt*7;
