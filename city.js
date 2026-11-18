@@ -1,4 +1,4 @@
-// FBA City V0.18.57 — feux stop persistants pendant les arrêts.
+// FBA City V0.18.60 — feux stop persistants pendant les arrêts.
 // Tous les placements de logements et routes sont reproductibles et independants du niveau.
 export const CITY_BOUNDS={minX:-1000,maxX:1000,minZ:75,maxZ:2075,size:2000};
 const BLOCK=100,CHUNK=200;
@@ -435,8 +435,16 @@ export function installCity({THREE,scene}){
   }
   return false;
  }
+ // Lecture seule pour les traversées piétonnes extérieures : aucun effet
+ // sur les trajectoires, collisions, vitesses ou feux des voitures.
+ function vehicleNear(x,z,r=4){
+  for(const sector of active.values())for(const car of sector.traffic){
+   if(car.group.visible&&Math.hypot(car.group.position.x-x,car.group.position.z-z)<r)return true;
+  }
+  return false;
+ }
  // Activer la vue au point d'entree urbain et ne regenerer qu'au changement
  // de secteur ; renderer.frustumCulled limite le cout des maillages.
- return {root,bounds:CITY_BOUNDS,buildingsForBlock:cityBuildingsForBlock,buildingAt:cityBuildingAt,update,vehicleBlocked,toggleEntranceAt,entranceClosedAt,
+ return {root,bounds:CITY_BOUNDS,buildingsForBlock:cityBuildingsForBlock,buildingAt:cityBuildingAt,update,vehicleBlocked,vehicleNear,toggleEntranceAt,entranceClosedAt,
   listBuildings:()=>{const out=[];for(let x=0;x<20;x++)for(let z=0;z<20;z++)out.push(...cityBuildingsForBlock(x,z));return out;}};
 }
